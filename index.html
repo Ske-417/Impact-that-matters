@@ -71,7 +71,7 @@
     .footer{font-size:12px; color:#777}
 
     /* ===== Modal ===== */
-    dialog.modal{border:none; border-radius:12px; padding:0; width:min(92vw,520px)}
+    dialog.modal{border:none; border-radius:12px; padding:0; width:min(92vw,760px)}
     .card{padding:16px; border-radius:12px; background:#fff}
     .card h3{margin:0 0 6px}
     .card p{margin:0 0 8px}
@@ -82,12 +82,15 @@
     th,td{border:1px solid #e5e7eb; padding:8px; text-align:left}
     th{background:#f8fafc}
 
-    /* ===== Settings Form ===== */
+    /* ===== Settings / Persona Manager ===== */
     .settings-list{display:grid; gap:8px; margin-top:8px}
     .settings-row{display:flex; gap:8px; align-items:center}
     .settings-row select[type="text"]{flex:1}
     .settings-row input[type="color"]{width:44px; height:34px; padding:4px}
+    .persona-table{width:100%; border-collapse:collapse; margin-top:8px}
+    .persona-table th, .persona-table td{border:1px solid #e5e7eb; padding:6px}
     .small{font-size:13px; color:#666}
+    .muted-row{color:#666; font-size:13px}
   </style>
 </head>
 <body>
@@ -111,6 +114,7 @@
       <button id="btn-import" title="JSONインポート">Import</button>
       <button id="btn-settings" title="プレイヤー設定">設定</button>
       <button id="btn-import-personas" title="ペルソナJSONを読み込む">ペルソナ読み込み</button>
+      <button id="btn-manage-personas" title="ペルソナ管理">ペルソナ管理</button>
       <input id="file-personas" type="file" accept="application/json" hidden />
     </div>
   </div>
@@ -147,11 +151,29 @@
   <dialog class="modal" id="settings-modal" aria-labelledby="settings-title">
     <div class="card">
       <h3 id="settings-title">プレイヤー設定</h3>
-      <p class="small">人数は上部の「人数」で切り替え。あらかじめ用意した4名から選べます。</p>
+      <p class="small">人数は上部の「人数」で切り替え。あらかじめ用意したペルソナから選べます。</p>
       <div id="settings-list" class="settings-list"></div>
       <div class="actions">
         <button id="settings-cancel">キャンセル</button>
         <button id="settings-save" class="primary">保存</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- ペルソナ管理モーダル -->
+  <dialog class="modal" id="persona-modal" aria-labelledby="persona-title">
+    <div class="card">
+      <h3 id="persona-title">ペルソナ管理</h3>
+      <p class="small">ペルソナを追加・編集・削除できます。イベントは簡易入力（1行 = テキスト|金額）で登録します。</p>
+      <table class="persona-table" id="persona-table">
+        <thead><tr><th>#</th><th>表示名</th><th>色</th><th>イベント（1行: テキスト|金額）</th><th>アクション</th></tr></thead>
+        <tbody id="persona-tbody"></tbody>
+      </table>
+      <div style="display:flex; gap:8px; margin-top:8px">
+        <button id="persona-add">ペルソナ追加</button>
+        <button id="persona-save" class="primary">保存</button>
+        <button id="persona-export">エクスポート</button>
+        <button id="persona-close">閉じる</button>
       </div>
     </div>
   </dialog>
@@ -171,39 +193,43 @@
   const settingsBtn = $("#btn-settings"), settingsModal = $("#settings-modal"), settingsListEl = $("#settings-list");
   const settingsSaveBtn = $("#settings-save"), settingsCancelBtn = $("#settings-cancel");
   const btnImportPersonas = $("#btn-import-personas"), filePersonas = $("#file-personas");
+  const btnManagePersonas = $("#btn-manage-personas"), personaModal = $("#persona-modal");
+  const personaTbody = $("#persona-tbody"), personaAddBtn = $("#persona-add"), personaSaveBtn = $("#persona-save"), personaExportBtn = $("#persona-export"), personaCloseBtn = $("#persona-close");
 
   const BOARD_COLS = 8, BOARD_ROWS = 5, TOTAL_CELLS = BOARD_COLS * BOARD_ROWS;
   const PLAYER_COLORS = ["#ff6b6b", "#4c9aff", "#00c853", "#ff8f00", "#9c27b0", "#00acc1"];
 
   // 初期のペルソナ候補（用意された4名）
-  const PERSONAS = ["新卒さん", "中途さん", "しごできさん", "社長さん"];
+  const DEFAULT_PERSONAS = [
+    { id:"shinsotsu", displayName:"新卒さん", color:"#ff6b6b", events: [
+      { text:"研修で評価されて昇給チャンス+¥15,000", money:15000 },
+      { text:"飲み会で交際費-¥5,000", money:-5000 },
+    ], branchEvents: [] },
+    { id:"chuto", displayName:"中途さん", color:"#4c9aff", events: [
+      { text:"即戦力でプロジェクト入り+¥25,000", money:25000 },
+      { text:"引越し費用-¥30,000", money:-30000 }
+    ], branchEvents: [] },
+    { id:"shigodeki", displayName:"しごできさん", color:"#00c853", events: [
+      { text:"成果報酬で+¥40,000", money:40000 },
+      { text:"過労で病院-¥8,000", money:-8000 }
+    ], branchEvents: [] },
+    { id:"shacho", displayName:"社長さん", color:"#ff8f00", events: [
+      { text:"事業が当たって大儲け+¥100,000", money:100000 },
+      { text:"投資の失敗-¥60,000", money:-60000 }
+    ], branchEvents: [] },
+  ];
 
-  // personaEventMap: displayName -> [{text,money}, ...]
-  let personaEventMap = {
-    "新卒さん": [
-      { text: "研修で評価されて昇給チャンス+¥15,000", money:+15000 },
-      { text: "飲み会で交際費-¥5,000", money:-5000 },
-      { text: "初めてのボーナス+¥20,000", money:+20000 },
-    ],
-    "中途さん": [
-      { text: "即戦力でプロジェクト入り+¥25,000", money:+25000 },
-      { text: "引越し費用-¥30,000", money:-30000 },
-      { text: "転職オファーで選択肢（高リスク高リターン）", money:+40000 },
-    ],
-    "しごできさん": [
-      { text: "成果報酬で+¥40,000", money:+40000 },
-      { text: "過労で病院-¥8,000", money:-8000 },
-      { text: "副業が好調+¥20,000", money:+20000 },
-    ],
-    "社長さん": [
-      { text: "事業が当たって大儲け+¥100,000", money:+100000 },
-      { text: "投資の失敗-¥60,000", money:-60000 },
-      { text: "社員に奢る-¥20,000", money:-20000 },
-    ]
-  };
+  // personasStore holds full persona objects (id, displayName, color, events[], branchEvents[])
+  let personasStore = [];
 
-  // personaBranchMap: displayName -> [branchEvent...]
+  // personaEventMap: displayName -> [{text,money}, ...] (kept for backward compatibility)
+  let personaEventMap = {};
+
+  // personaBranchMap: displayName -> branchEvents[]
   let personaBranchMap = {};
+
+  // PERSONAS list used in select dropdowns (displayName strings)
+  let PERSONAS = [];
 
   // 乱数（シード対応）
   function createRNG(seed){
@@ -274,6 +300,38 @@
     rng: Math.random, seed:"", speed:180, overshoot:"clamp",
     playerSettings: []
   };
+
+  // ==== ペルソナストアの初期化 / 同期ヘルパー ====
+  function syncStoresFromPersonasList(list){
+    // list: array of persona objects with displayName,color,events,branchEvents
+    personasStore = list.map(p => ({
+      id: p.id || (p.displayName || "p").toLowerCase().replace(/\s+/g,"_")+Math.floor(Math.random()*1000),
+      displayName: p.displayName || "未設定",
+      color: p.color || PLAYER_COLORS[0],
+      events: Array.isArray(p.events) ? p.events.map(ev => ({ text: ev.text||"", money: Number(ev.money)||0 })) : [],
+      branchEvents: Array.isArray(p.branchEvents) ? p.branchEvents : []
+    }));
+    // rebuild helper maps
+    PERSONAS = personasStore.map(p => p.displayName);
+    personaEventMap = {};
+    personaBranchMap = {};
+    personasStore.forEach(p => {
+      personaEventMap[p.displayName] = p.events.slice();
+      if(p.branchEvents && p.branchEvents.length) personaBranchMap[p.displayName] = p.branchEvents.slice();
+    });
+  }
+
+  // load saved personas from localStorage or use DEFAULT_PERSONAS
+  (function initPersonas(){
+    try{
+      const s = localStorage.getItem("imported-personas");
+      if(s){
+        const data = JSON.parse(s);
+        if(data && Array.isArray(data.personas)) { syncStoresFromPersonasList(data.personas); return; }
+      }
+    }catch(e){}
+    syncStoresFromPersonasList(DEFAULT_PERSONAS);
+  })();
 
   // 初期の playerSettings を確保
   function ensurePlayerSettings(count = 4){
@@ -562,7 +620,6 @@
   fileImport.addEventListener("change", async e=>{ const f=e.target.files?.[0]; if(!f) return; const txt = await f.text(); restore(txt); fileImport.value=""; });
 
   // ===== ペルソナJSONインポートロジック =====
-  // 小さなバリデータ
   function validatePersonaJSON(data){
     if(!data || typeof data !== "object") return "JSONがオブジェクトではありません";
     if(!Array.isArray(data.personas)) return "personas 配列がありません";
@@ -584,27 +641,11 @@
       const err = validatePersonaJSON(json);
       if(err) return alert("読み込みエラー: " + err);
 
-      // 読み込んだペルソナをアプリ内部へ組み込む
-      json.personas.forEach(p => {
-        if(!PERSONAS.includes(p.displayName)) PERSONAS.push(p.displayName);
+      // merge imported personas into personasStore (append)
+      const merged = personasStore.concat(json.personas);
+      syncStoresFromPersonasList(merged);
 
-        // events の正規化
-        personaEventMap[p.displayName] = (p.events || []).map(ev => ({ text: ev.text || "", money: ev.money || 0 }));
-
-        // branchEvents 保存
-        if(p.branchEvents) {
-          personaBranchMap[p.displayName] = p.branchEvents;
-        }
-
-        // 保存（後でページ再読込後も使いたければ localStorage に保存）
-      });
-
-      // store the imported personas persistently (simple)
-      try {
-        localStorage.setItem("imported-personas", JSON.stringify({ personas: json.personas }));
-      } catch(e){
-        // ignore storage errors
-      }
+      try { localStorage.setItem("imported-personas", JSON.stringify({ personas: personasStore })); } catch(e){}
 
       buildSettingsForm();
       pushLog("ペルソナを読み込みました: " + json.personas.map(x=>x.displayName).join(", "), "ok");
@@ -616,21 +657,93 @@
     }
   });
 
-  // 初期に localStorage のインポート済みペルソナを読み込む（あれば）
-  (function loadSavedPersonas(){
-    try{
-      const s = localStorage.getItem("imported-personas");
-      if(!s) return;
-      const data = JSON.parse(s);
-      if(!data || !Array.isArray(data.personas)) return;
-      data.personas.forEach(p=>{
-        if(!PERSONAS.includes(p.displayName)) PERSONAS.push(p.displayName);
-        personaEventMap[p.displayName] = (p.events || []).map(ev => ({ text: ev.text || "", money: ev.money || 0 }));
-        if(p.branchEvents) personaBranchMap[p.displayName] = p.branchEvents;
+  // ===== ペルソナ管理 UI =====
+  function openPersonaManager(){
+    renderPersonaTable();
+    personaModal.showModal();
+  }
+
+  function renderPersonaTable(){
+    personaTbody.innerHTML = "";
+    personasStore.forEach((p, idx) => {
+      const tr = document.createElement("tr");
+      // idx
+      const tdIdx = document.createElement("td"); tdIdx.textContent = String(idx+1);
+      // displayName
+      const tdName = document.createElement("td");
+      const nameInput = document.createElement("input"); nameInput.type = "text"; nameInput.value = p.displayName; nameInput.dataset.idx = idx;
+      tdName.appendChild(nameInput);
+      // color
+      const tdColor = document.createElement("td");
+      const colorInput = document.createElement("input"); colorInput.type = "color"; colorInput.value = p.color; colorInput.dataset.idx = idx;
+      tdColor.appendChild(colorInput);
+      // events textarea (simple format: each line "テキスト|金額")
+      const tdEvents = document.createElement("td");
+      const ta = document.createElement("textarea"); ta.rows = 4; ta.style.width = "100%"; ta.dataset.idx = idx;
+      ta.value = (p.events || []).map(ev => `${ev.text.replace(/\n/g,' ')}|${ev.money}`).join("\n");
+      tdEvents.appendChild(ta);
+      // action: delete
+      const tdAction = document.createElement("td");
+      const delBtn = document.createElement("button"); delBtn.textContent = "削除"; delBtn.dataset.idx = idx;
+      delBtn.addEventListener("click", ()=> {
+        if(!confirm(`"${p.displayName}" を削除してよいですか？`)) return;
+        personasStore.splice(idx,1);
+        syncStoresFromPersonasList(personasStore);
+        renderPersonaTable();
       });
-      // don't force UI open; settings modal will reflect them on open
-    }catch(e){}
-  })();
+      tdAction.appendChild(delBtn);
+
+      tr.appendChild(tdIdx); tr.appendChild(tdName); tr.appendChild(tdColor); tr.appendChild(tdEvents); tr.appendChild(tdAction);
+      personaTbody.appendChild(tr);
+    });
+  }
+
+  personaAddBtn.addEventListener("click", ()=>{
+    const newPersona = { id:`p${Date.now()}`, displayName:`ペルソナ${personasStore.length+1}`, color: PLAYER_COLORS[personasStore.length % PLAYER_COLORS.length], events: [], branchEvents: [] };
+    personasStore.push(newPersona);
+    syncStoresFromPersonasList(personasStore);
+    renderPersonaTable();
+  });
+
+  personaCloseBtn.addEventListener("click", ()=> personaModal.close());
+
+  personaSaveBtn.addEventListener("click", ()=>{
+    // read table inputs and update personasStore
+    const rows = personaTbody.querySelectorAll("tr");
+    rows.forEach((tr, idx) => {
+      const nameInput = tr.querySelector('input[type="text"]');
+      const colorInput = tr.querySelector('input[type="color"]');
+      const ta = tr.querySelector('textarea');
+      const name = nameInput?.value?.trim() || `ペルソナ${idx+1}`;
+      const color = colorInput?.value || PLAYER_COLORS[idx % PLAYER_COLORS.length];
+      const eventsText = ta?.value || "";
+      const events = eventsText.split("\n").map(line => line.trim()).filter(l=>l).map(l=>{
+        const [txt, money] = l.split("|");
+        return { text: (txt||"").trim(), money: Number((money||"0").replace(/[^\d\-]/g,'')) || 0 };
+      });
+      if(!personasStore[idx]) personasStore[idx] = { id:`p${Date.now()}${idx}`, displayName:name, color, events, branchEvents: [] };
+      else {
+        personasStore[idx].displayName = name;
+        personasStore[idx].color = color;
+        personasStore[idx].events = events;
+      }
+    });
+    // sync maps and persist
+    syncStoresFromPersonasList(personasStore);
+    try { localStorage.setItem("imported-personas", JSON.stringify({ personas: personasStore })); } catch(e){}
+    buildSettingsForm();
+    pushLog("ペルソナを保存しました", "ok");
+    personaModal.close();
+  });
+
+  personaExportBtn.addEventListener("click", ()=>{
+    const data = { personas: personasStore };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "personas-export.json"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  });
+
+  btnManagePersonas.addEventListener("click", ()=> openPersonaManager());
 
   // ===== 設定モーダルのロジック（ペルソナ選択） =====
   function buildSettingsForm(){
