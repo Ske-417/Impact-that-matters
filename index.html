@@ -23,7 +23,13 @@
     }
 
     /* ===== App Bar / Toolbar ===== */
-    .appbar{position:sticky; top:0; z-index:30; width:100%; display:flex; justify-content:center; background:linear-gradient(180deg, rgba(255,250,240,.98), rgba(255,250,240,.9)); backdrop-filter:saturate(0.9); border-bottom:1px solid rgba(0,0,0,0.02)}
+    .appbar{
+      position:sticky; top:0; z-index:1100; width:100%;
+      display:flex; justify-content:center;
+      background:linear-gradient(180deg, rgba(255,250,240,.98), rgba(255,250,240,.9));
+      backdrop-filter:saturate(0.9); border-bottom:1px solid rgba(0,0,0,0.02);
+      pointer-events:auto;
+    }
     .toolbar{width:100%; padding:8px 10px; display:flex; flex-wrap:wrap; align-items:center; gap:8px}
     .title{font-weight:800; font-size:16px; color:#111; letter-spacing:.02em; white-space:nowrap; margin-right:auto}
 
@@ -43,12 +49,22 @@
     @media (max-width:980px){ .wrap{grid-template-columns:1fr} }
 
     /* ===== Board ===== */
-    .board-wrap{display:flex; justify-content:center; align-items:flex-start}
-    .board{background:#fff; border:2px solid #eee; border-radius:12px; padding:8px; position:relative; display:grid; gap:6px;
+    .board-wrap{
+      display:flex; justify-content:center; align-items:flex-start;
+      overflow:auto;
+      width:100%;
+      padding-bottom:8px;
+      -webkit-overflow-scrolling:touch;
+      z-index:1;
+    }
+    .board{
+      background:#fff; border:2px solid #eee; border-radius:12px; padding:8px; position:relative; display:grid; gap:6px;
       grid-template-columns:repeat(var(--board-cols), var(--cell-size));
       grid-auto-rows: var(--cell-size);
       justify-content:center; align-content:start;
-      max-width: var(--board-max-width);
+      min-width: var(--board-max-width);
+      max-width: none;
+      box-shadow: none;
     }
     .cell{background:#f9fafb; border:1px solid #e6e8eb; border-radius:10px; padding:6px; display:grid; place-items:center; font-size:12px; position:relative; cursor:default}
     .cell.start{background:#d1f7c4}
@@ -66,7 +82,7 @@
     .token.active{outline:3px solid rgba(76,154,255,.5)}
 
     /* ===== Sidebar ===== */
-    .sidebar{background:#fff; border:2px solid #eee; border-radius:12px; padding:12px; display:grid; gap:12px; height:fit-content}
+    .sidebar{background:#fff; border:2px solid #eee; border-radius:12px; padding:12px; display:grid; gap:12px; height:fit-content; z-index:2}
     .stat{display:flex; justify-content:space-between; gap:8px; padding:8px 10px; background:#f5f7fa; border-radius:10px}
     .players{display:grid; gap:8px}
     .player-row{display:grid; grid-template-columns:1.2fr .8fr .7fr .6fr; gap:8px; align-items:center; padding:8px 10px; background:#fafcff; border:1px solid #eee; border-radius:10px}
@@ -87,11 +103,17 @@
     .footer{font-size:12px; color:#777}
 
     /* ===== Tooltips / Overlays ===== */
-    #tooltip{position:fixed; pointer-events:none; z-index:50; background:rgba(20,20,20,0.95); color:#fff; padding:8px 10px; border-radius:6px; font-size:13px; max-width:260px; display:none}
+    #tooltip{position:fixed; pointer-events:none; z-index:1050; background:rgba(20,20,20,0.95); color:#fff; padding:8px 10px; border-radius:6px; font-size:13px; max-width:260px; display:none}
     .kbd{background:#111;color:#fff;padding:2px 6px;border-radius:4px;font-weight:700;font-size:12px;display:inline-block}
 
     /* ===== Modal ===== */
-    dialog.modal{border:none; border-radius:12px; padding:0; width:min(92vw,760px)}
+    dialog.modal{
+      border:none; border-radius:12px; padding:0; width:min(92vw,760px);
+      z-index:1200;
+      position:fixed; left:50%; top:50%; transform:translate(-50%,-50%);
+      background:transparent;
+    }
+    dialog::backdrop{ background: rgba(0,0,0,0.35); z-index:1190; }
     .card{padding:16px; border-radius:12px; background:#fff}
     .card h3{margin:0 0 6px}
     .card p{margin:0 0 8px}
@@ -116,6 +138,9 @@
     .ach-locked{opacity:0.55}
     .settings-row{display:flex; gap:8px; align-items:center; margin-bottom:8px}
     .persona-table td .tiny{margin-right:6px}
+
+    /* ensure dialog buttons clickable */
+    dialog button{pointer-events:auto}
   </style>
 </head>
 <body>
@@ -308,7 +333,7 @@
   <script>
   // ===========================
   // 人生ゲーム — コンサル体験拡張 ver-13
-  // バグ修正: ゴール実績が誤って発生する問題を修正
+  // 完全版（省略なし）：UI fixes + gameplay + achievements + persona editor
   // ===========================
   (function(){
     const $ = s => document.querySelector(s);
@@ -335,19 +360,19 @@
     const resultDlg = $("#result"), resultBody = $("#result-body"), resultClose = $("#result-close");
     const btnAchievements = $("#btn-achievements"), achModal = $("#achievements-modal"), achListEl = $("#ach-list"), achClose = $("#ach-close"), achReset = $("#ach-reset");
 
-    // Board size expanded
+    // Board size
     const BOARD_COLS = 10, BOARD_ROWS = 6, TOTAL_CELLS = BOARD_COLS * BOARD_ROWS;
     const PLAYER_COLORS = ["#ff6b6b", "#4c9aff", "#00c853", "#ff8f00", "#9c27b0", "#00acc1"];
     const BRANCH_CHANCE = 0.36;
 
-    // Personas (consulting roles)
+    // Personas
     const DEFAULT_PERSONAS = [
-      { id:"junior", displayName:"ジュニアコンサル", color:"#ff6b6b", events:[ { text:"資料作成効率化で+¥8,000", money:8000, rep:1, csat:+1 }, { text:"ミスで修正費-¥6,000", money:-6000, rep:-1, csat:-1 } ], branchEvents:[ { text:"クライアント訪問の提案", choices:[ { label:"積極提案", probGood:0.45, success:{money:20000,move:1,rep:1,csat:+2,text:"提案が刺さった"}, failure:{money:-2000,move:0,rep:-1,csat:-1,text:"準備負担"} }, { label:"様子見", probGood:0.85, success:{money:5000,move:0,rep:0,csat:+1,text:"調整で小成功"}, failure:{money:0,move:0,rep:0,csat:0,text:"変化なし"} } ] } ] },
-      { id:"senior", displayName:"シニアコンサル", color:"#4c9aff", events:[ { text:"交渉で追加案件+¥30,000", money:30000, rep:2, csat:+2 }, { text:"要求過多で残業-¥8,000", money:-8000, rep:-1, csat:-1 } ], branchEvents:[ { text:"大口案件を提案", choices:[ { label:"リスク高提案", probGood:0.55, success:{money:80000,move:2,rep:2,csat:+3,text:"大型案件獲得！"}, failure:{money:-20000,move:0,rep:-2,csat:-2,text:"見込み外れ"} }, { label:"慎重提案", probGood:0.75, success:{money:30000,move:1,rep:1,csat:+2,text:"中規模案件獲得"}, failure:{money:-5000,move:0,rep:-1,csat:-1,text:"採用されず"} } ] } ] },
-      { id:"manager", displayName:"マネージャー", color:"#00c853", events:[ { text:"改善で効率化+¥25,000", money:25000, rep:2, csat:+2 }, { text:"クレーム対応で-¥12,000", money:-12000, rep:-2, csat:-3 } ], branchEvents:[ { text:"再構築提案", choices:[ { label:"大胆再設計", probGood:0.5, success:{money:100000,move:2,rep:3,csat:+4,text:"大成功！高評価"}, failure:{money:-40000,move:0,rep:-3,csat:-4,text:"失敗し大損"} }, { label:"段階的提案", probGood:0.8, success:{money:20000,move:0,rep:1,csat:+1,text:"小改善が受け入れ"}, failure:{money:-5000,move:0,rep:-1,csat:-1,text:"反応薄し"} } ] } ] },
-      { id:"partner", displayName:"パートナー", color:"#ff8f00", events:[ { text:"トップ営業で大型契約+¥150,000", money:150000, rep:5, csat:+5 }, { text:"投資ミスで-¥60,000", money:-60000, rep:-4, csat:-4 } ], branchEvents:[ { text:"経営層提案", choices:[ { label:"大胆投資", probGood:0.4, success:{money:200000,move:3,rep:5,csat:+6,text:"一発で大受注！"}, failure:{money:-80000,move:0,rep:-4,csat:-5,text:"大損"} }, { label:"保守提案", probGood:0.8, success:{money:50000,move:1,rep:2,csat:+2,text:"堅実に受注"}, failure:{money:-5000,move:0,rep:-1,csat:-1,text:"見送り"} } ] } ] },
-      { id:"freelance", displayName:"フリーコンサル", color:"#9c27b0", events:[ { text:"短期案件を受注+¥40,000", money:40000, rep:2, csat:+2 }, { text:"契約トラブルで-¥15,000", money:-15000, rep:-2, csat:-2 } ], branchEvents:[ { text:"スタートアップ提案", choices:[ { label:"エクイティ含む", probGood:0.35, success:{money:100000,move:2,rep:3,csat:+4,text:"高報酬案件獲得"}, failure:{money:-20000,move:0,rep:-2,csat:-3,text:"キャンセル"} }, { label:"通常契約", probGood:0.7, success:{money:30000,move:1,rep:1,csat:+1,text:"受注成功"}, failure:{money:-5000,move:0,rep:-1,csat:-1,text:"落選"} } ] } ] },
-      { id:"analyst", displayName:"アナリスト", color:"#00acc1", events:[ { text:"分析で価値示し+¥12,000", money:12000, rep:1, csat:+1 }, { text:"データ不備で-¥4,000", money:-4000, rep:-1, csat:-1 } ], branchEvents:[ { text:"詳細分析提案", choices:[ { label:"深掘り提案", probGood:0.6, success:{money:30000,move:1,rep:2,csat:+2,text:"分析が評価された"}, failure:{money:-8000,move:0,rep:-1,csat:-1,text:"届かず"} } ] } ] }
+      { id:"junior", displayName:"ジュニアコンサル", color:"#ff6b6b", events:[ { text:"資料作成効率化で+¥8,000", money:8000, rep:1, csat:1 }, { text:"ミスで修正費-¥6,000", money:-6000, rep:-1, csat:-1 } ], branchEvents:[ { text:"クライアント訪問の提案", choices:[ { label:"積極提案", probGood:0.45, success:{money:20000,move:1,rep:1,csat:2,text:"提案が刺さった"}, failure:{money:-2000,move:0,rep:-1,csat:-1,text:"準備負担"} }, { label:"様子見", probGood:0.85, success:{money:5000,move:0,rep:0,csat:1,text:"調整で小成功"}, failure:{money:0,move:0,rep:0,csat:0,text:"変化なし"} } ] } ] },
+      { id:"senior", displayName:"シニアコンサル", color:"#4c9aff", events:[ { text:"交渉で追加案件+¥30,000", money:30000, rep:2, csat:2 }, { text:"要求過多で残業-¥8,000", money:-8000, rep:-1, csat:-1 } ], branchEvents:[ { text:"大口案件を提案", choices:[ { label:"リスク高提案", probGood:0.55, success:{money:80000,move:2,rep:2,csat:3,text:"大型案件獲得！"}, failure:{money:-20000,move:0,rep:-2,csat:-2,text:"見込み外れ"} }, { label:"慎重提案", probGood:0.75, success:{money:30000,move:1,rep:1,csat:2,text:"中規模案件獲得"}, failure:{money:-5000,move:0,rep:-1,csat:-1,text:"採用されず"} } ] } ] },
+      { id:"manager", displayName:"マネージャー", color:"#00c853", events:[ { text:"改善で効率化+¥25,000", money:25000, rep:2, csat:2 }, { text:"クレーム対応で-¥12,000", money:-12000, rep:-2, csat:-3 } ], branchEvents:[ { text:"再構築提案", choices:[ { label:"大胆再設計", probGood:0.5, success:{money:100000,move:2,rep:3,csat:4,text:"大成功！高評価"}, failure:{money:-40000,move:0,rep:-3,csat:-4,text:"失敗し大損"} }, { label:"段階的提案", probGood:0.8, success:{money:20000,move:0,rep:1,csat:1,text:"小改善が受け入れ"}, failure:{money:-5000,move:0,rep:-1,csat:-1,text:"反応薄し"} } ] } ] },
+      { id:"partner", displayName:"パートナー", color:"#ff8f00", events:[ { text:"トップ営業で大型契約+¥150,000", money:150000, rep:5, csat:5 }, { text:"投資ミスで-¥60,000", money:-60000, rep:-4, csat:-4 } ], branchEvents:[ { text:"経営層提案", choices:[ { label:"大胆投資", probGood:0.4, success:{money:200000,move:3,rep:5,csat:6,text:"一発で大受注！"}, failure:{money:-80000,move:0,rep:-4,csat:-5,text:"大損"} }, { label:"保守提案", probGood:0.8, success:{money:50000,move:1,rep:2,csat:2,text:"堅実に受注"}, failure:{money:-5000,move:0,rep:-1,csat:-1,text:"見送り"} } ] } ] },
+      { id:"freelance", displayName:"フリーコンサル", color:"#9c27b0", events:[ { text:"短期案件を受注+¥40,000", money:40000, rep:2, csat:2 }, { text:"契約トラブルで-¥15,000", money:-15000, rep:-2, csat:-2 } ], branchEvents:[ { text:"スタートアップ提案", choices:[ { label:"エクイティ含む", probGood:0.35, success:{money:100000,move:2,rep:3,csat:4,text:"高報酬案件獲得"}, failure:{money:-20000,move:0,rep:-2,csat:-3,text:"キャンセル"} }, { label:"通常契約", probGood:0.7, success:{money:30000,move:1,rep:1,csat:1,text:"受注成功"}, failure:{money:-5000,move:0,rep:-1,csat:-1,text:"落選"} } ] } ] },
+      { id:"analyst", displayName:"アナリスト", color:"#00acc1", events:[ { text:"分析で価値示し+¥12,000", money:12000, rep:1, csat:1 }, { text:"データ不備で-¥4,000", money:-4000, rep:-1, csat:-1 } ], branchEvents:[ { text:"詳細分析提案", choices:[ { label:"深掘り提案", probGood:0.6, success:{money:30000,move:1,rep:2,csat:2,text:"分析が評価された"}, failure:{money:-8000,move:0,rep:-1,csat:-1,text:"届かず"} } ] } ] }
     ];
 
     let personasStore = [], PERSONAS = [], personaEventMap = {}, personaBranchMap = {};
@@ -391,15 +416,13 @@
     const yen = n => "¥" + Number(n).toLocaleString("ja-JP");
     const sleep = ms => new Promise(res=>setTimeout(res, ms));
 
-    // board cells generation (scale-friendly)
+    // board cells generation
     const cells = Array.from({length:TOTAL_CELLS},(_,i)=>({index:i,type:"none",label:""}));
     cells[0] = {index:0,type:"start",label:"スタート"};
     cells[TOTAL_CELLS-1] = {index:TOTAL_CELLS-1,type:"goal",label:"ゴール"};
 
-    // mark generator: pattern-based so expansion keeps meaning
     (function markCells(){
       for(let i=1;i<TOTAL_CELLS-1;i++){
-        // priority: client > workshop > event > bonus > penalty
         if(i % 11 === 0) { cells[i].type = "client"; cells[i].label = "クライアント"; }
         else if(i % 13 === 0) { cells[i].type = "workshop"; cells[i].label = "ワークショップ"; }
         else if(i % 6 === 0) { cells[i].type = "event"; cells[i].label = "案件/イベント"; }
@@ -409,7 +432,6 @@
       }
     })();
 
-    // consulting-themed events
     const eventTable = [
       { text:"短期支援入り +¥20,000", money:+20000, rep:+1, csat:+1 },
       { text:"見積り漏れで-¥15,000", money:-15000, rep:-1, csat:-2 },
@@ -440,7 +462,7 @@
       state.playerSettings.length = count;
     }
 
-    // Achievements extended
+    // Achievements
     const ACHIEVEMENTS = [
       { id: "early_goal", name:"スピードゴール", desc:"短期でゴール（ターン <= 12）" },
       { id: "billings_100k", name:"請求100K超え", desc:"累計請求額が¥100,000を超えたことがある" },
@@ -465,12 +487,10 @@
       updateAchievementsModal();
     }
 
-    // === BUG FIXED: evaluatePlayerAchievements now checks for actual goal completion ===
-    // Ensure early_goal is awarded ONLY if player has actually finished (pl.finished === true)
+    // BUGFIX: only award early_goal if player actually finished
     function evaluatePlayerAchievements(i){
       const p = state.players[i];
       if(!p) return;
-      // early_goal: only if player has finished and turnsToGoal is a number
       if(p.finished && typeof p.turnsToGoal === "number" && p.turnsToGoal <= 12) awardAchievement(i, "early_goal");
       if((p.maxMoneyReached||0) >= 100000) awardAchievement(i, "billings_100k");
       if((p.branchSuccessCount||0) >= 2) awardAchievement(i, "close_deal");
@@ -678,7 +698,7 @@
       genericModal.showModal();
     }
 
-    // Branch modal: reputation affects probability, and results can include csat
+    // Branch modal
     function showBranchModal(branchEv, playerIndex){
       genericTitle.textContent = "案件分岐 (提案)";
       genericText.textContent = branchEv.text;
@@ -721,16 +741,20 @@
       genericModal.showModal();
     }
 
-    // When any dialog closes, ensure roll button state is consistent
+    // dialog state updates
     function updateRollState(){
       btnRoll.disabled = !state.started || state.animating;
     }
     document.querySelectorAll('dialog.modal').forEach(d => {
       d.addEventListener('close', updateRollState);
       d.addEventListener('cancel', updateRollState);
+      d.addEventListener('click', (e) => {
+        // prevent clicks on backdrop from interacting with underlying elements
+        if(e.target === d) e.stopPropagation();
+      });
     });
 
-    // resolveCell with consulting behaviors
+    // resolveCell
     function resolveCell(playerIndex, index){
       const pl = state.players[playerIndex]; const cell = cells[index]; if(!cell||!pl) return;
       switch(cell.type){
@@ -768,7 +792,6 @@
           break;
         }
         case "client":{
-          // client meeting: chance influenced by reputation
           const base = 0.55;
           const repBonus = ((pl.reputation||50) - 50) / 200;
           const prob = Math.max(0.05, Math.min(0.95, base + repBonus));
@@ -790,7 +813,6 @@
           break;
         }
         case "workshop":{
-          // skill/workshop: increases reputation and small money or small cost
           const gain = randPick(state.rng, [0,5000,10000]);
           pl.money += gain; flashMoney(playerIndex, gain);
           pl.reputation = Math.min(100, (pl.reputation||50) + randPick(state.rng, [1,2,3]));
@@ -804,8 +826,8 @@
             const pb = personaBranchMap[pl.name];
             if(pb && pb.length>0){ const be = randPick(state.rng, pb); showBranchModal(be, playerIndex); return; }
             const defaultBranch = { text: "クライアント提案の機会", choices: [
-              { label:"攻める提案", probGood:0.5, success:{money:40000,move:1,rep:+2,csat:+3,text:"提案受注！"}, failure:{money:-10000,move:0,rep:-1,csat:-2,text:"提案失敗"} },
-              { label:"守る提案", probGood:0.8, success:{money:15000,move:0,rep:+1,csat:+1,text:"小案件を獲得"}, failure:{money:0,move:0,rep:0,csat:0,text:"変わらず"} }
+              { label:"攻める提案", probGood:0.5, success:{money:40000,move:1,rep:2,csat:3,text:"提案受注！"}, failure:{money:-10000,move:0,rep:-1,csat:-2,text:"提案失敗"} },
+              { label:"守る提案", probGood:0.8, success:{money:15000,move:0,rep:1,csat:1,text:"小案件を獲得"}, failure:{money:0,move:0,rep:0,csat:0,text:"変わらず"} }
             ]};
             showBranchModal(defaultBranch, playerIndex); return;
           }
@@ -1062,7 +1084,7 @@
       renderPersonaTable();
     }
 
-    // Branch editor (modal)
+    // Branch editor
     let editingBranchTarget = null;
     function openBranchEditor(branch, onSave){
       branchTextInput.value = branch.text || "";
@@ -1318,6 +1340,47 @@
         if(e.shiftKey) zoomOut(); else zoomIn();
       }
       if(e.key === "f" || e.key === "F"){ fitBoard(); }
+    });
+
+    // Achievements button handler (ensure clickable)
+    btnAchievements.addEventListener("click", ()=> { updateAchievementsModal(); achModal.showModal(); });
+
+    // Persona manager handlers (ensure clickable)
+    personaAddBtn.addEventListener("click", ()=> {
+      const d = { id: "p"+Date.now(), displayName: "新ペルソナ", color: PLAYER_COLORS[personasStore.length % PLAYER_COLORS.length], events: [], branchEvents: [] };
+      personasStore.push(d);
+      syncStoresFromPersonasList(personasStore);
+      renderPersonaTable();
+    });
+    personaCloseBtn.addEventListener("click", ()=> personaModal.close());
+    personaSaveBtn.addEventListener("click", ()=> {
+      try { localStorage.setItem("imported-personas", JSON.stringify({ personas: personasStore })); pushLog("ペルソナを保存しました", "ok"); } catch(e){ alert("保存に失敗しました"); }
+    });
+    personaExportBtn.addEventListener("click", ()=> {
+      const blob = new Blob([JSON.stringify({personas: personasStore}, null, 2)], {type:"application/json"});
+      const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href=url; a.download="personas.json"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    });
+
+    personaTbody.addEventListener("click", (e) => {
+      const btn = e.target.closest("button");
+      if(!btn) return;
+      const idx = Number(btn.dataset.idx);
+      const action = btn.dataset.action;
+      if(action === "delete"){
+        if(!confirm(`ペルソナ "${personasStore[idx].displayName}" を削除しますか？`)) return;
+        personasStore.splice(idx,1); syncStoresFromPersonasList(personasStore); renderPersonaTable();
+      } else if(action === "edit"){
+        const p = personasStore[idx];
+        const name = prompt("表示名を入力してください", p.displayName);
+        if(name !== null){ p.displayName = name.trim() || p.displayName; }
+        const color = prompt("カラーコードを入力してください（例: #ff6b6b）", p.color);
+        if(color !== null){ p.color = color.trim() || p.color; }
+        syncStoresFromPersonasList(personasStore); renderPersonaTable();
+      } else if(action === "edit-events"){
+        openPersonaEventEditor(idx);
+      } else if(action === "edit-branches"){
+        openBranchEditorForPersona(idx);
+      }
     });
 
     // initial render & setup
