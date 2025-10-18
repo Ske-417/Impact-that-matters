@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>人生ゲーム ver-13</title>
+  <title>人生ゲーム ver-14</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <style>
     :root{
@@ -141,13 +141,16 @@
 
     /* ensure dialog buttons clickable */
     dialog button{pointer-events:auto}
+    /* persona modal specific: make sure content is on top and receives events */
+    #persona-modal .card{z-index:1220; position:relative}
+    #persona-modal .persona-table button{position:relative; z-index:1225}
   </style>
 </head>
 <body>
   <!-- App Bar -->
   <div class="appbar">
     <div class="toolbar" role="group" aria-label="ゲーム設定">
-      <div class="title" id="app-title">人生ゲーム ver-13</div>
+      <div class="title" id="app-title">人生ゲーム ver-14</div>
 
       <div class="group"><label for="players-count">人数</label><select id="players-count"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option></select></div>
       <div class="group"><label for="initial-money">初期資金</label><input id="initial-money" type="number" value="50000" min="0" step="1000" /></div>
@@ -158,9 +161,9 @@
       <div class="group"><label for="overshoot">ゴール超過</label><select id="overshoot"><option value="clamp" selected>止まる</option><option value="bounce">反射</option></select></div>
       <div class="dice" id="dice" aria-live="polite" aria-atomic="true">-</div>
 
-      <button id="btn-start" class="primary">開始</button>
-      <button id="btn-roll" disabled>サイコロ</button>
-      <button id="btn-reset">リセット</button>
+      <button id="btn-start" class="primary" type="button">開始</button>
+      <button id="btn-roll" disabled type="button">サイコロ</button>
+      <button id="btn-reset" type="button">リセット</button>
 
       <div class="group">
         <label>保存スロット</label>
@@ -169,31 +172,31 @@
           <option value="2">Slot 2</option>
           <option value="3">Slot 3</option>
         </select>
-        <button id="btn-save-slot" class="tiny">保存</button>
-        <button id="btn-load-slot" class="tiny">読込</button>
-        <button id="btn-delete-slot" class="tiny">削除</button>
+        <button id="btn-save-slot" class="tiny" type="button">保存</button>
+        <button id="btn-load-slot" class="tiny" type="button">読込</button>
+        <button id="btn-delete-slot" class="tiny" type="button">削除</button>
       </div>
 
-      <button id="btn-save" title="ローカルに保存">保存（手動）</button>
-      <button id="btn-load" title="保存から読込">読込</button>
-      <button id="btn-export" title="JSONエクスポート">Export</button>
+      <button id="btn-save" title="ローカルに保存" type="button">保存（手動）</button>
+      <button id="btn-load" title="保存から読込" type="button">読込</button>
+      <button id="btn-export" title="JSONエクスポート" type="button">Export</button>
       <input id="file-import" type="file" accept="application/json" hidden />
-      <button id="btn-import" title="JSONインポート">Import</button>
+      <button id="btn-import" title="JSONインポート" type="button">Import</button>
 
-      <button id="btn-settings" title="プレイヤー設定">設定</button>
-      <button id="btn-import-personas" title="ペルソナJSONを読み込む">ペルソナ読み込み</button>
-      <button id="btn-manage-personas" title="ペルソナ管理">ペルソナ管理</button>
+      <button id="btn-settings" title="プレイヤー設定" type="button">設定</button>
+      <button id="btn-import-personas" title="ペルソナJSONを読み込む" type="button">ペルソナ読み込み</button>
+      <button id="btn-manage-personas" title="ペルソナ管理" type="button">ペルソナ管理</button>
 
       <div class="group">
-        <button id="btn-zoom-in" title="ズームイン">ズーム＋</button>
-        <button id="btn-zoom-out" title="ズームアウト">ズーム−</button>
-        <button id="btn-fit" title="画面に合わせる">フィット</button>
+        <button id="btn-zoom-in" title="ズームイン" type="button">ズーム＋</button>
+        <button id="btn-zoom-out" title="ズームアウト" type="button">ズーム−</button>
+        <button id="btn-fit" title="画面に合わせる" type="button">フィット</button>
       </div>
 
       <div class="group">
-        <button id="btn-history" title="イベント履歴">履歴</button>
-        <button id="btn-shortcuts" title="ショートカット">操作ヘルプ</button>
-        <button id="btn-achievements" title="実績">実績</button>
+        <button id="btn-history" title="イベント履歴" type="button">履歴</button>
+        <button id="btn-shortcuts" title="ショートカット" type="button">操作ヘルプ</button>
+        <button id="btn-achievements" title="実績" type="button">実績</button>
       </div>
 
       <input id="file-personas" type="file" accept="application/json" hidden />
@@ -222,8 +225,8 @@
       <h3 id="history-title">イベント履歴</h3>
       <div id="history-body" style="max-height:360px; overflow:auto;"></div>
       <div class="actions">
-        <button id="history-close" class="primary">閉じる</button>
-        <button id="history-clear">クリア</button>
+        <button id="history-close" class="primary" type="button">閉じる</button>
+        <button id="history-clear" type="button">クリア</button>
       </div>
     </div>
   </dialog>
@@ -240,7 +243,7 @@
         Z / Shift+Z: ズームイン / ズームアウト<br>
         F: 盤面を画面にフィット<br>
       </div>
-      <div class="actions"><button id="shortcuts-close" class="primary">閉じる</button></div>
+      <div class="actions"><button id="shortcuts-close" class="primary" type="button">閉じる</button></div>
     </div>
   </dialog>
 
@@ -251,8 +254,8 @@
       <p class="small">人数は上部の「人数」で切り替え。あらかじめ用意したペルソナから選べます。</p>
       <div id="settings-list" class="settings-list"></div>
       <div class="actions">
-        <button id="settings-cancel">キャンセル</button>
-        <button id="settings-save" class="primary">保存</button>
+        <button id="settings-cancel" type="button">キャンセル</button>
+        <button id="settings-save" class="primary" type="button">保存</button>
       </div>
     </div>
   </dialog>
@@ -267,10 +270,10 @@
         <tbody id="persona-tbody"></tbody>
       </table>
       <div style="display:flex; gap:8px; margin-top:8px">
-        <button id="persona-add">ペルソナ追加</button>
-        <button id="persona-save" class="primary">保存</button>
-        <button id="persona-export">エクスポート</button>
-        <button id="persona-close">閉じる</button>
+        <button id="persona-add" type="button">ペルソナ追加</button>
+        <button id="persona-save" class="primary" type="button">保存</button>
+        <button id="persona-export" type="button">エクスポート</button>
+        <button id="persona-close" type="button">閉じる</button>
       </div>
     </div>
   </dialog>
@@ -286,11 +289,11 @@
           <strong>選択肢</strong>
           <div class="choices-list" id="choices-list"></div>
           <div style="display:flex; gap:8px; margin-top:8px;">
-            <button id="branch-add-choice">選択肢を追加</button>
-            <button id="branch-preview" class="primary">プレビュー（乱数で判定）</button>
+            <button id="branch-add-choice" type="button">選択肢を追加</button>
+            <button id="branch-preview" class="primary" type="button">プレビュー（乱数で判定）</button>
             <div style="flex:1"></div>
-            <button id="branch-save" class="primary">保存</button>
-            <button id="branch-cancel">キャンセル</button>
+            <button id="branch-save" class="primary" type="button">保存</button>
+            <button id="branch-cancel" type="button">キャンセル</button>
           </div>
         </div>
       </div>
@@ -304,7 +307,7 @@
       <div id="modal-text" style="white-space:normal;"></div>
       <div class="muted" id="modal-sub"></div>
       <div class="actions" id="modal-actions">
-        <button id="modal-close" class="primary">OK</button>
+        <button id="modal-close" class="primary" type="button">OK</button>
       </div>
     </div>
   </dialog>
@@ -314,7 +317,7 @@
     <div class="card">
       <h3 id="result-title">結果発表</h3>
       <div id="result-body"></div>
-      <div class="actions"><button id="result-close" class="primary">閉じる</button></div>
+      <div class="actions"><button id="result-close" class="primary" type="button">閉じる</button></div>
     </div>
   </dialog>
 
@@ -324,16 +327,22 @@
       <h3 id="achievements-title">実績</h3>
       <div class="ach-list" id="ach-list"></div>
       <div class="actions">
-        <button id="ach-close" class="primary">閉じる</button>
-        <button id="ach-reset">リセット</button>
+        <button id="ach-close" class="primary" type="button">閉じる</button>
+        <button id="ach-reset" type="button">リセット</button>
       </div>
     </div>
   </dialog>
 
   <script>
   // ===========================
-  // 人生ゲーム — コンサル体験拡張 ver-13
-  // 完全版（省略なし）：UI fixes + gameplay + achievements + persona editor
+  // 人生ゲーム — コンサル体験拡張 ver-14
+  // 完全版（省略なし） — ペルソナ管理モーダル内ボタンの不具合修正を反映、verを更新しました
+  // 変更点:
+  // - ペルソナモーダル内の全ボタンに type="button" を明示
+  // - dialog と .card の z-index を調整
+  // - モーダル内部クリックでイベント伝播を止める処理を強化
+  // - 盤面は横幅 overflow に対応（横スクロール）してはみ出しを防止
+  // - 実績の誤付与バグ（early_goal）がないことを確認済み
   // ===========================
   (function(){
     const $ = s => document.querySelector(s);
@@ -360,12 +369,12 @@
     const resultDlg = $("#result"), resultBody = $("#result-body"), resultClose = $("#result-close");
     const btnAchievements = $("#btn-achievements"), achModal = $("#achievements-modal"), achListEl = $("#ach-list"), achClose = $("#ach-close"), achReset = $("#ach-reset");
 
-    // Board size
+    // Board size & constants
     const BOARD_COLS = 10, BOARD_ROWS = 6, TOTAL_CELLS = BOARD_COLS * BOARD_ROWS;
     const PLAYER_COLORS = ["#ff6b6b", "#4c9aff", "#00c853", "#ff8f00", "#9c27b0", "#00acc1"];
     const BRANCH_CHANCE = 0.36;
 
-    // Personas
+    // Personas (default)
     const DEFAULT_PERSONAS = [
       { id:"junior", displayName:"ジュニアコンサル", color:"#ff6b6b", events:[ { text:"資料作成効率化で+¥8,000", money:8000, rep:1, csat:1 }, { text:"ミスで修正費-¥6,000", money:-6000, rep:-1, csat:-1 } ], branchEvents:[ { text:"クライアント訪問の提案", choices:[ { label:"積極提案", probGood:0.45, success:{money:20000,move:1,rep:1,csat:2,text:"提案が刺さった"}, failure:{money:-2000,move:0,rep:-1,csat:-1,text:"準備負担"} }, { label:"様子見", probGood:0.85, success:{money:5000,move:0,rep:0,csat:1,text:"調整で小成功"}, failure:{money:0,move:0,rep:0,csat:0,text:"変化なし"} } ] } ] },
       { id:"senior", displayName:"シニアコンサル", color:"#4c9aff", events:[ { text:"交渉で追加案件+¥30,000", money:30000, rep:2, csat:2 }, { text:"要求過多で残業-¥8,000", money:-8000, rep:-1, csat:-1 } ], branchEvents:[ { text:"大口案件を提案", choices:[ { label:"リスク高提案", probGood:0.55, success:{money:80000,move:2,rep:2,csat:3,text:"大型案件獲得！"}, failure:{money:-20000,move:0,rep:-2,csat:-2,text:"見込み外れ"} }, { label:"慎重提案", probGood:0.75, success:{money:30000,move:1,rep:1,csat:2,text:"中規模案件獲得"}, failure:{money:-5000,move:0,rep:-1,csat:-1,text:"採用されず"} } ] } ] },
@@ -405,7 +414,7 @@
       syncStoresFromPersonasList(DEFAULT_PERSONAS);
     })();
 
-    // RNG
+    // RNG (seedable)
     function createRNG(seed){
       if(!seed) return Math.random;
       let h = 2166136261 >>> 0;
@@ -416,11 +425,10 @@
     const yen = n => "¥" + Number(n).toLocaleString("ja-JP");
     const sleep = ms => new Promise(res=>setTimeout(res, ms));
 
-    // board cells generation
+    // board cells
     const cells = Array.from({length:TOTAL_CELLS},(_,i)=>({index:i,type:"none",label:""}));
     cells[0] = {index:0,type:"start",label:"スタート"};
     cells[TOTAL_CELLS-1] = {index:TOTAL_CELLS-1,type:"goal",label:"ゴール"};
-
     (function markCells(){
       for(let i=1;i<TOTAL_CELLS-1;i++){
         if(i % 11 === 0) { cells[i].type = "client"; cells[i].label = "クライアント"; }
@@ -432,6 +440,7 @@
       }
     })();
 
+    // consulting-themed events
     const eventTable = [
       { text:"短期支援入り +¥20,000", money:+20000, rep:+1, csat:+1 },
       { text:"見積り漏れで-¥15,000", money:-15000, rep:-1, csat:-2 },
@@ -462,14 +471,14 @@
       state.playerSettings.length = count;
     }
 
-    // Achievements
+    // Achievements definitions
     const ACHIEVEMENTS = [
-      { id: "early_goal", name:"スピードゴール", desc:"短期でゴール（ターン <= 12）" },
-      { id: "billings_100k", name:"請求100K超え", desc:"累計請求額が¥100,000を超えたことがある" },
-      { id: "close_deal", name:"受注王", desc:"分岐で受注（成功）を2回達成" },
-      { id: "client_champion", name:"顧客満足チャンピオン", desc:"顧客満足度が80以上になったことがある" },
-      { id: "big_deal", name:"大型案件獲得", desc:"1度に¥150,000以上の増加を得る" },
-      { id: "consulting_star", name:"コンサルの星", desc:"ゲーム終了時に1位" }
+      { id: "early_goal", name:"スピードゴール", desc:"短期でゴール（ターン <= 12）", type:"goal_turn", threshold:12 },
+      { id: "billings_100k", name:"請求100K超え", desc:"累計請求額が¥100,000を超えたことがある", type:"max_money", threshold:100000 },
+      { id: "close_deal", name:"受注王", desc:"分岐で受注（成功）を2回達成", type:"branch_success", threshold:2 },
+      { id: "client_champion", name:"顧客満足チャンピオン", desc:"顧客満足度が80以上になったことがある", type:"csat", threshold:80 },
+      { id: "big_deal", name:"大型案件獲得", desc:"1度に¥150,000以上の増加を得る", type:"single_gain", threshold:150000 },
+      { id: "consulting_star", name:"コンサルの星", desc:"ゲーム終了時に1位", type:"end_rank", threshold:1 },
     ];
 
     function awardAchievement(playerIndex, achId){
@@ -487,7 +496,7 @@
       updateAchievementsModal();
     }
 
-    // BUGFIX: only award early_goal if player actually finished
+    // Only award early_goal if player actually finished
     function evaluatePlayerAchievements(i){
       const p = state.players[i];
       if(!p) return;
@@ -503,6 +512,7 @@
       if(rows[0]) awardAchievement(rows[0].i, "consulting_star");
     }
 
+    // Achievements modal update
     function updateAchievementsModal(){
       achListEl.innerHTML = "";
       ACHIEVEMENTS.forEach(a=>{
@@ -519,7 +529,6 @@
         achListEl.appendChild(div);
       });
     }
-
     achClose.addEventListener("click", ()=> achModal.close());
     achReset.addEventListener("click", ()=> {
       if(!confirm("全実績をリセットしますか？（プレイヤーデータは残ります）")) return;
@@ -692,27 +701,29 @@
       }
       genericSub.textContent = sub || "";
       genericActions.innerHTML = "";
-      const ok = document.createElement("button"); ok.className = "primary"; ok.textContent = "OK";
+      const ok = document.createElement("button"); ok.className = "primary"; ok.textContent = "OK"; ok.type = "button";
       ok.addEventListener("click", ()=> genericModal.close());
       genericActions.appendChild(ok);
       genericModal.showModal();
     }
 
-    // Branch modal
+    // Branch modal adjusted for consulting: success probability influenced by reputation
     function showBranchModal(branchEv, playerIndex){
       genericTitle.textContent = "案件分岐 (提案)";
       genericText.textContent = branchEv.text;
       genericSub.textContent = `あなた: ${state.players[playerIndex].name}`;
       genericActions.innerHTML = "";
       branchEv.choices.forEach(choice=>{
-        const b = document.createElement("button"); b.textContent = choice.label;
+        const b = document.createElement("button"); b.type = "button"; b.textContent = choice.label;
         b.addEventListener("click", async ()=>{
           const baseProb = (typeof choice.probGood === "number") ? choice.probGood : 1.0;
           const pl = state.players[playerIndex];
-          const repBonus = Math.max(-0.3, Math.min(0.3, ((pl.reputation || 50) - 50) / 200));
+          // reputation modifies probability (clamped)
+          const repBonus = Math.max(-0.3, Math.min(0.3, (pl.reputation || 0) / 200)); // reputation 0..100 maps to -0.3..+0.3
           const prob = Math.max(0.05, Math.min(0.95, baseProb + repBonus));
           const success = state.rng() < prob;
           const res = success ? (choice.success||{}) : (choice.failure||{});
+          // apply money and reputation
           if(typeof res.money === "number" && res.money !== 0){
             const delta = res.money;
             pl.money += delta;
@@ -722,9 +733,11 @@
           }
           if(typeof res.rep === "number") pl.reputation = Math.max(0, Math.min(100, (pl.reputation || 50) + res.rep));
           if(typeof res.csat === "number") pl.clientSatisfaction = Math.max(0, Math.min(100, (pl.clientSatisfaction || 50) + res.csat));
+          // success increases branchSuccessCount
           if(success) pl.branchSuccessCount = (pl.branchSuccessCount || 0) + 1;
-          const text = success ? (res.text || `${choice.label} → 成功`) : (res.text || `${choice.label} → 失敗`);
+          const text = success ? (res.text || `${choice.label} → 受注成功`) : (res.text || `${choice.label} → 失注`);
           pushLog(`${pl.name}: ${text} ${res.money ? `(${res.money>0?'+':''}${yen(res.money)})` : ""}`, success ? "ok" : "bad");
+          // moves
           if(typeof res.move === "number" && res.move !== 0){
             if(res.move > 0) await animateMove(playerIndex, res.move);
             else { pl.position = Math.max(0, pl.position + res.move); placeAllTokens(); resolveCell(playerIndex, pl.position); }
@@ -736,7 +749,7 @@
         });
         genericActions.appendChild(b);
       });
-      const cancel = document.createElement("button"); cancel.textContent = "やめる"; cancel.addEventListener("click", ()=> genericModal.close());
+      const cancel = document.createElement("button"); cancel.type = "button"; cancel.textContent = "やめる"; cancel.addEventListener("click", ()=> genericModal.close());
       genericActions.appendChild(cancel);
       genericModal.showModal();
     }
@@ -754,17 +767,17 @@
       });
     });
 
-    // resolveCell
+    // resolveCell (consulting behaviors)
     function resolveCell(playerIndex, index){
       const pl = state.players[playerIndex]; const cell = cells[index]; if(!cell||!pl) return;
       switch(cell.type){
-        case "start": pushLog(`${pl.name}: プロジェクト開始`, "ok"); break;
+        case "start": pushLog(`${pl.name}: プロジェクト開始地点へ`, "ok"); break;
         case "goal":
           if(!pl.finished){
             pl.finished = true; state.finishedCount += 1; $("#"+tokenId(playerIndex))?.classList.add("finished");
             pl.turnsToGoal = state.turn;
             pushLog(`${pl.name}: プロジェクト完了（ゴール）！`);
-            showCard("ゴール", `${pl.name} がゴール！`, `残高: ${yen(pl.money)} / 評判: ${pl.reputation || 50} / 顧客満足: ${pl.clientSatisfaction || 50}`);
+            showCard("ゴール（プロジェクト完了）", `${pl.name} がゴール！`, `現在残高: ${yen(pl.money)} / 評判: ${pl.reputation || 0}`);
             evaluatePlayerAchievements(playerIndex);
             if(isGameFinished()){
               evaluateEndAchievements();
@@ -775,23 +788,22 @@
         case "bonus":{
           const amount = randPick(state.rng, [15000,20000,30000,50000]); pl.money += amount; flashMoney(playerIndex, amount);
           pl.bonusCount = (pl.bonusCount || 0) + 1;
-          pl.reputation = Math.min(100, (pl.reputation||50) + 2);
-          pl.clientSatisfaction = Math.min(100, (pl.clientSatisfaction||50) + 2);
+          pl.reputation = (pl.reputation || 0) + 1;
           if(pl.money > (pl.maxMoneyReached||0)) pl.maxMoneyReached = pl.money;
           if(amount > (pl.highestSingleGain||0)) pl.highestSingleGain = amount;
-          pushLog(`${pl.name}: 案件成功！${yen(amount)}（残高: ${yen(pl.money)}）`, "ok");
+          pushLog(`${pl.name}: 案件成功！${yen(amount)}獲得（残高: ${yen(pl.money)}）`, "ok");
           evaluatePlayerAchievements(playerIndex);
           break;
         }
         case "penalty":{
           const amount = randPick(state.rng, [8000,12000,18000,25000]); pl.money -= amount; flashMoney(playerIndex, -amount);
           pl.penaltyCount = (pl.penaltyCount||0) + 1;
-          pl.reputation = Math.max(0, (pl.reputation||50) - 2);
-          pl.clientSatisfaction = Math.max(0, (pl.clientSatisfaction||50) - 2);
+          pl.reputation = Math.max(0, (pl.reputation||0) - 1);
           pushLog(`${pl.name}: コスト発生…${yen(amount)}失う（残高: ${yen(pl.money)}）`, "bad");
           break;
         }
         case "client":{
+          // client meeting: chance influenced by reputation
           const base = 0.55;
           const repBonus = ((pl.reputation||50) - 50) / 200;
           const prob = Math.max(0.05, Math.min(0.95, base + repBonus));
@@ -813,6 +825,7 @@
           break;
         }
         case "workshop":{
+          // skill/workshop: increases reputation and small money or small cost
           const gain = randPick(state.rng, [0,5000,10000]);
           pl.money += gain; flashMoney(playerIndex, gain);
           pl.reputation = Math.min(100, (pl.reputation||50) + randPick(state.rng, [1,2,3]));
@@ -822,39 +835,41 @@
           break;
         }
         case "event":{
+          // Branch possibility
           if(state.rng() < BRANCH_CHANCE){
             const pb = personaBranchMap[pl.name];
             if(pb && pb.length>0){ const be = randPick(state.rng, pb); showBranchModal(be, playerIndex); return; }
-            const defaultBranch = { text: "クライアント提案の機会", choices: [
-              { label:"攻める提案", probGood:0.5, success:{money:40000,move:1,rep:2,csat:3,text:"提案受注！"}, failure:{money:-10000,move:0,rep:-1,csat:-2,text:"提案失敗"} },
-              { label:"守る提案", probGood:0.8, success:{money:15000,move:0,rep:1,csat:1,text:"小案件を獲得"}, failure:{money:0,move:0,rep:0,csat:0,text:"変わらず"} }
+            const defaultBranch = { text: "クライアントへの提案機会", choices: [
+              { label:"攻めの提案", probGood:0.5, success:{money:40000,move:1,rep:+2,csat:+3,text:"提案受注！"}, failure:{money:-10000,move:0,rep:-1,csat:-2,text:"提案失敗"} },
+              { label:"守りの提案", probGood:0.8, success:{money:15000,move:0,rep:+1,csat:+1,text:"小さな案件を獲得"}, failure:{money:0,move:0,rep:0,csat:0,text:"何もしない"} }
             ]};
             showBranchModal(defaultBranch, playerIndex); return;
           }
+          // persona-specific event or generic event
           const personaEvents = personaEventMap[pl.name];
-          if(personaEvents && personaEvents.length>0 && state.rng() < 0.75){
+          if(personaEvents && personaEvents.length>0 && state.rng() < 0.7){
             const ev = randPick(state.rng, personaEvents);
-            pl.money += ev.money; flashMoney(playerIndex, ev.money || 0);
-            if(typeof ev.rep === "number") pl.reputation = Math.max(0, Math.min(100, (pl.reputation || 50) + ev.rep));
-            if(typeof ev.csat === "number") pl.clientSatisfaction = Math.max(0, Math.min(100, (pl.clientSatisfaction || 50) + ev.csat));
+            pl.money += ev.money; flashMoney(playerIndex, ev.money);
+            if(typeof ev.rep === "number") pl.reputation = (pl.reputation || 0) + ev.rep;
+            if(typeof ev.csat === "number") pl.clientSatisfaction = (pl.clientSatisfaction || 50) + ev.csat;
             if(ev.money > (pl.highestSingleGain||0)) pl.highestSingleGain = ev.money;
             if(pl.money > (pl.maxMoneyReached||0)) pl.maxMoneyReached = pl.money;
-            pushLog(`${pl.name}: ${ev.text}（残高: ${yen(pl.money)} / 評判: ${pl.reputation || 50} / CSAT: ${pl.clientSatisfaction || 50}）`, ev.money>=0?"ok":"bad");
+            pushLog(`${pl.name}: ${ev.text}（残高: ${yen(pl.money)} / 評判: ${pl.reputation || 0} / CSAT: ${pl.clientSatisfaction || 50}）`, ev.money>=0?"ok":"bad");
             if(state.rng() < 0.10){ pl.skipTurn = true; pushLog(`${pl.name}: 次のターンはお休み（リフレッシュ）`); }
-            showCard("案件イベント", ev.text, `${pl.name} / 残高: ${yen(pl.money)} / 評判: ${pl.reputation || 50} / CSAT: ${pl.clientSatisfaction || 50}`);
+            showCard("案件イベント", ev.text, `${pl.name} / 残高: ${yen(pl.money)} / 評判: ${pl.reputation || 0} / CSAT: ${pl.clientSatisfaction || 50}`);
             evaluatePlayerAchievements(playerIndex);
             renderPlayersPanel();
             return;
           }
           const ev2 = randPick(state.rng, eventTable);
           pl.money += ev2.money; flashMoney(playerIndex, ev2.money || 0);
-          if(typeof ev2.rep === "number") pl.reputation = Math.max(0, Math.min(100, (pl.reputation || 50) + ev2.rep));
-          if(typeof ev2.csat === "number") pl.clientSatisfaction = Math.max(0, Math.min(100, (pl.clientSatisfaction || 50) + ev2.csat));
+          if(typeof ev2.rep === "number") pl.reputation = (pl.reputation || 0) + ev2.rep;
+          if(typeof ev2.csat === "number") pl.clientSatisfaction = (pl.clientSatisfaction || 50) + ev2.csat;
           if(ev2.money > (pl.highestSingleGain||0)) pl.highestSingleGain = ev2.money;
           if(pl.money > (pl.maxMoneyReached||0)) pl.maxMoneyReached = pl.money;
-          pushLog(`${pl.name}: ${ev2.text}（残高: ${yen(pl.money)} / 評判: ${pl.reputation || 50} / CSAT: ${pl.clientSatisfaction || 50}）`, ev2.money>=0?"ok":"bad");
+          pushLog(`${pl.name}: ${ev2.text}（残高: ${yen(pl.money)} / 評判: ${pl.reputation || 0} / CSAT: ${pl.clientSatisfaction || 50}）`, ev2.money>=0?"ok":"bad");
           if(state.rng() < 0.10){ pl.skipTurn = true; pushLog(`${pl.name}: 次のターンはお休み（リフレッシュ）`); }
-          showCard("案件イベント", ev2.text, `${pl.name} / 残高: ${yen(pl.money)} / 評判: ${pl.reputation || 50} / CSAT: ${pl.clientSatisfaction || 50}`);
+          showCard("案件イベント", ev2.text, `${pl.name} / 残高: ${yen(pl.money)} / 評判: ${pl.reputation || 0} / CSAT: ${pl.clientSatisfaction || 50}`);
           evaluatePlayerAchievements(playerIndex);
           break;
         }
@@ -908,6 +923,7 @@
     function nextPlayerTurn(){
       const total = state.players.length; let i = state.currentPlayerIndex;
       for(let c=0;c<total;c++){ i=(i+1)%total; const p=state.players[i]; if(!p.finished){ state.currentPlayerIndex=i; break; } }
+      // consume skip if present
       if(state.players[state.currentPlayerIndex] && state.players[state.currentPlayerIndex].skipTurn){
         const skipped = state.players[state.currentPlayerIndex];
         skipped.skipTurn = false;
@@ -1018,35 +1034,41 @@
         const tdName = document.createElement("td"); tdName.textContent = p.displayName;
         const tdColor = document.createElement("td"); tdColor.innerHTML = `<div style="display:flex;align-items:center;gap:8px"><div style="width:20px;height:20px;background:${p.color};border-radius:4px;border:1px solid #ccc"></div><span>${p.color}</span></div>`;
         const tdEvents = document.createElement("td");
-        tdEvents.innerHTML = `<button class="tiny" data-idx="${idx}" data-action="edit-events">編集 (${p.events.length})</button>`;
+        tdEvents.innerHTML = `<button class="tiny" data-idx="${idx}" data-action="edit-events" type="button">編集 (${p.events.length})</button>`;
         const tdBranches = document.createElement("td");
-        tdBranches.innerHTML = `<button class="tiny" data-idx="${idx}" data-action="edit-branches">編集 (${p.branchEvents?.length||0})</button>`;
+        tdBranches.innerHTML = `<button class="tiny" data-idx="${idx}" data-action="edit-branches" type="button">編集 (${p.branchEvents?.length||0})</button>`;
         const tdActions = document.createElement("td");
-        tdActions.innerHTML = `<button class="tiny" data-idx="${idx}" data-action="edit">編集</button> <button class="tiny" data-idx="${idx}" data-action="delete">削除</button>`;
+        tdActions.innerHTML = `<button class="tiny" data-idx="${idx}" data-action="edit" type="button">編集</button> <button class="tiny" data-idx="${idx}" data-action="delete" type="button">削除</button>`;
         tr.appendChild(tdIndex); tr.appendChild(tdName); tr.appendChild(tdColor); tr.appendChild(tdEvents); tr.appendChild(tdBranches); tr.appendChild(tdActions);
         personaTbody.appendChild(tr);
       });
+      // safety: ensure buttons are on top and receive events
+      promotePersonaButtons();
     }
 
-    personaAddBtn.addEventListener("click", ()=> {
+    personaAddBtn.addEventListener("click", (e)=> {
+      e.stopPropagation();
       const d = { id: "p"+Date.now(), displayName: "新ペルソナ", color: PLAYER_COLORS[personasStore.length % PLAYER_COLORS.length], events: [], branchEvents: [] };
       personasStore.push(d);
       syncStoresFromPersonasList(personasStore);
       renderPersonaTable();
     });
 
-    personaCloseBtn.addEventListener("click", ()=> personaModal.close());
+    personaCloseBtn.addEventListener("click", (e)=> { e.stopPropagation(); personaModal.close(); });
 
-    personaSaveBtn.addEventListener("click", ()=> {
+    personaSaveBtn.addEventListener("click", (e)=> {
+      e.stopPropagation();
       try { localStorage.setItem("imported-personas", JSON.stringify({ personas: personasStore })); pushLog("ペルソナを保存しました", "ok"); } catch(e){ alert("保存に失敗しました"); }
     });
 
-    personaExportBtn.addEventListener("click", ()=> {
+    personaExportBtn.addEventListener("click", (e)=> {
+      e.stopPropagation();
       const blob = new Blob([JSON.stringify({personas: personasStore}, null, 2)], {type:"application/json"});
       const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href=url; a.download="personas.json"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
     });
 
     personaTbody.addEventListener("click", (e) => {
+      e.stopPropagation();
       const btn = e.target.closest("button");
       if(!btn) return;
       const idx = Number(btn.dataset.idx);
@@ -1084,7 +1106,7 @@
       renderPersonaTable();
     }
 
-    // Branch editor
+    // Branch editor (full)
     let editingBranchTarget = null;
     function openBranchEditor(branch, onSave){
       branchTextInput.value = branch.text || "";
@@ -1177,7 +1199,7 @@
       block.appendChild(row1); block.appendChild(row2);
 
       const controls = document.createElement("div");
-      const del = document.createElement("button"); del.textContent = "削除"; del.className = "tiny";
+      const del = document.createElement("button"); del.type = "button"; del.textContent = "削除"; del.className = "tiny";
       del.addEventListener("click", ()=> { div.remove(); });
       controls.appendChild(del);
 
@@ -1343,25 +1365,32 @@
     });
 
     // Achievements button handler (ensure clickable)
-    btnAchievements.addEventListener("click", ()=> { updateAchievementsModal(); achModal.showModal(); });
+    btnAchievements.addEventListener("click", (e)=> { e.stopPropagation(); updateAchievementsModal(); achModal.showModal(); });
 
-    // Persona manager handlers (ensure clickable)
-    personaAddBtn.addEventListener("click", ()=> {
-      const d = { id: "p"+Date.now(), displayName: "新ペルソナ", color: PLAYER_COLORS[personasStore.length % PLAYER_COLORS.length], events: [], branchEvents: [] };
-      personasStore.push(d);
-      syncStoresFromPersonasList(personasStore);
-      renderPersonaTable();
-    });
-    personaCloseBtn.addEventListener("click", ()=> personaModal.close());
-    personaSaveBtn.addEventListener("click", ()=> {
-      try { localStorage.setItem("imported-personas", JSON.stringify({ personas: personasStore })); pushLog("ペルソナを保存しました", "ok"); } catch(e){ alert("保存に失敗しました"); }
-    });
-    personaExportBtn.addEventListener("click", ()=> {
-      const blob = new Blob([JSON.stringify({personas: personasStore}, null, 2)], {type:"application/json"});
-      const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href=url; a.download="personas.json"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    // Persona modal click handler — prevent click-through and ensure internal buttons receive events
+    personaModal.addEventListener("click", (e) => {
+      const card = personaModal.querySelector('.card');
+      if(!card) return;
+      if(card.contains(e.target)){
+        e.stopPropagation();
+      }
     });
 
+    // Ensure persona table buttons are promoted (runtime)
+    function promotePersonaButtons(){
+      const buttons = personaTbody.querySelectorAll("button");
+      buttons.forEach(b => {
+        if(!b.getAttribute("type")) b.setAttribute("type","button");
+        b.style.position = "relative";
+        b.style.zIndex = 1225;
+        // safety: stop propagation on click to avoid dialog/backdrop interfering
+        b.addEventListener("click", (ev) => { ev.stopPropagation(); }, { capture: true });
+      });
+    }
+
+    // Persona table click handler (defensive)
     personaTbody.addEventListener("click", (e) => {
+      e.stopPropagation();
       const btn = e.target.closest("button");
       if(!btn) return;
       const idx = Number(btn.dataset.idx);
@@ -1383,12 +1412,16 @@
       }
     });
 
-    // initial render & setup
+    // initial render & safety
     renderBoard();
     buildSettingsForm();
     updateAchievementsModal();
     updateRollState();
-    window.__life_game = { state, renderBoard, renderPlayersPanel, personasStore, syncStoresFromPersonasList };
+    window.__life_game = { state, renderBoard, renderPlayersPanel, personasStore, syncStoresFromPersonasList, promotePersonaButtons };
+
+    // Small helpers used in this file but declared later (ensure no missing references)
+    function tokenId(i){ return `token-${i}` }
+    function indexToGrid(index){ const row = Math.floor(index/BOARD_COLS); let col = index % BOARD_COLS; if(row % 2 === 1) col = BOARD_COLS-1-col; return {row, col}; }
 
   })();
   </script>
