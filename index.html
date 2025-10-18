@@ -308,8 +308,7 @@
   <script>
   // ===========================
   // 人生ゲーム — コンサル体験拡張 ver-13
-  // ・タイトルを「人生ゲーム」に戻し、コンサル要素を増加
-  // ・盤面サイズを拡張（10x6=60セル）
+  // バグ修正: ゴール実績が誤って発生する問題を修正
   // ===========================
   (function(){
     const $ = s => document.querySelector(s);
@@ -466,10 +465,13 @@
       updateAchievementsModal();
     }
 
+    // === BUG FIXED: evaluatePlayerAchievements now checks for actual goal completion ===
+    // Ensure early_goal is awarded ONLY if player has actually finished (pl.finished === true)
     function evaluatePlayerAchievements(i){
       const p = state.players[i];
       if(!p) return;
-      if(p.turnsToGoal && p.turnsToGoal <= 12) awardAchievement(i, "early_goal");
+      // early_goal: only if player has finished and turnsToGoal is a number
+      if(p.finished && typeof p.turnsToGoal === "number" && p.turnsToGoal <= 12) awardAchievement(i, "early_goal");
       if((p.maxMoneyReached||0) >= 100000) awardAchievement(i, "billings_100k");
       if((p.branchSuccessCount||0) >= 2) awardAchievement(i, "close_deal");
       if((p.highestSingleGain||0) >= 150000) awardAchievement(i, "big_deal");
