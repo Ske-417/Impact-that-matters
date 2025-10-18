@@ -22,7 +22,7 @@
     }
 
     /* ===== App Bar / Toolbar ===== */
-    .appbar{position:sticky; top:0; z-index:20; width:100%; display:flex; justify-content:center; background:linear-gradient(180deg, rgba(255,250,240,.98), rgba(255,250,240,.9)); backdrop-filter:saturate(1.05)}
+    .appbar{position:sticky; top:0; z-index:30; width:100%; display:flex; justify-content:center; background:linear-gradient(180deg, rgba(255,250,240,.98), rgba(255,250,240,.9)); backdrop-filter:saturate(1.05)}
     .toolbar{width:100%; padding:8px 10px; display:flex; flex-wrap:wrap; align-items:center; gap:8px}
     .title{font-weight:800; font-size:16px; color:#111; letter-spacing:.02em; white-space:nowrap; margin-right:auto}
 
@@ -95,7 +95,20 @@
     th,td{border:1px solid #e5e7eb; padding:8px; text-align:left}
     th{background:#f8fafc}
 
-    /* ===== Controls small UI ===== */
+    /* ===== Settings / Persona Manager ===== */
+    .settings-list{display:grid; gap:8px; margin-top:8px}
+    .settings-row{display:flex; gap:8px; align-items:center}
+    .settings-row select[type="text"]{flex:1}
+    .settings-row input[type="color"]{width:44px; height:34px; padding:4px}
+    .persona-table{width:100%; border-collapse:collapse; margin-top:8px}
+    .persona-table th, .persona-table td{border:1px solid #e5e7eb; padding:6px}
+    .small{font-size:13px; color:#666}
+    .muted-row{color:#666; font-size:13px}
+    .choice-row{display:flex; gap:6px; align-items:center; margin-bottom:6px}
+    .choice-row input[type="number"]{width:84px}
+    .choice-row input[type="text"]{flex:1}
+    .branch-editor { display:grid; gap:8px; }
+    .choices-list{border:1px dashed #ddd; padding:8px; border-radius:8px; max-height:260px; overflow:auto}
     .tiny{font-size:12px;padding:6px 8px}
     .slot-select{min-width:120px}
     .help-list{line-height:1.6}
@@ -170,9 +183,10 @@
     </aside>
   </div>
 
-  <!-- Tooltips and helper modals -->
+  <!-- Tooltip -->
   <div id="tooltip" role="tooltip" aria-hidden="true"></div>
 
+  <!-- History Modal -->
   <dialog class="modal" id="history-modal" aria-labelledby="history-title">
     <div class="card">
       <h3 id="history-title">イベント履歴</h3>
@@ -184,13 +198,14 @@
     </div>
   </dialog>
 
+  <!-- Shortcuts Modal -->
   <dialog class="modal" id="shortcuts-modal" aria-labelledby="shortcuts-title">
     <div class="card">
       <h3 id="shortcuts-title">操作ショートカット</h3>
       <div class="help-list">
         Space / Enter: サイコロを振る<br>
-        S: 保存スロットを開く（クイック保存）<br>
-        L: 保存スロットを読み込む（クイック読込）<br>
+        S: 保存スロットをクイック保存<br>
+        L: 保存スロットをクイック読込<br>
         H: このヘルプを開く/閉じる<br>
         Z / Shift+Z: ズームイン / ズームアウト<br>
         F: 盤面を画面にフィット<br>
@@ -199,416 +214,862 @@
     </div>
   </dialog>
 
-  <!-- Existing persona & branch modals kept (IDs preserved) -->
-  <!-- settings, persona, branch editor modals are expected to exist as in previous versions -->
-  <!-- For brevity they are omitted here but must be included in full integration. -->
+  <!-- Settings Modal -->
+  <dialog class="modal" id="settings-modal" aria-labelledby="settings-title">
+    <div class="card">
+      <h3 id="settings-title">プレイヤー設定</h3>
+      <p class="small">人数は上部の「人数」で切り替え。あらかじめ用意したペルソナから選べます。</p>
+      <div id="settings-list" class="settings-list"></div>
+      <div class="actions">
+        <button id="settings-cancel">キャンセル</button>
+        <button id="settings-save" class="primary">保存</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Persona Manager Modal -->
+  <dialog class="modal" id="persona-modal" aria-labelledby="persona-title">
+    <div class="card">
+      <h3 id="persona-title">ペルソナ管理</h3>
+      <p class="small">ペルソナを追加・編集・削除できます。イベントはGUIで詳しく編集できます。</p>
+      <table class="persona-table" id="persona-table">
+        <thead><tr><th>#</th><th>表示名</th><th>色</th><th>イベント（簡易編集）</th><th>分岐イベント</th><th>アクション</th></tr></thead>
+        <tbody id="persona-tbody"></tbody>
+      </table>
+      <div style="display:flex; gap:8px; margin-top:8px">
+        <button id="persona-add">ペルソナ追加</button>
+        <button id="persona-save" class="primary">保存</button>
+        <button id="persona-export">エクスポート</button>
+        <button id="persona-close">閉じる</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Branch Editor Modal (rich) -->
+  <dialog class="modal" id="branch-editor-modal" aria-labelledby="branch-editor-title">
+    <div class="card">
+      <h3 id="branch-editor-title">分岐イベントエディタ</h3>
+      <div id="branch-editor" class="branch-editor">
+        <label>イベント本文 (プレイヤーに表示される説明)</label>
+        <input id="branch-text" type="text" placeholder="イベントの説明を入力" />
+        <div>
+          <strong>選択肢</strong>
+          <div class="choices-list" id="choices-list"></div>
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <button id="branch-add-choice">選択肢を追加</button>
+            <button id="branch-preview" class="primary">プレビュー（乱数で判定）</button>
+            <div style="flex:1"></div>
+            <button id="branch-save" class="primary">保存</button>
+            <button id="branch-cancel">キャンセル</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </dialog>
 
   <script>
-  // =============== Utilities & DOM refs ===============
-  const $ = s => document.querySelector(s);
-  const boardEl = $("#board"), logEl = $("#log"), diceEl = $("#dice");
-  const statTurnEl = $("#stat-turn"), statCurrentEl = $("#stat-current");
-  const playersPanelEl = $("#players-panel");
-  const btnStart = $("#btn-start"), btnRoll = $("#btn-roll"), btnReset = $("#btn-reset");
-  const btnSave = $("#btn-save"), btnLoad = $("#btn-load"), btnExport = $("#btn-export"), btnImport = $("#btn-import"), fileImport = $("#file-import");
-  const playersCountSel = $("#players-count"), initialMoneyInput = $("#initial-money");
-  const rngSeedInput = $("#rng-seed"), speedInput = $("#speed"), overshootSel = $("#overshoot");
-  const btnZoomIn = $("#btn-zoom-in"), btnZoomOut = $("#btn-zoom-out"), btnFit = $("#btn-fit");
-  const tooltip = $("#tooltip");
-  const saveSlotSel = $("#save-slot"), btnSaveSlot = $("#btn-save-slot"), btnLoadSlot = $("#btn-load-slot"), btnDeleteSlot = $("#btn-delete-slot");
-  const btnHistory = $("#btn-history"), historyModal = $("#history-modal"), historyBody = $("#history-body"), historyClose = $("#history-close"), historyClear = $("#history-clear");
-  const btnShortcuts = $("#btn-shortcuts"), shortcutsModal = $("#shortcuts-modal"), shortcutsClose = $("#shortcuts-close");
+  // Full integrated script: game logic, persona store, editors, UI helpers
+  (function(){
+    // ====== Utilities & DOM refs ======
+    const $ = s => document.querySelector(s);
+    const boardEl = $("#board"), logEl = $("#log"), diceEl = $("#dice");
+    const statTurnEl = $("#stat-turn"), statCurrentEl = $("#stat-current");
+    const playersPanelEl = $("#players-panel");
+    const btnStart = $("#btn-start"), btnRoll = $("#btn-roll"), btnReset = $("#btn-reset");
+    const btnSave = $("#btn-save"), btnLoad = $("#btn-load"), btnExport = $("#btn-export"), btnImport = $("#btn-import"), fileImport = $("#file-import");
+    const playersCountSel = $("#players-count"), initialMoneyInput = $("#initial-money");
+    const rngSeedInput = $("#rng-seed"), speedInput = $("#speed"), overshootSel = $("#overshoot");
+    const btnZoomIn = $("#btn-zoom-in"), btnZoomOut = $("#btn-zoom-out"), btnFit = $("#btn-fit");
+    const tooltip = $("#tooltip");
+    const saveSlotSel = $("#save-slot"), btnSaveSlot = $("#btn-save-slot"), btnLoadSlot = $("#btn-load-slot"), btnDeleteSlot = $("#btn-delete-slot");
+    const btnHistory = $("#btn-history"), historyModal = $("#history-modal"), historyBody = $("#history-body"), historyClose = $("#history-close"), historyClear = $("#history-clear");
+    const btnShortcuts = $("#btn-shortcuts"), shortcutsModal = $("#shortcuts-modal"), shortcutsClose = $("#shortcuts-close");
+    const settingsBtn = $("#btn-settings"), settingsModal = $("#settings-modal"), settingsListEl = $("#settings-list");
+    const settingsSaveBtn = $("#settings-save"), settingsCancelBtn = $("#settings-cancel");
+    const btnImportPersonas = $("#btn-import-personas"), filePersonas = $("#file-personas");
+    const btnManagePersonas = $("#btn-manage-personas"), personaModal = $("#persona-modal");
+    const personaTbody = $("#persona-tbody"), personaAddBtn = $("#persona-add"), personaSaveBtn = $("#persona-save"), personaExportBtn = $("#persona-export"), personaCloseBtn = $("#persona-close");
+    const branchEditorModal = $("#branch-editor-modal"), branchTextInput = $("#branch-text"), choicesListEl = $("#choices-list");
+    const branchAddChoiceBtn = $("#branch-add-choice"), branchSaveBtn = $("#branch-save"), branchCancelBtn = $("#branch-cancel"), branchPreviewBtn = $("#branch-preview");
 
-  // small state
-  const BOARD_COLS = 8, BOARD_ROWS = 5, TOTAL_CELLS = BOARD_COLS * BOARD_ROWS;
-  const PLAYER_COLORS = ["#ff6b6b", "#4c9aff", "#00c853", "#ff8f00", "#9c27b0", "#00acc1"];
-  const BRANCH_CHANCE = 0.30;
-  let state = {
-    started:false, turn:0, currentPlayerIndex:0, players:[], finishedCount:0, animating:false,
-    rng: Math.random, seed:"", speed:180, overshoot:"clamp",
-    playerSettings: []
-  };
+    // ===== Constants =====
+    const BOARD_COLS = 8, BOARD_ROWS = 5, TOTAL_CELLS = BOARD_COLS * BOARD_ROWS;
+    const PLAYER_COLORS = ["#ff6b6b", "#4c9aff", "#00c853", "#ff8f00", "#9c27b0", "#00acc1"];
+    const BRANCH_CHANCE = 0.30;
 
-  // RNG (seed)
-  function createRNG(seed){
-    if(!seed) return Math.random;
-    let h = 2166136261 >>> 0;
-    for (let i=0;i<seed.length;i++){ h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }
-    return () => { h += 0x6D2B79F5; let t = Math.imul(h ^ h>>>15, 1 | h); t ^= t + Math.imul(t ^ t>>>7, 61 | t); return ((t ^ t>>>14) >>> 0) / 4294967296; };
-  }
+    // ===== Persona defaults & stores =====
+    const DEFAULT_PERSONAS = [
+      { id:"shinsotsu", displayName:"新卒さん", color:"#ff6b6b", events: [
+        { text:"研修で評価されて昇給チャンス+¥15,000", money:15000 },
+        { text:"飲み会で交際費-¥5,000", money:-5000 },
+      ], branchEvents: [] },
+      { id:"chuto", displayName:"中途さん", color:"#4c9aff", events: [
+        { text:"即戦力でプロジェクト入り+¥25,000", money:25000 },
+        { text:"引越し費用-¥30,000", money:-30000 }
+      ], branchEvents: [] },
+      { id:"shigodeki", displayName:"しごできさん", color:"#00c853", events: [
+        { text:"成果報酬で+¥40,000", money:40000 },
+        { text:"過労で病院-¥8,000", money:-8000 }
+      ], branchEvents: [] },
+      { id:"shacho", displayName:"社長さん", color:"#ff8f00", events: [
+        { text:"事業が当たって大儲け+¥100,000", money:100000 },
+        { text:"投資の失敗-¥60,000", money:-60000 }
+      ], branchEvents: [] },
+    ];
 
-  const randPick = (rng, arr)=> arr[Math.floor(rng()*arr.length)];
-  const yen = n => "¥" + n.toLocaleString("ja-JP");
-  const sleep = ms => new Promise(res=>setTimeout(res, ms));
+    let personasStore = [];
+    let PERSONAS = [];
+    let personaEventMap = {};
+    let personaBranchMap = {};
 
-  // board & initial cells
-  const cells = Array.from({length:TOTAL_CELLS},(_,i)=>({index:i,type:"none",label:""}));
-  cells[0] = {index:0,type:"start",label:"スタート"};
-  cells[TOTAL_CELLS-1] = {index:TOTAL_CELLS-1,type:"goal",label:"ゴール"};
-  const mark = (idxs, type, label)=> idxs.forEach(i=>{cells[i].type=type; cells[i].label=label});
-  mark([3,6,9,12,15,18,23,27,31,33], "event", "イベント");
-  mark([4,10,16,22,30], "bonus", "ボーナス");
-  mark([8,14,20,26,34], "penalty", "ペナルティ");
+    function deepClone(o){ return JSON.parse(JSON.stringify(o)); }
 
-  // basic event table (kept simple here)
-  const eventTable = [
-    { text:"就職おめでとう！初任給で+¥30,000", money:+30000 },
-    { text:"家賃の更新で-¥20,000", money:-20000 },
-    { text:"副業がバズって+¥50,000", money:+50000 },
-    { text:"スマホが壊れて-¥15,000", money:-15000 },
-    { text:"推し活で-¥10,000", money:-10000 },
-    { text:"奨学金が振り込まれた+¥40,000", money:+40000 },
-    { text:"バイト昇給で+¥8,000", money:+8000 },
-    { text:"体調不良で病院代-¥5,000", money:-5000 },
-    { text:"フリマで売れて+¥6,000", money:+6000 },
-    { text:"交通違反で-¥12,000", money:-12000 },
-  ];
-
-  // helpers for board size / zoom
-  function getCellSize(){
-    const val = getComputedStyle(document.documentElement).getPropertyValue('--cell-size') || '72px';
-    return parseInt(val);
-  }
-  function setCellSize(px){
-    document.documentElement.style.setProperty('--cell-size', px + 'px');
-    document.documentElement.style.setProperty('--board-max-width', `calc(${px}px * var(--board-cols) + 32px)`);
-    // re-render to reposition tokens
-    placeAllTokens();
-  }
-  function zoomIn(){ const s = getCellSize(); setCellSize(s + parseInt(getComputedStyle(document.documentElement).getPropertyValue('--zoom-step'))); }
-  function zoomOut(){ const s = getCellSize(); setCellSize(Math.max(44, s - parseInt(getComputedStyle(document.documentElement).getPropertyValue('--zoom-step')))); }
-  function fitBoard(){
-    // Attempt to fit to available vertical space: compute ideal cell-size based on viewport height minus toolbar/sidebar
-    const toolbarRect = document.querySelector('.appbar').getBoundingClientRect();
-    const viewportH = window.innerHeight;
-    const sidebar = document.querySelector('.sidebar');
-    const sidebarRect = sidebar ? sidebar.getBoundingClientRect() : {height: 0};
-    const availableH = viewportH - toolbarRect.height - 40; // some margin
-    const maxCellH = Math.floor((availableH - 16) / BOARD_ROWS);
-    const current = getCellSize();
-    const newSize = Math.max(44, Math.min(current + 0, maxCellH)); // don't enlarge beyond current if not needed
-    setCellSize(newSize);
-  }
-
-  // render functions
-  function indexToGrid(index){
-    const row = Math.floor(index/BOARD_COLS);
-    let col = index % BOARD_COLS;
-    if(row % 2 === 1) col = BOARD_COLS-1-col;
-    return {row, col};
-  }
-
-  function renderBoard(){
-    boardEl.innerHTML = "";
-    cells.forEach(cell=>{
-      const div = document.createElement("div");
-      div.className = "cell "+(cell.type!="none"?cell.type:"");
-      div.dataset.index = String(cell.index);
-      const idx = document.createElement("div"); idx.className = "idx"; idx.textContent = String(cell.index); div.appendChild(idx);
-      const label = document.createElement("div"); label.textContent = cell.label||""; div.appendChild(label);
-      const {row,col} = indexToGrid(cell.index); div.style.gridRowStart = row+1; div.style.gridColumnStart = col+1;
-      // tooltip handlers
-      div.addEventListener("mouseenter", e=> showCellTooltip(cell, e));
-      div.addEventListener("mousemove", e=> moveTooltip(e));
-      div.addEventListener("mouseleave", hideTooltip);
-      boardEl.appendChild(div);
-    });
-    // tokens
-    state.players.forEach((pl,i)=>{
-      const token=document.createElement("div"); token.className="token"; token.id=tokenId(i); token.textContent=String(i+1); token.style.background=pl.color; if(pl.finished) token.classList.add("finished");
-      token.style.position = "absolute"; token.style.left = "0px"; token.style.top = "0px";
-      token.addEventListener("mouseenter", e=> showPlayerTooltip(pl, e));
-      token.addEventListener("mousemove", e=> moveTooltip(e));
-      token.addEventListener("mouseleave", hideTooltip);
-      boardEl.appendChild(token);
-    });
-    placeAllTokens(); highlightActiveToken();
-  }
-
-  function tokenId(i){ return `token-${i}` }
-
-  function placeAllTokens(){
-    const groups = new Map();
-    state.players.forEach((pl,i)=>{
-      if(!groups.has(pl.position)) groups.set(pl.position, []);
-      groups.get(pl.position).push(i);
-    });
-    groups.forEach((idxs, pos)=>{
-      const targetCell = boardEl.querySelector(`.cell[data-index="${pos}"]`);
-      if(!targetCell) return;
-      const rectBoard = boardEl.getBoundingClientRect();
-      const rc = targetCell.getBoundingClientRect();
-      const cx = rc.left - rectBoard.left + rc.width/2; const cy = rc.top - rectBoard.top + rc.height/2;
-      const r = Math.min(rc.width, rc.height) / 3.2;
-      const n = idxs.length; const baseAngle = -90; // 上向き中心
-      idxs.forEach((pi, k)=>{
-        const angle = baseAngle + (n===1?0: (k-(n-1)/2) * 30);
-        const rad = angle * Math.PI / 180;
-        const x = cx + r * Math.cos(rad) - 14; const y = cy + r * Math.sin(rad) - 14;
-        const t = $("#"+tokenId(pi)); if(t) t.style.transform = `translate(${x}px, ${y}px)`;
+    function syncStoresFromPersonasList(list){
+      personasStore = list.map(p => ({
+        id: p.id || (p.displayName || "p").toLowerCase().replace(/\s+/g,"_")+Math.floor(Math.random()*1000),
+        displayName: p.displayName || "未設定",
+        color: p.color || PLAYER_COLORS[0],
+        events: Array.isArray(p.events) ? p.events.map(ev => ({ text: ev.text||"", money: Number(ev.money)||0 })) : [],
+        branchEvents: Array.isArray(p.branchEvents) ? p.branchEvents.map(be => deepClone(be)) : []
+      }));
+      PERSONAS = personasStore.map(p => p.displayName);
+      personaEventMap = {};
+      personaBranchMap = {};
+      personasStore.forEach(p => {
+        personaEventMap[p.displayName] = p.events.slice();
+        if(p.branchEvents && p.branchEvents.length) personaBranchMap[p.displayName] = p.branchEvents.slice();
       });
+    }
+
+    (function initPersonas(){
+      try{
+        const s = localStorage.getItem("imported-personas");
+        if(s){
+          const data = JSON.parse(s);
+          if(data && Array.isArray(data.personas)) { syncStoresFromPersonasList(data.personas); return; }
+        }
+      }catch(e){}
+      syncStoresFromPersonasList(DEFAULT_PERSONAS);
+    })();
+
+    // ===== RNG / util =====
+    function createRNG(seed){
+      if(!seed) return Math.random;
+      let h = 2166136261 >>> 0;
+      for (let i=0;i<seed.length;i++){ h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }
+      return () => { h += 0x6D2B79F5; let t = Math.imul(h ^ h>>>15, 1 | h); t ^= t + Math.imul(t ^ t>>>7, 61 | t); return ((t ^ t>>>14) >>> 0) / 4294967296; };
+    }
+    const randPick = (rng, arr)=> arr[Math.floor(rng()*arr.length)];
+    const yen = n => "¥" + Number(n).toLocaleString("ja-JP");
+    const sleep = ms => new Promise(res=>setTimeout(res, ms));
+
+    // ===== board cells =====
+    const cells = Array.from({length:TOTAL_CELLS},(_,i)=>({index:i,type:"none",label:""}));
+    cells[0] = {index:0,type:"start",label:"スタート"};
+    cells[TOTAL_CELLS-1] = {index:TOTAL_CELLS-1,type:"goal",label:"ゴール"};
+    const mark = (idxs, type, label)=> idxs.forEach(i=>{cells[i].type=type; cells[i].label=label});
+    mark([3,6,9,12,15,18,23,27,31,33], "event", "イベント");
+    mark([4,10,16,22,30], "bonus", "ボーナス");
+    mark([8,14,20,26,34], "penalty", "ペナルティ");
+
+    const eventTable = [
+      { text:"就職おめでとう！初任給で+¥30,000", money:+30000 },
+      { text:"家賃の更新で-¥20,000", money:-20000 },
+      { text:"副業がバズって+¥50,000", money:+50000 },
+      { text:"スマホが壊れて-¥15,000", money:-15000 },
+      { text:"推し活で-¥10,000", money:-10000 },
+      { text:"奨学金が振り込まれた+¥40,000", money:+40000 },
+      { text:"バイト昇給で+¥8,000", money:+8000 },
+      { text:"体調不良で病院代-¥5,000", money:-5000 },
+      { text:"フリマで売れて+¥6,000", money:+6000 },
+      { text:"交通違反で-¥12,000", money:-12000 },
+    ];
+
+    // ===== state =====
+    let state = {
+      started:false, turn:0, currentPlayerIndex:0, players:[], finishedCount:0, animating:false,
+      rng: Math.random, seed:"", speed:180, overshoot:"clamp",
+      playerSettings: []
+    };
+
+    function ensurePlayerSettings(count = 4){
+      if(!state.playerSettings || !Array.isArray(state.playerSettings)) state.playerSettings = [];
+      for(let i=0;i<count;i++){
+        if(!state.playerSettings[i]) {
+          state.playerSettings[i] = { persona: PERSONAS[i] || `プレイヤー${i+1}`, color: PLAYER_COLORS[i % PLAYER_COLORS.length] };
+        }
+      }
+      state.playerSettings.length = count;
+    }
+
+    // ===== rendering & layout helpers =====
+    function getCellSize(){
+      const val = getComputedStyle(document.documentElement).getPropertyValue('--cell-size') || '72px';
+      return parseInt(val);
+    }
+    function setCellSize(px){
+      document.documentElement.style.setProperty('--cell-size', px + 'px');
+      document.documentElement.style.setProperty('--board-max-width', `calc(${px}px * var(--board-cols) + 32px)`);
+      placeAllTokens();
+    }
+    function zoomIn(){ const s = getCellSize(); setCellSize(s + parseInt(getComputedStyle(document.documentElement).getPropertyValue('--zoom-step'))); }
+    function zoomOut(){ const s = getCellSize(); setCellSize(Math.max(44, s - parseInt(getComputedStyle(document.documentElement).getPropertyValue('--zoom-step')))); }
+    function fitBoard(){
+      const toolbarRect = document.querySelector('.appbar').getBoundingClientRect();
+      const viewportH = window.innerHeight;
+      const availableH = viewportH - toolbarRect.height - 48; // margin
+      const maxCellH = Math.floor((availableH - 16) / BOARD_ROWS);
+      const current = getCellSize();
+      const newSize = Math.max(44, Math.min(current, maxCellH));
+      setCellSize(newSize);
+    }
+
+    function indexToGrid(index){
+      const row = Math.floor(index/BOARD_COLS);
+      let col = index % BOARD_COLS;
+      if(row % 2 === 1) col = BOARD_COLS-1-col;
+      return {row, col};
+    }
+
+    function renderBoard(){
+      boardEl.innerHTML = "";
+      cells.forEach(cell=>{
+        const div = document.createElement("div");
+        div.className = "cell "+(cell.type!="none"?cell.type:"");
+        div.dataset.index = String(cell.index);
+        const idx = document.createElement("div"); idx.className = "idx"; idx.textContent = String(cell.index); div.appendChild(idx);
+        const label = document.createElement("div"); label.textContent = cell.label||""; div.appendChild(label);
+        const {row,col} = indexToGrid(cell.index); div.style.gridRowStart = row+1; div.style.gridColumnStart = col+1;
+        // tooltip
+        div.addEventListener("mouseenter", e=> showCellTooltip(cell, e));
+        div.addEventListener("mousemove", e=> moveTooltip(e));
+        div.addEventListener("mouseleave", hideTooltip);
+        boardEl.appendChild(div);
+      });
+      // tokens
+      state.players.forEach((pl,i)=>{
+        const token=document.createElement("div"); token.className="token"; token.id=tokenId(i); token.textContent=String(i+1); token.style.background=pl.color; if(pl.finished) token.classList.add("finished");
+        token.style.position = "absolute"; token.style.left = "0px"; token.style.top = "0px";
+        token.addEventListener("mouseenter", e=> showPlayerTooltip(pl, e));
+        token.addEventListener("mousemove", e=> moveTooltip(e));
+        token.addEventListener("mouseleave", hideTooltip);
+        boardEl.appendChild(token);
+      });
+      placeAllTokens(); highlightActiveToken();
+    }
+
+    function tokenId(i){ return `token-${i}` }
+
+    function placeAllTokens(){
+      const groups = new Map();
+      state.players.forEach((pl,i)=>{
+        if(!groups.has(pl.position)) groups.set(pl.position, []);
+        groups.get(pl.position).push(i);
+      });
+      groups.forEach((idxs, pos)=>{
+        const targetCell = boardEl.querySelector(`.cell[data-index="${pos}"]`);
+        if(!targetCell) return;
+        const rectBoard = boardEl.getBoundingClientRect();
+        const rc = targetCell.getBoundingClientRect();
+        const cx = rc.left - rectBoard.left + rc.width/2; const cy = rc.top - rectBoard.top + rc.height/2;
+        const r = Math.min(rc.width, rc.height) / 3.2;
+        const n = idxs.length; const baseAngle = -90;
+        idxs.forEach((pi, k)=>{
+          const angle = baseAngle + (n===1?0: (k-(n-1)/2) * 30);
+          const rad = angle * Math.PI / 180;
+          const x = cx + r * Math.cos(rad) - 14; const y = cy + r * Math.sin(rad) - 14;
+          const t = $("#"+tokenId(pi)); if(t) t.style.transform = `translate(${x}px, ${y}px)`;
+        });
+      });
+    }
+
+    function highlightActiveToken(){
+      state.players.forEach((_,i)=>{
+        const t=$("#"+tokenId(i)); if(!t) return; if(i===state.currentPlayerIndex) t.classList.add("active"); else t.classList.remove("active");
+      });
+    }
+
+    function moneyId(i){return `money-${i}`}
+    function renderPlayersPanel(){
+      playersPanelEl.innerHTML="";
+      state.players.forEach((pl,i)=>{
+        const row=document.createElement("div"); row.className="player-row"+(i===state.currentPlayerIndex?" active":"");
+        const name=document.createElement("div");
+        const badge=document.createElement("span"); badge.className="badge"; badge.style.background=pl.color; name.appendChild(badge);
+        const nameText=document.createElement("span"); nameText.textContent = pl.name + (pl.finished?"（ゴール）":""); name.appendChild(nameText);
+        const pos=document.createElement("div"); pos.textContent = "位置: "+pl.position;
+        const money=document.createElement("div"); money.className="money"; money.id=moneyId(i); money.textContent=yen(pl.money);
+        const status=document.createElement("div"); status.textContent = pl.skipTurn?"次ターン休み":"";
+        row.appendChild(name); row.appendChild(pos); row.appendChild(money); row.appendChild(status);
+        playersPanelEl.appendChild(row);
+      });
+    }
+    function flashMoney(i,delta){ const el=$("#"+moneyId(i)); if(!el) return; const cls=delta>=0?"flash-plus":"flash-minus"; el.classList.add(cls); setTimeout(()=>el.classList.remove(cls), 400) }
+
+    // log and history
+    function pushLog(text, kind){ const p=document.createElement("p"); p.textContent=text; if(kind) p.classList.add(kind); logEl.appendChild(p); logEl.scrollTop = logEl.scrollHeight; }
+    function showHistory(){
+      historyBody.innerHTML = "";
+      const items = Array.from(logEl.querySelectorAll("p")).slice(-200);
+      if(items.length===0) historyBody.textContent = "履歴がありません";
+      items.reverse().forEach(p => { const d = document.createElement("div"); d.textContent = p.textContent; d.className = p.className; historyBody.appendChild(d); });
+      historyModal.showModal();
+    }
+    historyClose.addEventListener("click", ()=> historyModal.close());
+    historyClear.addEventListener("click", ()=> { if(!confirm("履歴をクリアしますか？")) return; logEl.innerHTML=""; historyBody.innerHTML=""; pushLog("履歴をクリアしました"); historyModal.close(); });
+
+    // tooltip functions
+    function showCellTooltip(cell, e){
+      const info = [];
+      info.push(`マス #${cell.index}`);
+      if(cell.type) info.push(`タイプ: ${cell.type}`);
+      if(cell.label) info.push(`${cell.label}`);
+      const recent = Array.from(logEl.querySelectorAll("p")).slice(-20).reverse().find(p => p.textContent.includes(String(cell.index)));
+      if(recent) info.push(`最近: ${recent.textContent}`);
+      tooltip.innerHTML = info.join("<br>");
+      tooltip.style.display = "block";
+      moveTooltip(e);
+    }
+    function showPlayerTooltip(pl, e){
+      const info = [];
+      info.push(`${pl.name}`);
+      info.push(`所持金: ${yen(pl.money)}`);
+      info.push(`位置: ${pl.position}`);
+      if(pl.finished) info.push("ゴール済み");
+      tooltip.innerHTML = info.join("<br>");
+      tooltip.style.display = "block";
+      moveTooltip(e);
+    }
+    function moveTooltip(e){
+      const pad = 12;
+      tooltip.style.left = (e.clientX + pad) + "px";
+      tooltip.style.top = Math.min(window.innerHeight - 80, e.clientY + pad) + "px";
+    }
+    function hideTooltip(){ tooltip.style.display = "none"; }
+
+    // modal simple fallback
+    function showCard(title, text, sub){
+      // use a modal if available; fallback to alert to ensure integration even if original modal wiring is overridden
+      try {
+        const modal = document.getElementById("modal");
+        if(modal){
+          // prepare content if modal exists
+          const t = modal.querySelector("#modal-title"); const txt = modal.querySelector("#modal-text"); const subEl = modal.querySelector("#modal-sub"); const actions = modal.querySelector("#modal-actions");
+          if(t) t.textContent = title;
+          if(txt) txt.textContent = text;
+          if(subEl) subEl.textContent = sub || "";
+          if(actions) {
+            actions.innerHTML = "";
+            const ok = document.createElement("button"); ok.textContent = "OK"; ok.className = "primary";
+            ok.addEventListener("click", ()=> modal.close());
+            actions.appendChild(ok);
+          }
+          modal.showModal();
+          return;
+        }
+      } catch(e){}
+      alert(`${title}\n\n${text}\n\n${sub || ""}`);
+    }
+
+    // Branch modal used during gameplay (reads branch schema)
+    function showBranchModal(branchEv, playerIndex){
+      const modal = document.getElementById("modal");
+      const modalTitle = document.getElementById("modal-title");
+      const modalText = document.getElementById("modal-text");
+      const modalSub = document.getElementById("modal-sub");
+      const modalActions = document.getElementById("modal-actions");
+      modalTitle.textContent = "分岐イベント";
+      modalText.textContent = branchEv.text;
+      modalSub.textContent = `あなた: ${state.players[playerIndex].name}`;
+      modalActions.innerHTML = "";
+      branchEv.choices.forEach(choice=>{
+        const b = document.createElement("button"); b.textContent = choice.label;
+        b.addEventListener("click", async ()=>{
+          const prob = (typeof choice.probGood === "number") ? choice.probGood : 1.0;
+          const success = state.rng() < prob;
+          const pl = state.players[playerIndex];
+          const res = success ? (choice.success||{}) : (choice.failure||{});
+          if(typeof res.money === "number" && res.money !== 0){ pl.money += res.money; flashMoney(playerIndex, res.money); }
+          const text = success ? (res.text || `${choice.label} → 成功`) : (res.text || `${choice.label} → 失敗`);
+          pushLog(`${pl.name}: ${text} ${res.money ? `(${res.money>0?'+':''}${yen(res.money)})` : ""}`, success ? "ok" : "bad");
+          if(typeof res.move === "number" && res.move !== 0){
+            if(res.move > 0) await animateMove(playerIndex, res.move);
+            else { pl.position = Math.max(0, pl.position + res.move); placeAllTokens(); resolveCell(playerIndex, pl.position); }
+          } else {
+            renderPlayersPanel();
+          }
+          modal.close();
+        });
+        modalActions.appendChild(b);
+      });
+      const cancel = document.createElement("button"); cancel.textContent = "やめる"; cancel.addEventListener("click", ()=> modal.close());
+      modalActions.appendChild(cancel);
+      modal.showModal();
+    }
+
+    // resolveCell (uses branch events and persona events if any)
+    function resolveCell(playerIndex, index){
+      const pl = state.players[playerIndex]; const cell = cells[index]; if(!cell||!pl) return;
+      switch(cell.type){
+        case "start": pushLog(`${pl.name}: スタート！`, "ok"); break;
+        case "goal":
+          if(!pl.finished){
+            pl.finished = true; state.finishedCount += 1; $("#"+tokenId(playerIndex))?.classList.add("finished");
+            pushLog(`${pl.name}: ゴール！お疲れ！`);
+            showCard("ゴール", `${pl.name} がゴール！`, `現在残高: ${yen(pl.money)}`);
+          }
+          break;
+        case "bonus":{
+          const amount = randPick(state.rng, [5000,8000,10000,15000,20000]); pl.money += amount; flashMoney(playerIndex, amount);
+          pushLog(`${pl.name}: ボーナス！${yen(amount)}獲得（残高: ${yen(pl.money)}）`, "ok"); break;
+        }
+        case "penalty":{
+          const amount = randPick(state.rng, [5000,8000,10000,15000,20000]); pl.money -= amount; flashMoney(playerIndex, -amount);
+          pushLog(`${pl.name}: ペナルティ…${yen(amount)}失う（残高: ${yen(pl.money)}）`, "bad"); break;
+        }
+        case "event":{
+          // Branch probability
+          if(state.rng() < BRANCH_CHANCE){
+            const pb = personaBranchMap[pl.name];
+            if(pb && pb.length>0){ const be = randPick(state.rng, pb); showBranchModal(be, playerIndex); return; }
+            // if persona has none, pick from a small default branch or fallback
+            const defaultBranch = { text: "分岐イベント（サンプル）", choices: [
+              { label:"挑戦する", probGood:0.6, success:{money:20000,move:1,text:"成功！"}, failure:{money:-10000,move:0,text:"失敗…"} },
+              { label:"やめる", probGood:1.0, success:{money:0,move:0,text:"何も起きない"}, failure:{money:0,move:0,text:""} }
+            ]};
+            showBranchModal(defaultBranch, playerIndex); return;
+          }
+          // persona-specific events preference
+          const personaEvents = personaEventMap[pl.name];
+          if(personaEvents && personaEvents.length>0 && state.rng() < 0.7){
+            const ev = randPick(state.rng, personaEvents);
+            pl.money += ev.money; flashMoney(playerIndex, ev.money);
+            pushLog(`${pl.name}: ${ev.text}（残高: ${yen(pl.money)}）`, ev.money>=0?"ok":"bad");
+            if(state.rng() < 0.10){ pl.skipTurn = true; pushLog(`${pl.name}: 次のターンはお休み（スキップ）`); }
+            showCard("イベント", ev.text, `${pl.name} / 残高: ${yen(pl.money)}`);
+            renderPlayersPanel();
+            return;
+          }
+          // fallback
+          const ev = randPick(state.rng, eventTable);
+          pl.money += ev.money; flashMoney(playerIndex, ev.money);
+          pushLog(`${pl.name}: ${ev.text}（残高: ${yen(pl.money)}）`, ev.money>=0?"ok":"bad");
+          if(state.rng() < 0.10){ pl.skipTurn = true; pushLog(`${pl.name}: 次のターンはお休み（スキップ）`); }
+          showCard("イベント", ev.text, `${pl.name} / 残高: ${yen(pl.money)}`);
+          break;
+        }
+      }
+      renderPlayersPanel();
+    }
+
+    // dice and movement
+    function rollDice(){ const n = Math.floor(state.rng()*6)+1; diceEl.textContent = n; diceEl.classList.add("spin"); setTimeout(()=>diceEl.classList.remove("spin"), 620); return n; }
+    async function animateMove(playerIndex, steps){
+      const pl = state.players[playerIndex]; if(!pl || pl.finished) return;
+      state.animating = true; btnRoll.disabled = true; const delay = Number(speedInput.value || state.speed);
+      let pos = pl.position; let remain = steps;
+      while(remain>0){
+        let next = pos + 1;
+        if(next >= TOTAL_CELLS-1){
+          if(state.overshoot === "clamp"){ next = TOTAL_CELLS-1; pos = next; pl.position = pos; placeAllTokens(); await sleep(delay); break; }
+          else {
+            const extra = remain - 1 - ((TOTAL_CELLS-1) - pos - 1);
+            pos = TOTAL_CELLS-1; pl.position = pos; placeAllTokens(); await sleep(delay);
+            for(let b=0; b<extra; b++){ pos -= 1; pl.position = pos; placeAllTokens(); await sleep(delay); }
+            remain = 0; break;
+          }
+        }
+        pos = next; pl.position = pos; placeAllTokens(); await sleep(delay); remain--;
+      }
+      resolveCell(playerIndex, pl.position);
+      state.animating = false;
+    }
+
+    function nextPlayerTurn(){
+      const total = state.players.length; let i = state.currentPlayerIndex;
+      for(let c=0;c<total;c++){ i=(i+1)%total; const p=state.players[i]; if(!p.finished){ state.currentPlayerIndex=i; break; } }
+      highlightActiveToken(); renderPlayersPanel(); statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
+    }
+    const isGameFinished = ()=> state.finishedCount === state.players.length;
+
+    // ===== Save / Load (slots) =====
+    const SAVE_SLOT_PREFIX = "life-game-slot-";
+    function snapshot(){ return JSON.stringify({
+      started:state.started, turn:state.turn, currentPlayerIndex:state.currentPlayerIndex, finishedCount:state.finishedCount,
+      players:state.players, seed:state.seed, overshoot:state.overshoot, speed:Number(speedInput.value||state.speed),
+      playerSettings: state.playerSettings, personas: personasStore
+    }); }
+    function restore(json){
+      try{
+        const d = JSON.parse(json);
+        state.started = d.started; state.turn = d.turn; state.currentPlayerIndex = d.currentPlayerIndex; state.finishedCount = d.finishedCount;
+        state.players = d.players || []; state.seed = d.seed||""; state.overshoot = d.overshoot||"clamp"; state.rng = createRNG(state.seed||"");
+        speedInput.value = String(d.speed||180); overshootSel.value = state.overshoot; rngSeedInput.value = state.seed;
+        state.playerSettings = d.playerSettings || [];
+        if(Array.isArray(d.personas)) { syncStoresFromPersonasList(d.personas); }
+        renderBoard(); renderPlayersPanel(); statTurnEl.textContent = String(state.turn); statCurrentEl.textContent = state.players[state.currentPlayerIndex]?.name || "-";
+        pushLog("保存データを読み込みました。", "ok");
+      }catch(e){ alert("読み込みに失敗しました"); }
+    }
+
+    btnSave.addEventListener("click", ()=>{ localStorage.setItem("life-game-save", snapshot()); pushLog("保存しました", "ok"); });
+    btnLoad.addEventListener("click", ()=>{ const s=localStorage.getItem("life-game-save"); if(!s) return alert("保存がありません"); restore(s); });
+    btnExport.addEventListener("click", ()=>{
+      const blob = new Blob([snapshot()], {type:"application/json"});
+      const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href=url; a.download="life-game-save.json"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
     });
-  }
-
-  function highlightActiveToken(){
-    state.players.forEach((_,i)=>{
-      const t=$("#"+tokenId(i)); if(!t) return; if(i===state.currentPlayerIndex) t.classList.add("active"); else t.classList.remove("active");
+    btnSaveSlot.addEventListener("click", ()=> {
+      const slot = saveSlotSel.value;
+      try { localStorage.setItem(SAVE_SLOT_PREFIX + slot, snapshot()); pushLog(`スロット ${slot} に保存しました`); }
+      catch(e){ alert("保存に失敗しました"); }
     });
-  }
-
-  // sidebar players
-  function moneyId(i){return `money-${i}`}
-  function renderPlayersPanel(){
-    playersPanelEl.innerHTML="";
-    state.players.forEach((pl,i)=>{
-      const row=document.createElement("div"); row.className="player-row"+(i===state.currentPlayerIndex?" active":"");
-      const name=document.createElement("div");
-      const badge=document.createElement("span"); badge.className="badge"; badge.style.background=pl.color; name.appendChild(badge);
-      const nameText=document.createElement("span"); nameText.textContent = pl.name + (pl.finished?"（ゴール）":""); name.appendChild(nameText);
-      const pos=document.createElement("div"); pos.textContent = "位置: "+pl.position;
-      const money=document.createElement("div"); money.className="money"; money.id=moneyId(i); money.textContent=yen(pl.money);
-      const status=document.createElement("div"); status.textContent = pl.skipTurn?"次ターン休み":"";
-      row.appendChild(name); row.appendChild(pos); row.appendChild(money); row.appendChild(status);
-      playersPanelEl.appendChild(row);
+    btnLoadSlot.addEventListener("click", ()=> {
+      const slot = saveSlotSel.value;
+      const s = localStorage.getItem(SAVE_SLOT_PREFIX + slot);
+      if(!s) return alert("スロットに保存がありません");
+      restore(s);
     });
-  }
-  function flashMoney(i,delta){ const el=$("#"+moneyId(i)); if(!el) return; const cls=delta>=0?"flash-plus":"flash-minus"; el.classList.add(cls); setTimeout(()=>el.classList.remove(cls), 400) }
+    btnDeleteSlot.addEventListener("click", ()=> {
+      const slot = saveSlotSel.value;
+      if(!confirm(`スロット ${slot} を削除しますか？`)) return;
+      localStorage.removeItem(SAVE_SLOT_PREFIX + slot);
+      pushLog(`スロット ${slot} を削除しました`);
+    });
 
-  // log + history
-  function pushLog(text, kind){ const p=document.createElement("p"); p.textContent=text; if(kind) p.classList.add(kind); logEl.appendChild(p); logEl.scrollTop = logEl.scrollHeight; }
-  function showHistory(){
-    historyBody.innerHTML = "";
-    const items = Array.from(logEl.querySelectorAll("p")).slice(-200); // last 200
-    if(items.length===0) historyBody.textContent = "履歴がありません";
-    items.reverse().forEach(p => { const d = document.createElement("div"); d.textContent = p.textContent; d.className = p.className; historyBody.appendChild(d); });
-    historyModal.showModal();
-  }
-  historyClose.addEventListener("click", ()=> historyModal.close());
-  historyClear.addEventListener("click", ()=> { if(!confirm("履歴をクリアしますか？")) return; logEl.innerHTML=""; historyBody.innerHTML=""; pushLog("履歴をクリアしました"); historyModal.close(); });
+    // ===== Persona JSON import (simple) =====
+    $("#btn-import-personas").addEventListener("click", ()=> filePersonas.click());
+    filePersonas.addEventListener("change", async (e) => {
+      const f = e.target.files?.[0];
+      if(!f) return;
+      try{
+        const txt = await f.text();
+        const json = JSON.parse(txt);
+        if(!json || !Array.isArray(json.personas)) throw new Error("personas 配列がありません");
+        const merged = personasStore.concat(json.personas);
+        syncStoresFromPersonasList(merged);
+        try { localStorage.setItem("imported-personas", JSON.stringify({ personas: personasStore })); } catch(e){}
+        buildSettingsForm();
+        pushLog("ペルソナを読み込みました: " + json.personas.map(x=>x.displayName).join(", "), "ok");
+      }catch(err){
+        console.error(err);
+        alert("読み込みに失敗しました（JSONの形式を確認してください）");
+      } finally {
+        filePersonas.value = "";
+      }
+    });
 
-  // tooltip content functions
-  function showCellTooltip(cell, e){
-    const info = [];
-    info.push(`マス #${cell.index}`);
-    if(cell.type) info.push(`タイプ: ${cell.type}`);
-    if(cell.label) info.push(`${cell.label}`);
-    // last events sample (search log for recent mention)
-    const recent = Array.from(logEl.querySelectorAll("p")).slice(-20).reverse().find(p => p.textContent.includes(cell.index));
-    if(recent) info.push(`最近: ${recent.textContent}`);
-    tooltip.innerHTML = info.join("<br>");
-    tooltip.style.display = "block";
-    moveTooltip(e);
-  }
-  function showPlayerTooltip(pl, e){
-    const info = [];
-    info.push(`${pl.name}`);
-    info.push(`所持金: ${yen(pl.money)}`);
-    info.push(`位置: ${pl.position}`);
-    if(pl.finished) info.push("ゴール済み");
-    tooltip.innerHTML = info.join("<br>");
-    tooltip.style.display = "block";
-    moveTooltip(e);
-  }
-  function moveTooltip(e){
-    const pad = 12;
-    tooltip.style.left = (e.clientX + pad) + "px";
-    tooltip.style.top = Math.min(window.innerHeight - 80, e.clientY + pad) + "px";
-  }
-  function hideTooltip(){ tooltip.style.display = "none"; }
+    // ===== Persona Manager UI & Branch Editor Integration =====
+    function openPersonaManager(){ renderPersonaTable(); personaModal.showModal(); }
+    function renderPersonaTable(){
+      personaTbody.innerHTML = "";
+      personasStore.forEach((p, idx) => {
+        const tr = document.createElement("tr");
+        const tdIdx = document.createElement("td"); tdIdx.textContent = String(idx+1);
+        const tdName = document.createElement("td");
+        const nameInput = document.createElement("input"); nameInput.type = "text"; nameInput.value = p.displayName; nameInput.dataset.idx = idx;
+        tdName.appendChild(nameInput);
+        const tdColor = document.createElement("td"); const colorInput = document.createElement("input"); colorInput.type = "color"; colorInput.value = p.color; colorInput.dataset.idx = idx; tdColor.appendChild(colorInput);
+        const tdEvents = document.createElement("td");
+        const evEditorBtn = document.createElement("button"); evEditorBtn.textContent = "イベント編集"; evEditorBtn.dataset.idx = idx;
+        evEditorBtn.addEventListener("click", ()=> openPersonaEventEditor(idx));
+        tdEvents.appendChild(evEditorBtn);
+        const tdBranches = document.createElement("td");
+        const brEditorBtn = document.createElement("button"); brEditorBtn.textContent = "分岐編集"; brEditorBtn.dataset.idx = idx;
+        brEditorBtn.addEventListener("click", ()=> openBranchEditorForPersona(idx));
+        tdBranches.appendChild(brEditorBtn);
+        const tdAction = document.createElement("td");
+        const delBtn = document.createElement("button"); delBtn.textContent = "削除"; delBtn.dataset.idx = idx;
+        delBtn.addEventListener("click", ()=> {
+          if(!confirm(`"${p.displayName}" を削除してよいですか？`)) return;
+          personasStore.splice(idx,1);
+          syncStoresFromPersonasList(personasStore);
+          renderPersonaTable();
+        });
+        tdAction.appendChild(delBtn);
 
-  // modal event handling (simple)
-  function showCard(title, text, sub){ alert(`${title}\n\n${text}\n\n${sub || ""}`); } // fallback for simpler integration
+        tr.appendChild(tdIdx); tr.appendChild(tdName); tr.appendChild(tdColor); tr.appendChild(tdEvents); tr.appendChild(tdBranches); tr.appendChild(tdAction);
+        personaTbody.appendChild(tr);
+      });
+    }
 
-  // dice + movement
-  function rollDice(){ const n = Math.floor(state.rng()*6)+1; diceEl.textContent = n; diceEl.classList.add("spin"); setTimeout(()=>diceEl.classList.remove("spin"), 620); return n; }
+    personaAddBtn.addEventListener("click", ()=>{
+      const newPersona = { id:`p${Date.now()}`, displayName:`ペルソナ${personasStore.length+1}`, color: PLAYER_COLORS[personasStore.length % PLAYER_COLORS.length], events: [], branchEvents: [] };
+      personasStore.push(newPersona);
+      syncStoresFromPersonasList(personasStore);
+      renderPersonaTable();
+    });
 
-  async function animateMove(playerIndex, steps){
-    const pl = state.players[playerIndex]; if(!pl || pl.finished) return;
-    state.animating = true; btnRoll.disabled = true; const delay = Number(speedInput.value || state.speed);
-    let pos = pl.position; let remain = steps;
-    while(remain>0){
-      let next = pos + 1;
-      if(next >= TOTAL_CELLS-1){
-        if(state.overshoot === "clamp"){ next = TOTAL_CELLS-1; pos = next; pl.position = pos; placeAllTokens(); await sleep(delay); break; }
+    personaCloseBtn.addEventListener("click", ()=> personaModal.close());
+
+    personaSaveBtn.addEventListener("click", ()=>{
+      const rows = personaTbody.querySelectorAll("tr");
+      rows.forEach((tr, idx) => {
+        const nameInput = tr.querySelector('input[type="text"]');
+        const colorInput = tr.querySelector('input[type="color"]');
+        const name = nameInput?.value?.trim() || `ペルソナ${idx+1}`;
+        const color = colorInput?.value || PLAYER_COLORS[idx % PLAYER_COLORS.length];
+        if(!personasStore[idx]) personasStore[idx] = { id:`p${Date.now()}${idx}`, displayName:name, color, events: [], branchEvents: [] };
         else {
-          const extra = remain - 1 - ((TOTAL_CELLS-1) - pos - 1);
-          pos = TOTAL_CELLS-1; pl.position = pos; placeAllTokens(); await sleep(delay);
-          for(let b=0; b<extra; b++){ pos -= 1; pl.position = pos; placeAllTokens(); await sleep(delay); }
-          remain = 0; break;
+          personasStore[idx].displayName = name;
+          personasStore[idx].color = color;
         }
-      }
-      pos = next; pl.position = pos; placeAllTokens(); await sleep(delay); remain--;
+      });
+      syncStoresFromPersonasList(personasStore);
+      try { localStorage.setItem("imported-personas", JSON.stringify({ personas: personasStore })); } catch(e){}
+      buildSettingsForm();
+      pushLog("ペルソナを保存しました", "ok");
+      personaModal.close();
+    });
+
+    personaExportBtn.addEventListener("click", ()=>{
+      const data = { personas: personasStore };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = "personas-export.json"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    });
+
+    // simple persona event editor (prompt-based)
+    function openPersonaEventEditor(idx){
+      const persona = personasStore[idx];
+      const current = persona.events.map(ev => `${ev.text}|${ev.money}`).join("\n");
+      const res = prompt("イベントを1行ごとに入力: テキスト|金額", current);
+      if(res===null) return;
+      const events = res.split("\n").map(l=>l.trim()).filter(l=>l).map(l=>{
+        const parts = l.split("|");
+        return { text: (parts[0]||"").trim(), money: Number((parts[1]||"0").replace(/[^\d\-]/g,'')) || 0 };
+      });
+      persona.events = events;
+      syncStoresFromPersonasList(personasStore);
+      pushLog(`${persona.displayName} のイベントを更新しました`, "ok");
     }
-    resolveCell(playerIndex, pl.position);
-    state.animating = false;
-  }
 
-  function nextPlayerTurn(){
-    const total = state.players.length; let i = state.currentPlayerIndex;
-    for(let c=0;c<total;c++){ i=(i+1)%total; const p=state.players[i]; if(!p.finished){ state.currentPlayerIndex=i; break; } }
-    highlightActiveToken(); renderPlayersPanel(); statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
-  }
-  const isGameFinished = ()=> state.finishedCount === state.players.length;
+    // Branch editor integration
+    let branchEditorSaveCallback = null;
+    function openBranchEditor(branch, onSave){
+      branchEditorSaveCallback = onSave;
+      branchTextInput.value = branch.text || "";
+      renderChoicesList(branch.choices || []);
+      branchEditorModal.showModal();
 
-  // simplistic resolveCell (keeps behavior compact)
-  function resolveCell(playerIndex, index){
-    const pl = state.players[playerIndex]; const cell = cells[index]; if(!cell||!pl) return;
-    switch(cell.type){
-      case "start": pushLog(`${pl.name}: スタート！`, "ok"); break;
-      case "goal":
-        if(!pl.finished){
-          pl.finished = true; state.finishedCount += 1; $("#"+tokenId(playerIndex))?.classList.add("finished");
-          pushLog(`${pl.name}: ゴール！お疲れ！`);
-          showCard("ゴール", `${pl.name} がゴール！`, `現在残高: ${yen(pl.money)}`);
-        }
-        break;
-      case "bonus":{
-        const amount = randPick(state.rng, [5000,8000,10000,15000,20000]); pl.money += amount; flashMoney(playerIndex, amount);
-        pushLog(`${pl.name}: ボーナス！${yen(amount)}獲得（残高: ${yen(pl.money)}）`, "ok"); break;
-      }
-      case "penalty":{
-        const amount = randPick(state.rng, [5000,8000,10000,15000,20000]); pl.money -= amount; flashMoney(playerIndex, -amount);
-        pushLog(`${pl.name}: ペナルティ…${yen(amount)}失う（残高: ${yen(pl.money)}）`, "bad"); break;
-      }
-      case "event":{
-        if(state.rng() < BRANCH_CHANCE){
-          // simplified branch event (quick)
-          const ev = { text: "分岐イベント（サンプル）", choices: [
-            { label:"挑戦する", probGood:0.6, success:{money:20000,move:1,text:"成功！"}, failure:{money:-10000,move:0,text:"失敗…"} },
-            { label:"やめる", probGood:1.0, success:{money:0,move:0,text:"何も起きない"}, failure:{money:0,move:0,text:""} }
-          ]};
-          showBranchModal(ev, playerIndex); return;
-        }
-        const ev = randPick(state.rng, eventTable);
-        pl.money += ev.money; flashMoney(playerIndex, ev.money);
-        pushLog(`${pl.name}: ${ev.text}（残高: ${yen(pl.money)}）`, ev.money>=0?"ok":"bad");
-        if(state.rng() < 0.10){ pl.skipTurn = true; pushLog(`${pl.name}: 次のターンはお休み（スキップ）`); }
-        showCard("イベント", ev.text, `${pl.name} / 残高: ${yen(pl.money)}`);
-        break;
+      branchSaveBtn.onclick = () => {
+        const updated = {
+          text: branchTextInput.value.trim(),
+          choices: readChoicesFromUI()
+        };
+        branchEditorModal.close();
+        if(branchEditorSaveCallback) branchEditorSaveCallback(updated);
+      };
+      branchCancelBtn.onclick = () => { branchEditorModal.close(); };
+      branchAddChoiceBtn.onclick = ()=> {
+        addChoiceUI({ label:"新しい選択肢", probGood:0.5, success:{money:0,move:0,text:"成功"}, failure:{money:0,move:0,text:"失敗"} });
+      };
+      branchPreviewBtn.onclick = ()=> {
+        const choices = readChoicesFromUI();
+        if(!choices.length) return alert("選択肢がありません");
+        const idx = Math.floor(Math.random()*choices.length);
+        const c = choices[idx];
+        const success = Math.random() < (typeof c.probGood==="number"?c.probGood:1.0);
+        const res = success ? c.success : c.failure;
+        alert(`選択: ${c.label}\n判定: ${success? "成功":"失敗"}\n結果: ${res.text || "(説明なし)"}\n所持金変化: ${res.money ? res.money : 0}\n移動: ${res.move ? res.move : 0}`);
+      };
+    }
+
+    function renderChoicesList(choices){
+      choicesListEl.innerHTML = "";
+      choices.forEach((c, i) => addChoiceUI(c));
+    }
+
+    function addChoiceUI(choice){
+      const row = document.createElement("div"); row.className = "choice-row";
+      const labelInput = document.createElement("input"); labelInput.type = "text"; labelInput.value = choice.label||""; labelInput.placeholder="選択肢ラベル";
+      const probInput = document.createElement("input"); probInput.type = "number"; probInput.step = "0.05"; probInput.min="0"; probInput.max="1"; probInput.value = typeof choice.probGood==="number"?String(choice.probGood):"1";
+      const successMoney = document.createElement("input"); successMoney.type="number"; successMoney.value = (choice.success && typeof choice.success.money==="number")?choice.success.money:0;
+      const successMove = document.createElement("input"); successMove.type="number"; successMove.value = (choice.success && typeof choice.success.move==="number")?choice.success.move:0;
+      const successText = document.createElement("input"); successText.type="text"; successText.value = (choice.success && choice.success.text) ? choice.success.text : ""; successText.placeholder = "成功時テキスト";
+      const failMoney = document.createElement("input"); failMoney.type="number"; failMoney.value = (choice.failure && typeof choice.failure.money==="number")?choice.failure.money:0;
+      const failMove = document.createElement("input"); failMove.type="number"; failMove.value = (choice.failure && typeof choice.failure.move==="number")?choice.failure.move:0;
+      const failText = document.createElement("input"); failText.type="text"; failText.value = (choice.failure && choice.failure.text) ? choice.failure.text : ""; failText.placeholder = "失敗時テキスト";
+      const previewBtn = document.createElement("button"); previewBtn.textContent = "プレビュー";
+      previewBtn.addEventListener("click", ()=>{
+        const prob = Number(probInput.value) || 0;
+        const success = Math.random() < prob;
+        const res = success ? { money: Number(successMoney.value)||0, move: Number(successMove.value)||0, text: successText.value } : { money: Number(failMoney.value)||0, move: Number(failMove.value)||0, text: failText.value };
+        alert(`選択: ${labelInput.value}\n判定: ${success? "成功":"失敗"}\n${res.text || ""}\n所持金変化: ${res.money}\n移動: ${res.move}`);
+      });
+      const delBtn = document.createElement("button"); delBtn.textContent = "削除";
+      delBtn.addEventListener("click", ()=> { row.remove(); });
+
+      row.appendChild(labelInput);
+      row.appendChild(probInput);
+      row.appendChild(successMoney);
+      row.appendChild(successMove);
+      row.appendChild(successText);
+      row.appendChild(failMoney);
+      row.appendChild(failMove);
+      row.appendChild(failText);
+      row.appendChild(previewBtn);
+      row.appendChild(delBtn);
+      choicesListEl.appendChild(row);
+    }
+
+    function readChoicesFromUI(){
+      const rows = choicesListEl.querySelectorAll(".choice-row");
+      const out = [];
+      rows.forEach(r=>{
+        const inputs = r.querySelectorAll("input");
+        const label = inputs[0]?.value || "選択肢";
+        const prob = Number(inputs[1]?.value) || 0;
+        const sMoney = Number(inputs[2]?.value) || 0;
+        const sMove = Number(inputs[3]?.value) || 0;
+        const sText = inputs[4]?.value || "";
+        const fMoney = Number(inputs[5]?.value) || 0;
+        const fMove = Number(inputs[6]?.value) || 0;
+        const fText = inputs[7]?.value || "";
+        out.push({
+          label,
+          probGood: prob,
+          success: { money: sMoney, move: sMove, text: sText },
+          failure: { money: fMoney, move: fMove, text: fText }
+        });
+      });
+      return out;
+    }
+
+    // openBranchEditorForPersona
+    let currentEditingPersonaIndex = null;
+    function openBranchEditorForPersona(personaIdx){
+      currentEditingPersonaIndex = personaIdx;
+      const persona = personasStore[personaIdx];
+      const branch = { text: "", choices: [] };
+      // if exists, edit first branch by default or allow adding; here we open new branch creator
+      openBranchEditor(branch, (updatedBranch) => {
+        persona.branchEvents.push(updatedBranch);
+        syncStoresFromPersonasList(personasStore);
+        renderPersonaTable();
+        pushLog(`${persona.displayName} の分岐イベントを保存しました`, "ok");
+      });
+    }
+
+    // ===== Settings modal builder =====
+    function buildSettingsForm(){
+      const count = parseInt(playersCountSel.value,10) || 4;
+      ensurePlayerSettings(count);
+      settingsListEl.innerHTML = "";
+      for(let i=0;i<count;i++){
+        const s = state.playerSettings[i] || { persona: PERSONAS[i] || `プレイヤー${i+1}`, color:PLAYER_COLORS[i % PLAYER_COLORS.length] };
+        const row = document.createElement("div"); row.className = "settings-row";
+        const idx = document.createElement("div"); idx.textContent = `${i+1}`; idx.style.width = "24px"; idx.style.textAlign = "center"; idx.style.fontWeight = "700";
+        const personaSelect = document.createElement("select");
+        PERSONAS.forEach(p => {
+          const opt = document.createElement("option"); opt.value = p; opt.textContent = p; personaSelect.appendChild(opt);
+        });
+        personaSelect.value = s.persona || PERSONAS[i] || `プレイヤー${i+1}`;
+        const colorInput = document.createElement("input"); colorInput.type = "color"; colorInput.value = s.color || PLAYER_COLORS[i % PLAYER_COLORS.length];
+        row.appendChild(idx); row.appendChild(personaSelect); row.appendChild(colorInput);
+        settingsListEl.appendChild(row);
       }
     }
-    renderPlayersPanel();
-  }
 
-  // player id helpers
-  function moneyId(i){ return `money-${i}`; }
-  function flashMoney(i, delta){ const el = $("#"+moneyId(i)); if(!el) return; const cls = delta>=0?"flash-plus":"flash-minus"; el.classList.add(cls); setTimeout(()=>el.classList.remove(cls), 400); }
+    settingsBtn.addEventListener("click", ()=> { buildSettingsForm(); settingsModal.showModal(); });
+    settingsCancelBtn.addEventListener("click", ()=> settingsModal.close());
+    settingsSaveBtn.addEventListener("click", ()=>{
+      const rows = settingsListEl.querySelectorAll(".settings-row");
+      rows.forEach((row, idx)=>{
+        const personaSelect = row.querySelector('select');
+        const colorInput = row.querySelector('input[type="color"]');
+        const persona = personaSelect?.value || PERSONAS[idx] || `プレイヤー${idx+1}`;
+        const color = colorInput?.value || PLAYER_COLORS[idx % PLAYER_COLORS.length];
+        state.playerSettings[idx] = { persona, color };
+      });
+      if(state.started && state.players && state.players.length > 0){
+        for(let i=0;i<state.players.length;i++){
+          const s = state.playerSettings[i];
+          if(!s) continue;
+          state.players[i].name = s.persona;
+          state.players[i].color = s.color;
+        }
+        renderBoard();
+        renderPlayersPanel();
+        pushLog("プレイヤー設定を更新しました。", "ok");
+      } else {
+        pushLog("プレイヤー設定を保存しました。", "ok");
+      }
+      settingsModal.close();
+    });
 
-  // save / load (multiple slots)
-  const SAVE_SLOT_PREFIX = "life-game-slot-"; // slot 1..3
-  function snapshot(){ return JSON.stringify({
-    started:state.started, turn:state.turn, currentPlayerIndex:state.currentPlayerIndex, finishedCount:state.finishedCount,
-    players:state.players, seed:state.seed, overshoot:state.overshoot, speed:Number(speedInput.value||state.speed),
-    playerSettings: state.playerSettings
-  }); }
-  function restore(json){
-    try{
-      const d = JSON.parse(json);
-      state.started = d.started; state.turn = d.turn; state.currentPlayerIndex = d.currentPlayerIndex; state.finishedCount = d.finishedCount;
-      state.players = d.players || []; state.seed = d.seed||""; state.overshoot = d.overshoot||"clamp"; state.rng = createRNG(state.seed||"");
-      speedInput.value = String(d.speed||180); overshootSel.value = state.overshoot; rngSeedInput.value = state.seed;
-      state.playerSettings = d.playerSettings || [];
-      renderBoard(); renderPlayersPanel(); statTurnEl.textContent = String(state.turn); statCurrentEl.textContent = state.players[state.currentPlayerIndex]?.name || "-";
-      pushLog("保存データを読み込みました。", "ok");
-    }catch(e){ alert("読み込みに失敗しました"); }
-  }
+    // ===== Start / Reset / Roll =====
+    btnStart.addEventListener("click", ()=>{
+      if(state.started) return;
+      const count = parseInt(playersCountSel.value,10); const initial = parseInt(initialMoneyInput.value,10)||0;
+      const seed = (rngSeedInput.value||"").trim(); state.seed = seed; state.rng = createRNG(seed);
+      ensurePlayerSettings(count);
+      state.players = Array.from({length:count},(_,i)=>{
+        const s = state.playerSettings[i] || { persona: PERSONAS[i] || `プレイヤー${i+1}`, color: PLAYER_COLORS[i % PLAYER_COLORS.length] };
+        return { name: s.persona, color: s.color, position:0, money:initial, finished:false, skipTurn:false };
+      });
+      state.started=true; state.turn=1; state.currentPlayerIndex=0; state.finishedCount=0; state.overshoot = overshootSel.value; state.speed = Number(speedInput.value||180);
+      pushLog(`ゲーム開始！初期資金: ${yen(initial)} | プレイヤー数: ${count} ${seed?`| シード:${seed}`:""}`, "ok");
+      renderBoard(); renderPlayersPanel(); statTurnEl.textContent=String(state.turn); statCurrentEl.textContent=state.players[state.currentPlayerIndex].name; btnRoll.disabled=false; diceEl.textContent='-';
+    });
 
-  btnSave.addEventListener("click", ()=>{ localStorage.setItem("life-game-save", snapshot()); pushLog("保存しました", "ok"); });
-  btnLoad.addEventListener("click", ()=>{ const s=localStorage.getItem("life-game-save"); if(!s) return alert("保存がありません"); restore(s); });
-  btnExport.addEventListener("click", ()=>{
-    const blob = new Blob([snapshot()], {type:"application/json"});
-    const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href=url; a.download="life-game-save.json"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-  });
+    btnReset.addEventListener("click", ()=>{
+      Object.assign(state, {started:false, turn:0, currentPlayerIndex:0, players:[], finishedCount:0, animating:false});
+      btnRoll.disabled=true; logEl.innerHTML=""; statTurnEl.textContent="0"; statCurrentEl.textContent="-"; diceEl.textContent='-';
+      renderBoard(); playersPanelEl.innerHTML=""; pushLog("リセットしました");
+    });
 
-  btnSaveSlot.addEventListener("click", ()=> {
-    const slot = saveSlotSel.value;
-    try { localStorage.setItem(SAVE_SLOT_PREFIX + slot, snapshot()); pushLog(`スロット ${slot} に保存しました`); }
-    catch(e){ alert("保存に失敗しました"); }
-  });
-  btnLoadSlot.addEventListener("click", ()=> {
-    const slot = saveSlotSel.value;
-    const s = localStorage.getItem(SAVE_SLOT_PREFIX + slot);
-    if(!s) return alert("スロットに保存がありません");
-    restore(s);
-  });
-  btnDeleteSlot.addEventListener("click", ()=> {
-    const slot = saveSlotSel.value;
-    if(!confirm(`スロット ${slot} を削除しますか？`)) return;
-    localStorage.removeItem(SAVE_SLOT_PREFIX + slot);
-    pushLog(`スロット ${slot} を削除しました`);
-  });
+    btnRoll.addEventListener("click", async ()=>{
+      if(!state.started || state.animating) return;
+      const pl = state.players[state.currentPlayerIndex]; if(!pl || pl.finished){ nextPlayerTurn(); return; }
+      if(pl.skipTurn){ pushLog(`${pl.name}: ターンをスキップします`); pl.skipTurn=false; state.turn+=1; statTurnEl.textContent=String(state.turn); nextPlayerTurn(); return; }
+      const dice = rollDice(); pushLog(`${pl.name}: サイコロ → ${dice}`);
+      const remaining = (TOTAL_CELLS-1) - pl.position; const steps = state.overshoot==="clamp"? Math.min(dice, remaining): dice;
+      await animateMove(state.currentPlayerIndex, steps);
+      state.turn += 1; statTurnEl.textContent = String(state.turn);
+      if(isGameFinished()){ pushLog("全員ゴール！ゲーム終了！"); btnRoll.disabled=true; setTimeout(()=> openResult(), 200); return; }
+      nextPlayerTurn(); btnRoll.disabled=false;
+    });
 
-  // file import personas (simple pass-through)
-  $("#btn-import-personas").addEventListener("click", ()=> filePersonas.click());
-  filePersonas.addEventListener("change", async e=>{
-    const f = e.target.files?.[0]; if(!f) return;
-    try{ const txt = await f.text(); const json = JSON.parse(txt); if(!Array.isArray(json.personas)) throw new Error("形式不正"); // keep minimal
-      // store in localStorage for future reads
-      localStorage.setItem("imported-personas", JSON.stringify({ personas: json.personas }));
-      pushLog("ペルソナを読み込みました: " + json.personas.map(p=>p.displayName).join(", "), "ok");
-      // reload personas into memory if persona manager present
-    }catch(err){ alert("ペルソナ読み込み失敗"); }
-    filePersonas.value = "";
-  });
+    function openResult(){
+      const rows = state.players.map((p,i)=>({i, name:p.name, money:p.money})).sort((a,b)=> b.money-a.money);
+      let html = `<table><thead><tr><th>順位</th><th>プレイヤー</th><th>所持金</th><th>差額</th></tr></thead><tbody>`;
+      const top = rows[0]?.money ?? 0;
+      rows.forEach((r,idx)=>{ const diff = r.money - top; html += `<tr><td>${idx+1}</td><td>${r.name}</td><td>${yen(r.money)}</td><td>${diff===0?"-":yen(diff)}</td></tr>`; });
+      html += `</tbody></table>`;
+      showCard("結果発表", html, "");
+    }
 
-  // simple start/reset/roll
-  btnStart.addEventListener("click", ()=>{
-    if(state.started) return;
-    const count = parseInt(playersCountSel.value,10); const initial = parseInt(initialMoneyInput.value,10)||0;
-    const seed = (rngSeedInput.value||"").trim(); state.seed = seed; state.rng = createRNG(seed);
-    state.players = Array.from({length:count},(_,i)=>({ name:`プレイヤー${i+1}`, color:PLAYER_COLORS[i % PLAYER_COLORS.length], position:0, money:initial, finished:false, skipTurn:false }));
-    state.started=true; state.turn=1; state.currentPlayerIndex=0; state.finishedCount=0; state.overshoot = overshootSel.value; state.speed = Number(speedInput.value||180);
-    pushLog(`ゲーム開始！初期資金: ${yen(initial)} | プレイヤー数: ${count} ${seed?`| シード:${seed}`:""}`, "ok");
-    renderBoard(); renderPlayersPanel(); statTurnEl.textContent=String(state.turn); statCurrentEl.textContent=state.players[state.currentPlayerIndex].name; btnRoll.disabled=false; diceEl.textContent='-';
-  });
+    // keyboard shortcuts
+    window.addEventListener("keydown", e=>{
+      if(e.code==="Space" || e.key==="Enter"){ e.preventDefault(); btnRoll.click(); }
+      if(e.key.toLowerCase()==='r' && !state.animating){ btnReset.click(); }
+      if(e.key.toLowerCase()==='s'){ e.preventDefault(); btnSaveSlot.click(); }
+      if(e.key.toLowerCase()==='l'){ e.preventDefault(); btnLoadSlot.click(); }
+      if(e.key.toLowerCase()==='h'){ e.preventDefault(); shortcutsModal.showModal(); }
+      if(e.key.toLowerCase()==='z'){ if(e.shiftKey) zoomOut(); else zoomIn(); }
+      if(e.key.toLowerCase()==='f'){ fitBoard(); }
+    });
 
-  btnReset.addEventListener("click", ()=>{
-    Object.assign(state, {started:false, turn:0, currentPlayerIndex:0, players:[], finishedCount:0, animating:false});
-    btnRoll.disabled=true; logEl.innerHTML=""; statTurnEl.textContent="0"; statCurrentEl.textContent="-"; diceEl.textContent='-';
-    renderBoard(); playersPanelEl.innerHTML=""; pushLog("リセットしました");
-  });
+    // zoom buttons & fit
+    btnZoomIn.addEventListener("click", zoomIn);
+    btnZoomOut.addEventListener("click", zoomOut);
+    btnFit.addEventListener("click", fitBoard);
 
-  btnRoll.addEventListener("click", async ()=>{
-    if(!state.started || state.animating) return;
-    const pl = state.players[state.currentPlayerIndex]; if(!pl || pl.finished){ nextPlayerTurn(); return; }
-    if(pl.skipTurn){ pushLog(`${pl.name}: ターンをスキップします`); pl.skipTurn=false; state.turn+=1; statTurnEl.textContent=String(state.turn); nextPlayerTurn(); return; }
-    const dice = rollDice(); pushLog(`${pl.name}: サイコロ → ${dice}`);
-    const remaining = (TOTAL_CELLS-1) - pl.position; const steps = state.overshoot==="clamp"? Math.min(dice, remaining): dice;
-    await animateMove(state.currentPlayerIndex, steps);
-    state.turn += 1; statTurnEl.textContent = String(state.turn);
-    if(isGameFinished()){ pushLog("全員ゴール！ゲーム終了！"); btnRoll.disabled=true; setTimeout(()=> alert("全員ゴール！結果発表"), 200); return; }
-    nextPlayerTurn(); btnRoll.disabled=false;
-  });
+    // history & shortcuts UI
+    btnHistory.addEventListener("click", showHistory);
+    btnShortcuts.addEventListener("click", ()=> shortcutsModal.showModal());
+    shortcutsClose.addEventListener("click", ()=> shortcutsModal.close());
 
-  // keyboard shortcuts
-  window.addEventListener("keydown", e=>{
-    if(e.code==="Space" || e.key==="Enter"){ e.preventDefault(); btnRoll.click(); }
-    if(e.key.toLowerCase()==='r' && !state.animating){ btnReset.click(); }
-    if(e.key.toLowerCase()==='s'){ e.preventDefault(); btnSaveSlot.click(); }
-    if(e.key.toLowerCase()==='l'){ e.preventDefault(); btnLoadSlot.click(); }
-    if(e.key.toLowerCase()==='h'){ e.preventDefault(); shortcutsModal.showModal(); }
-    if(e.key.toLowerCase()==='z'){ if(e.shiftKey) zoomOut(); else zoomIn(); }
-    if(e.key.toLowerCase()==='f'){ fitBoard(); }
-  });
+    // tooltip hide on scroll or resize
+    window.addEventListener("scroll", hideTooltip, true);
+    window.addEventListener("resize", ()=> { hideTooltip(); placeAllTokens(); });
 
-  // zoom buttons
-  btnZoomIn.addEventListener("click", zoomIn);
-  btnZoomOut.addEventListener("click", zoomOut);
-  btnFit.addEventListener("click", fitBoard);
-
-  // history & shortcuts UI
-  btnHistory.addEventListener("click", showHistory);
-  btnShortcuts.addEventListener("click", ()=> shortcutsModal.showModal());
-  shortcutsClose.addEventListener("click", ()=> shortcutsModal.close());
-
-  // tooltip hide on scroll or resize
-  window.addEventListener("scroll", hideTooltip, true);
-  window.addEventListener("resize", ()=> { hideTooltip(); placeAllTokens(); });
-
-  // initial render & fit
-  renderBoard();
-  setTimeout(()=> { fitBoard(); }, 80);
-  window.addEventListener("resize", ()=> placeAllTokens());
+    // initial render
+    ensurePlayerSettings(parseInt(playersCountSel.value,10) || 4);
+    renderBoard();
+    setTimeout(()=> { fitBoard(); }, 80);
+    window.addEventListener("resize", ()=> placeAllTokens());
+  })();
   </script>
 </body>
 </html>
