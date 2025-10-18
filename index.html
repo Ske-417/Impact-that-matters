@@ -6,28 +6,32 @@
   <title>人生ゲーム ver-4</title>
   <style>
     :root{
-      --board-cols:8; --board-rows:5; --cell-size:68px;
+      --board-cols:8; --board-rows:5; --cell-size:72px; /* ちょびっと大きくしました（68→72） */
       --accent:#ff6b6b; --bg:#fffaf0; --text:#222; --active:#4c9aff;
       --ok:#00c853; --warn:#ff8f00; --bad:#e53935; --muted:#94a3b8;
     }
     *{box-sizing:border-box}
-    html,body{height:100%}
+    html,body{height:100%; margin:0}
     body{
-      margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,"Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic","Meiryo",sans-serif;
+      /* ブラウザいっぱいに広げるために stretch に変更 */
+      display:flex; flex-direction:column; align-items:stretch;
+      font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,"Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic","Meiryo",sans-serif;
       color:var(--text); background:var(--bg);
-      display:flex; flex-direction:column; align-items:center
+      min-height:100vh;
     }
 
     /* ===== App Bar / Toolbar ===== */
+    /* ツールバーをブラウザ幅いっぱいに */
     .appbar{position:sticky; top:0; z-index:10; width:100%; display:flex; justify-content:center; background:linear-gradient(180deg, rgba(255,250,240,.95), rgba(255,250,240,.85)); backdrop-filter:saturate(1.05)}
-    .toolbar{width:min(1100px,100%); padding:12px 16px; display:flex; flex-wrap:wrap; align-items:center; gap:10px}
+    /* 最大幅を外して full width に（内部のアイテムは wrap のまま） */
+    .toolbar{width:100%; padding:10px 12px; display:flex; flex-wrap:wrap; align-items:center; gap:10px}
     .title{font-weight:800; font-size:16px; color:#111; letter-spacing:.02em; white-space:nowrap; margin-right:auto}
 
     .group{display:flex; align-items:center; gap:6px; padding:6px 8px; background:#fff; border:1px solid #e6e8eb; border-radius:10px}
     label{font-size:12px; color:#555}
     select,input[type="number"],input[type="text"],input[type="range"],textarea,select{padding:6px 8px; border-radius:8px; border:1px solid #ddd}
     input[type="range"]{width:140px}
-    button{padding:10px 14px; border-radius:10px; border:1px solid #ddd; background:#fff; cursor:pointer; font-weight:600}
+    button{padding:10px 12px; border-radius:10px; border:1px solid #ddd; background:#fff; cursor:pointer; font-weight:600}
     button.primary{background:var(--accent); color:#fff; border-color:transparent}
     button:disabled{opacity:.5; cursor:not-allowed}
     .dice{width:42px; height:42px; display:grid; place-items:center; border-radius:8px; border:1px solid #e2e8f0; background:#fff; font-weight:800}
@@ -35,11 +39,17 @@
     @keyframes spin{0%{transform:rotate(0)}50%{transform:rotate(180deg) scale(1.15)}100%{transform:rotate(360deg)}}
 
     /* ===== Layout ===== */
-    .wrap{width:min(1100px,100%); padding:16px; display:grid; grid-template-columns:3fr 1.2fr; gap:16px}
+    /* 全幅にして、上部ツールバーを除いた残りを .wrap が占める */
+    .wrap{width:100%; padding:12px; display:grid; grid-template-columns:3fr 1.2fr; gap:10px; flex:1; align-items:start}
     @media (max-width:980px){ .wrap{grid-template-columns:1fr} }
 
     /* ===== Board ===== */
-    .board{background:#fff; border:2px solid #eee; border-radius:12px; padding:12px; position:relative; display:grid; gap:8px; grid-template-columns:repeat(var(--board-cols), minmax(52px, var(--cell-size))); grid-template-rows:repeat(var(--board-rows), minmax(52px, var(--cell-size))); min-height: calc(var(--board-rows) * var(--cell-size));}
+    /* セルサイズを var(--cell-size) 固定にして、無駄な縦余白を削減 */
+    .board{background:#fff; border:2px solid #eee; border-radius:12px; padding:8px; position:relative; display:grid; gap:6px;
+      grid-template-columns:repeat(var(--board-cols), var(--cell-size));
+      grid-template-rows:repeat(var(--board-rows), var(--cell-size));
+      justify-content:center; align-content:start;
+    }
     .cell{background:#f9fafb; border:1px solid #e6e8eb; border-radius:10px; padding:6px; display:grid; place-items:center; font-size:12px; position:relative}
     .cell.start{background:#d1f7c4}
     .cell.goal{background:#cde7ff}
@@ -135,6 +145,7 @@
     </aside>
   </div>
 
+  <!-- モーダル類（省略せず既存のまま） -->
   <dialog class="modal" id="modal">
     <div class="card">
       <h3 id="modal-title">イベント</h3>
@@ -152,7 +163,8 @@
     </div>
   </dialog>
 
-  <!-- 設定モーダル（プレイヤー名・色 / ペルソナ選択） -->
+  <!-- 以下、ペルソナ管理 / 分岐エディタ等のDOMは元のまま（省略せず同梱） -->
+  <!-- 設定モーダル（省略表示のため同じIDは維持） -->
   <dialog class="modal" id="settings-modal" aria-labelledby="settings-title">
     <div class="card">
       <h3 id="settings-title">プレイヤー設定</h3>
@@ -204,7 +216,6 @@
       </div>
     </div>
   </dialog>
-
   <script>
   // ====== ユーティリティ & DOM refs ======
   const $ = s => document.querySelector(s);
