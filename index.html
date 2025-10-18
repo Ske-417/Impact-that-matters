@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>人生ゲーム ver-11</title>
+  <title>人生ゲーム ver-11 (修正版)</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <style>
     :root{
       --board-cols:8; --board-rows:5; --cell-size:72px;
@@ -22,7 +23,7 @@
     }
 
     /* ===== App Bar / Toolbar ===== */
-    .appbar{position:sticky; top:0; z-index:30; width:100%; display:flex; justify-content:center; background:linear-gradient(180deg, rgba(255,250,240,.98), rgba(255,250,240,.9)); backdrop-filter:saturate(1.05)}
+    .appbar{position:sticky; top:0; z-index:30; width:100%; display:flex; justify-content:center; background:linear-gradient(180deg, rgba(255,250,240,.98), rgba(255,250,240,.9)); backdrop-filter:saturate(0.9); border-bottom:1px solid rgba(0,0,0,0.02)}
     .toolbar{width:100%; padding:8px 10px; display:flex; flex-wrap:wrap; align-items:center; gap:8px}
     .title{font-weight:800; font-size:16px; color:#111; letter-spacing:.02em; white-space:nowrap; margin-right:auto}
 
@@ -108,6 +109,8 @@
     .ach-list{display:grid; gap:6px; max-height:360px; overflow:auto}
     .ach-row{display:flex; justify-content:space-between; align-items:center; padding:8px; border-radius:8px; background:#fff; border:1px solid #eee}
     .ach-locked{opacity:0.55}
+    .settings-row{display:flex; gap:8px; align-items:center; margin-bottom:8px}
+    .persona-table td .tiny{margin-right:6px}
   </style>
 </head>
 <body>
@@ -116,7 +119,7 @@
     <div class="toolbar" role="group" aria-label="ゲーム設定">
       <div class="title" id="app-title">人生ゲーム ver-11</div>
 
-      <div class="group"><label for="players-count">人数</label><select id="players-count"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option></select></div>
+      <div class="group"><label for="players-count">人数</label><select id="players-count"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option></select></div>
       <div class="group"><label for="initial-money">初期資金</label><input id="initial-money" type="number" value="20000" min="0" step="1000" /></div>
 
       <div class="group"><label for="rng-seed">シード</label><input id="rng-seed" type="text" placeholder="任意(空=ランダム)" /></div>
@@ -299,7 +302,7 @@
 
   <script>
   // ===========================
-  // Achievements-enabled full game script
+  // Achievements-enabled full game script (complete, self-contained)
   // ===========================
   (function(){
     const $ = s => document.querySelector(s);
@@ -330,12 +333,95 @@
     const PLAYER_COLORS = ["#ff6b6b", "#4c9aff", "#00c853", "#ff8f00", "#9c27b0", "#00acc1"];
     const BRANCH_CHANCE = 0.30;
 
-    // persona defaults
+    // persona defaults (complete)
     const DEFAULT_PERSONAS = [
-      { id:"shinsotsu", displayName:"新卒さん", color:"#ff6b6b", events: [{ text:"研修で評価されて昇給チャンス+¥15,000", money:15000 }, { text:"飲み会で交際費-¥5,000", money:-5000 }], branchEvents: [] },
-      { id:"chuto", displayName:"中途さん", color:"#4c9aff", events: [{ text:"即戦力でプロジェクト入り+¥25,000", money:25000 }, { text:"引越し費用-¥30,000", money:-30000 }], branchEvents: [] },
-      { id:"shigodeki", displayName:"しごできさん", color:"#00c853", events: [{ text:"成果報酬で+¥40,000", money:40000 }, { text:"過労で病院-¥8,000", money:-8000 }], branchEvents: [] },
-      { id:"shacho", displayName:"社長さん", color:"#ff8f00", events: [{ text:"事業が当たって大儲け+¥100,000", money:100000 }, { text:"投資の失敗-¥60,000", money:-60000 }], branchEvents: [] },
+      {
+        id:"shinsotsu",
+        displayName:"新卒さん",
+        color:"#ff6b6b",
+        events: [
+          { text:"研修で評価されて昇給チャンス+¥15,000", money:15000 },
+          { text:"飲み会で交際費-¥5,000", money:-5000 },
+          { text:"初任給支給+¥30,000", money:30000 }
+        ],
+        branchEvents:[
+          { text:"プレゼンに挑戦", choices:[
+            { label:"挑戦する", probGood:0.6, success:{money:20000,move:1,text:"プレゼン成功！昇進チャンス"}, failure:{money:-5000,move:0,text:"緊張して失敗…"} },
+            { label:"やめる", probGood:1.0, success:{money:0,move:0,text:"安全策を取った"}, failure:{money:0,move:0,text:""} }
+          ] }
+        ]
+      },
+      {
+        id:"chuto",
+        displayName:"中途さん",
+        color:"#4c9aff",
+        events: [
+          { text:"即戦力でプロジェクト入り+¥25,000", money:25000 },
+          { text:"引越し費用-¥30,000", money:-30000 }
+        ],
+        branchEvents:[
+          { text:"難プロジェクトのリーダーに指名", choices:[
+            { label:"受ける", probGood:0.5, success:{money:40000,move:2,text:"プロジェクト成功！"}, failure:{money:-20000,move:0,text:"失敗で損失…"} },
+            { label:"断る", probGood:1.0, success:{money:0,move:0,text:"波風立たず"}, failure:{money:0,move:0,text:""} }
+          ] }
+        ]
+      },
+      {
+        id:"shigodeki",
+        displayName:"しごできさん",
+        color:"#00c853",
+        events: [
+          { text:"成果報酬で+¥40,000", money:40000 },
+          { text:"過労で病院-¥8,000", money:-8000 }
+        ],
+        branchEvents:[
+          { text:"新規提案を行う", choices:[
+            { label:"提案する", probGood:0.55, success:{money:60000,move:1,text:"大成功！"}, failure:{money:-15000,move:0,text:"上司に否決された"} }
+          ] }
+        ]
+      },
+      {
+        id:"shacho",
+        displayName:"社長さん",
+        color:"#ff8f00",
+        events: [
+          { text:"事業が当たって大儲け+¥100,000", money:100000 },
+          { text:"投資の失敗-¥60,000", money:-60000 }
+        ],
+        branchEvents:[
+          { text:"新規事業に投資", choices:[
+            { label:"全力投資", probGood:0.35, success:{money:150000,move:2,text:"一発大当たり！"}, failure:{money:-80000,move:0,text:"失敗して大損"} },
+            { label:"控えめに", probGood:0.7, success:{money:20000,move:0,text:"小さな成功"}, failure:{money:-5000,move:0,text:"小さな損失"} }
+          ] }
+        ]
+      },
+      {
+        id:"freelance",
+        displayName:"フリーランス",
+        color:"#9c27b0",
+        events: [
+          { text:"案件が取れて+¥35,000", money:35000 },
+          { text:"契約トラブルで-¥10,000", money:-10000 }
+        ],
+        branchEvents:[
+          { text:"大型案件に応募", choices:[
+            { label:"応募する", probGood:0.5, success:{money:80000,move:1,text:"大型案件受注！"}, failure:{money:-10000,move:0,text:"落選した"} }
+          ] }
+        ]
+      },
+      {
+        id:"student",
+        displayName:"学生さん",
+        color:"#00acc1",
+        events: [
+          { text:"奨学金が振り込まれた+¥40,000", money:40000 },
+          { text:"アルバイトで-¥2,000(交通費)", money:-2000 }
+        ],
+        branchEvents:[
+          { text:"就活で勝負", choices:[
+            { label:"勝負する", probGood:0.4, success:{money:30000,move:1,text:"内定ゲット！"}, failure:{money:-5000,move:0,text:"面接不調"} }
+          ] }
+      }
     ];
 
     let personasStore = [], PERSONAS = [], personaEventMap = {}, personaBranchMap = {};
@@ -383,7 +469,7 @@
     const cells = Array.from({length:TOTAL_CELLS},(_,i)=>({index:i,type:"none",label:""}));
     cells[0] = {index:0,type:"start",label:"スタート"};
     cells[TOTAL_CELLS-1] = {index:TOTAL_CELLS-1,type:"goal",label:"ゴール"};
-    const mark = (idxs, type, label)=> idxs.forEach(i=>{cells[i].type=type; cells[i].label=label});
+    const mark = (idxs, type, label)=> idxs.forEach(i=>{ if(cells[i]){ cells[i].type=type; cells[i].label=label } });
     mark([3,6,9,12,15,18,23,27,31,33], "event", "イベント");
     mark([4,10,16,22,30], "bonus", "ボーナス");
     mark([8,14,20,26,34], "penalty", "ペナルティ");
@@ -439,7 +525,7 @@
       const rec = { id:achDef.id, name:achDef.name, desc:achDef.desc, awardedAt: (new Date()).toISOString() };
       p.achievements.push(rec);
       pushLog(`${p.name} が実績を獲得: ${achDef.name}`, "ok");
-      // show modal notification
+      // show modal notification (non-blocking small modal)
       showCard("実績獲得！", achDef.name, achDef.desc);
       renderPlayersPanel();
       updateAchievementsModal();
@@ -449,15 +535,10 @@
     function evaluatePlayerAchievements(i){
       const p = state.players[i];
       if(!p) return;
-      // goal_turn
       if(p.turnsToGoal && p.turnsToGoal <= 12) awardAchievement(i, "early_goal");
-      // max money ever
       if((p.maxMoneyReached||0) >= 100000) awardAchievement(i, "rich_100k");
-      // bonus count
       if((p.bonusCount||0) >= 3) awardAchievement(i, "bonus_collector");
-      // branch success
       if((p.branchSuccessCount||0) >= 2) awardAchievement(i, "branch_master");
-      // single gain
       if((p.highestSingleGain||0) >= 80000) awardAchievement(i, "big_gain");
     }
 
@@ -554,6 +635,7 @@
     function tokenId(i){ return `token-${i}` }
 
     function placeAllTokens(){
+      // position tokens relative to board
       const groups = new Map();
       state.players.forEach((pl,i)=>{
         if(!groups.has(pl.position)) groups.set(pl.position, []);
@@ -573,6 +655,11 @@
           const x = cx + r * Math.cos(rad) - 14; const y = cy + r * Math.sin(rad) - 14;
           const t = $("#"+tokenId(pi)); if(t) t.style.transform = `translate(${x}px, ${y}px)`;
         });
+      });
+      // hide tokens that are not yet created (safety)
+      state.players.forEach((pl,i)=>{
+        const t = $("#"+tokenId(i)); if(!t) return;
+        if(typeof pl.position !== "number") t.style.transform = "translate(-9999px,-9999px)";
       });
     }
 
@@ -611,7 +698,7 @@
       historyModal.showModal();
     }
     historyClose.addEventListener("click", ()=> historyModal.close());
-    historyClear.addEventListener("click", ()=> { if(!confirm("履歴をクリアしますか？")) return; logEl.innerHTML=""; historyBody.innerHTML=""; pushLog("履歴をクリアしました"); historyModal.close(); });
+    historyClear.addEventListener("click", ()=> { if(!confirm("履歴をクリアしますか？")) return; logEl.innerHTML=""; historyBody.innerHTML=""; pushLog("履歴をクリアしました"); });
 
     // Tooltip
     function showCellTooltip(cell, e){
@@ -673,9 +760,8 @@
           const res = success ? (choice.success||{}) : (choice.failure||{});
           // money change handling with achievement tracking
           if(typeof res.money === "number" && res.money !== 0){
-            const prev = pl.money;
-            pl.money += res.money;
             const delta = res.money;
+            pl.money += delta;
             if(delta > (pl.highestSingleGain || 0)) pl.highestSingleGain = delta;
             if(pl.money > (pl.maxMoneyReached || 0)) pl.maxMoneyReached = pl.money;
             flashMoney(playerIndex, res.money);
@@ -723,6 +809,11 @@
             pushLog(`${pl.name}: ゴール！お疲れ！`);
             showCard("ゴール", `${pl.name} がゴール！`, `現在残高: ${yen(pl.money)}`);
             evaluatePlayerAchievements(playerIndex);
+            // If all players have finished, evaluate end achievements and show result
+            if(isGameFinished()){
+              evaluateEndAchievements();
+              showResult();
+            }
           }
           break;
         case "bonus":{
@@ -782,19 +873,48 @@
       const pl = state.players[playerIndex]; if(!pl || pl.finished) return;
       state.animating = true; updateRollState();
       const delay = Number(speedInput.value || state.speed);
-      let pos = pl.position; let remain = steps;
-      while(remain>0){
-        let next = pos + 1;
-        if(next >= TOTAL_CELLS-1){
-          if(state.overshoot === "clamp"){ next = TOTAL_CELLS-1; pos = next; pl.position = pos; placeAllTokens(); await sleep(delay); break; }
-          else {
-            const extra = remain - 1 - ((TOTAL_CELLS-1) - pos - 1);
-            pos = TOTAL_CELLS-1; pl.position = pos; placeAllTokens(); await sleep(delay);
-            for(let b=0; b<extra; b++){ pos -= 1; pl.position = pos; placeAllTokens(); await sleep(delay); }
-            remain = 0; break;
+      let pos = pl.position;
+      let dir = 1; // direction: 1 forward, -1 backward (for bounce)
+      let remaining = steps;
+      while(remaining > 0){
+        // next step
+        let next = pos + dir;
+        // if next beyond goal
+        if(next >= TOTAL_CELLS){
+          if(state.overshoot === "clamp"){
+            pos = TOTAL_CELLS-1;
+            pl.position = pos;
+            placeAllTokens();
+            await sleep(delay);
+            break;
+          } else {
+            // bounce: reflect the movement
+            // move to goal cell first
+            pos = TOTAL_CELLS-1;
+            pl.position = pos;
+            placeAllTokens();
+            await sleep(delay);
+            // change direction
+            dir = -1;
+            remaining = remaining - ( (TOTAL_CELLS-1) - pos + 1 ); // remaining recalculated conservatively
+            // but simpler: after reaching goal we consider remaining steps reduced by 1 (we already moved one to reach goal)
+            remaining = Math.max(0, remaining - 0); // keep remaining as-is since we consumed step by moving to goal
+            // continue loop - we will decrement remaining below
           }
+        } else if(next < 0){
+          // if bouncing back beyond start, clamp to start and stop
+          pos = 0;
+          pl.position = pos;
+          placeAllTokens();
+          await sleep(delay);
+          break;
+        } else {
+          pos = next;
+          pl.position = pos;
+          placeAllTokens();
+          await sleep(delay);
         }
-        pos = next; pl.position = pos; placeAllTokens(); await sleep(delay); remain--;
+        remaining--;
       }
       resolveCell(playerIndex, pl.position);
       state.animating = false; updateRollState();
@@ -802,57 +922,27 @@
 
     function nextPlayerTurn(){
       const total = state.players.length; let i = state.currentPlayerIndex;
-      for(let c=0;c<total;c++){ i=(i+1)%total; const p=state.players[i]; if(!p.finished){ state.currentPlayerIndex=i; break; } }
+      for(let c=0;c<total;c++){ i=(i+1)%total; const p=state.players[i]; if(!p.finished && !p.skipTurn) { state.currentPlayerIndex=i; break; } }
+      // if the next chosen player has skipTurn=true, consume the skip and advance
+      if(state.players[state.currentPlayerIndex] && state.players[state.currentPlayerIndex].skipTurn){
+        const skipped = state.players[state.currentPlayerIndex];
+        skipped.skipTurn = false;
+        pushLog(`${skipped.name} はスキップが解除されました`);
+        // advance to next
+        for(let c=0;c<total;c++){ state.currentPlayerIndex=(state.currentPlayerIndex+1)%total; if(!state.players[state.currentPlayerIndex].finished && !state.players[state.currentPlayerIndex].skipTurn) break; }
+      }
+      // if all finished, keep current player unchanged
+      if(isGameFinished()){
+        statCurrentEl.textContent = "-";
+        return;
+      }
+      // ensure current player is not finished
+      if(state.players[state.currentPlayerIndex] && state.players[state.currentPlayerIndex].finished){
+        for(let c=0;c<total;c++){ state.currentPlayerIndex=(state.currentPlayerIndex+1)%total; if(!state.players[state.currentPlayerIndex].finished) break; }
+      }
       highlightActiveToken(); renderPlayersPanel(); statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
     }
     const isGameFinished = ()=> state.finishedCount === state.players.length;
-
-    // Achievements: evaluation helpers (defined earlier)
-    function awardAchievement(playerIndex, achId){
-      const p = state.players[playerIndex];
-      if(!p) return;
-      p.achievements = p.achievements || [];
-      if(p.achievements.find(a=>a.id===achId)) return;
-      const achDef = ACHIEVEMENTS.find(a=>a.id===achId);
-      if(!achDef) return;
-      const rec = { id:achDef.id, name:achDef.name, desc:achDef.desc, awardedAt: (new Date()).toISOString() };
-      p.achievements.push(rec);
-      pushLog(`${p.name} が実績を獲得: ${achDef.name}`, "ok");
-      showCard("実績獲得！", achDef.name, achDef.desc);
-      renderPlayersPanel();
-      updateAchievementsModal();
-    }
-    function evaluatePlayerAchievements(i){
-      const p = state.players[i];
-      if(!p) return;
-      if(p.turnsToGoal && p.turnsToGoal <= 12) awardAchievement(i, "early_goal");
-      if((p.maxMoneyReached||0) >= 100000) awardAchievement(i, "rich_100k");
-      if((p.bonusCount||0) >= 3) awardAchievement(i, "bonus_collector");
-      if((p.branchSuccessCount||0) >= 2) awardAchievement(i, "branch_master");
-      if((p.highestSingleGain||0) >= 80000) awardAchievement(i, "big_gain");
-    }
-    function evaluateEndAchievements(){
-      const rows = state.players.map((p,i)=>({i, name:p.name, money:p.money})).sort((a,b)=> b.money-a.money);
-      if(rows[0]) awardAchievement(rows[0].i, "winner");
-    }
-
-    // Achievements modal update
-    function updateAchievementsModal(){
-      achListEl.innerHTML = "";
-      ACHIEVEMENTS.forEach(a=>{
-        const div = document.createElement("div"); div.className = "ach-row";
-        const left = document.createElement("div"); left.innerHTML = `<strong>${a.name}</strong><div class="muted small">${a.desc}</div>`;
-        const right = document.createElement("div");
-        const makers = state.players.map((p, idx)=> ({ p, idx })).filter(o=> (o.p.achievements || []).find(x=>x.id===a.id));
-        if(makers.length>0){
-          right.innerHTML = makers.map(m=>`${m.p.name}`).join(", ");
-        } else {
-          right.innerHTML = `<span class="ach-locked">未獲得</span>`;
-        }
-        div.appendChild(left); div.appendChild(right);
-        achListEl.appendChild(div);
-      });
-    }
 
     // Save / Load slots
     const SAVE_SLOT_PREFIX = "life-game-slot-";
@@ -864,17 +954,17 @@
     function restore(json){
       try{
         const d = JSON.parse(json);
-        state.started = d.started; state.turn = d.turn; state.currentPlayerIndex = d.currentPlayerIndex; state.finishedCount = d.finishedCount;
+        state.started = !!d.started; state.turn = d.turn||0; state.currentPlayerIndex = d.currentPlayerIndex||0; state.finishedCount = d.finishedCount||0;
         state.players = d.players || []; state.seed = d.seed||""; state.overshoot = d.overshoot||"clamp"; state.rng = createRNG(state.seed||"");
-        speedInput.value = String(d.speed||180); overshootSel.value = state.overshoot; rngSeedInput.value = state.seed;
+        speedInput.value = String(d.speed||180); overshootSel.value = state.overshoot; rngSeedInput.value = state.seed || "";
         state.playerSettings = d.playerSettings || [];
-        if(Array.isArray(d.personas)) { syncStoresFromPersonasList(d.personas); }
+        if(Array.isArray(d.personas)) { syncStoresFromPersonasList(d.personas); try { localStorage.setItem("imported-personas", JSON.stringify({ personas: personasStore })); } catch(e){} }
         renderBoard(); renderPlayersPanel(); statTurnEl.textContent = String(state.turn); statCurrentEl.textContent = state.players[state.currentPlayerIndex]?.name || "-";
         pushLog("保存データを読み込みました。", "ok");
-      }catch(e){ alert("読み込みに失敗しました"); }
+      }catch(e){ alert("読み込みに失敗しました"); console.error(e); }
     }
 
-    btnSave.addEventListener("click", ()=>{ localStorage.setItem("life-game-save", snapshot()); pushLog("保存しました", "ok"); });
+    btnSave.addEventListener("click", ()=>{ try { localStorage.setItem("life-game-save", snapshot()); pushLog("保存しました", "ok"); } catch(e){ alert("保存に失敗しました"); } });
     btnLoad.addEventListener("click", ()=>{ const s=localStorage.getItem("life-game-save"); if(!s) return alert("保存がありません"); restore(s); });
     btnExport.addEventListener("click", ()=>{
       const blob = new Blob([snapshot()], {type:"application/json"});
@@ -899,6 +989,22 @@
       pushLog(`スロット ${slot} を削除しました`);
     });
 
+    // Import/Export save file
+    $("#btn-import").addEventListener("click", ()=> fileImport.click());
+    fileImport.addEventListener("change", async (e) => {
+      const f = e.target.files?.[0];
+      if(!f) return;
+      try{
+        const txt = await f.text();
+        restore(txt);
+      }catch(err){
+        console.error(err);
+        alert("読み込みに失敗しました（JSONの形式を確認してください）");
+      } finally {
+        fileImport.value = "";
+      }
+    });
+
     // Persona JSON import
     $("#btn-import-personas").addEventListener("click", ()=> filePersonas.click());
     filePersonas.addEventListener("change", async (e) => {
@@ -907,12 +1013,13 @@
       try{
         const txt = await f.text();
         const json = JSON.parse(txt);
-        if(!json || !Array.isArray(json.personas)) throw new Error("personas 配列がありません");
-        const merged = personasStore.concat(json.personas);
+        if(!json || !Array.isArray(json.personas) && !Array.isArray(json)) throw new Error("personas 配列がありません");
+        const incoming = Array.isArray(json.personas) ? json.personas : json;
+        const merged = personasStore.concat(incoming);
         syncStoresFromPersonasList(merged);
         try { localStorage.setItem("imported-personas", JSON.stringify({ personas: personasStore })); } catch(e){}
         buildSettingsForm();
-        pushLog("ペルソナを読み込みました: " + json.personas.map(x=>x.displayName).join(", "), "ok");
+        pushLog("ペルソナを読み込みました: " + incoming.map(x=>x.displayName).join(", "), "ok");
       }catch(err){
         console.error(err);
         alert("読み込みに失敗しました（JSONの形式を確認してください）");
@@ -921,14 +1028,193 @@
       }
     });
 
-    // Persona manager & editors (omitted here for brevity but present in earlier full file)...
-    // Note: For this distribution the persona manager and branch editor functions are identical to prior version
-    // and remain integrated above (renderPersonaTable / openBranchEditor / etc.). They will keep personaBranchMap updated.
+    // Persona manager & editors
+    function renderPersonaTable(){
+      personaTbody.innerHTML = "";
+      personasStore.forEach((p, idx) => {
+        const tr = document.createElement("tr");
+        const tdIndex = document.createElement("td"); tdIndex.textContent = String(idx+1);
+        const tdName = document.createElement("td"); tdName.textContent = p.displayName;
+        const tdColor = document.createElement("td"); tdColor.innerHTML = `<div style="display:flex;align-items:center;gap:8px"><div style="width:20px;height:20px;background:${p.color};border-radius:4px;border:1px solid #ccc"></div><span>${p.color}</span></div>`;
+        const tdEvents = document.createElement("td");
+        tdEvents.innerHTML = `<button class="tiny" data-idx="${idx}" data-action="edit-events">編集 (${p.events.length})</button>`;
+        const tdBranches = document.createElement("td");
+        tdBranches.innerHTML = `<button class="tiny" data-idx="${idx}" data-action="edit-branches">編集 (${p.branchEvents?.length||0})</button>`;
+        const tdActions = document.createElement("td");
+        tdActions.innerHTML = `<button class="tiny" data-idx="${idx}" data-action="edit">編集</button> <button class="tiny" data-idx="${idx}" data-action="delete">削除</button>`;
+        tr.appendChild(tdIndex); tr.appendChild(tdName); tr.appendChild(tdColor); tr.appendChild(tdEvents); tr.appendChild(tdBranches); tr.appendChild(tdActions);
+        personaTbody.appendChild(tr);
+      });
+    }
 
-    function renderPersonaTable(){ /* earlier implementation included in previous file; kept unchanged */ }
-    function openPersonaEventEditor(idx){ /* earlier prompt-based editor kept */ }
-    function openBranchEditor(branch, onSave){ /* earlier branch editor kept */ }
-    function openBranchEditorForPersona(personaIdx){ /* earlier call kept */ }
+    personaAddBtn.addEventListener("click", ()=> {
+      const d = { id: "p"+Date.now(), displayName: "新ペルソナ", color: PLAYER_COLORS[personasStore.length % PLAYER_COLORS.length], events: [], branchEvents: [] };
+      personasStore.push(d);
+      syncStoresFromPersonasList(personasStore);
+      renderPersonaTable();
+    });
+
+    personaCloseBtn.addEventListener("click", ()=> personaModal.close());
+
+    personaSaveBtn.addEventListener("click", ()=> {
+      try { localStorage.setItem("imported-personas", JSON.stringify({ personas: personasStore })); pushLog("ペルソナを保存しました", "ok"); } catch(e){ alert("保存に失敗しました"); }
+    });
+
+    personaExportBtn.addEventListener("click", ()=> {
+      const blob = new Blob([JSON.stringify({personas: personasStore}, null, 2)], {type:"application/json"});
+      const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href=url; a.download="personas.json"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    });
+
+    personaTbody.addEventListener("click", (e) => {
+      const btn = e.target.closest("button");
+      if(!btn) return;
+      const idx = Number(btn.dataset.idx);
+      const action = btn.dataset.action;
+      if(action === "delete"){
+        if(!confirm(`ペルソナ "${personasStore[idx].displayName}" を削除しますか？`)) return;
+        personasStore.splice(idx,1); syncStoresFromPersonasList(personasStore); renderPersonaTable();
+      } else if(action === "edit"){
+        const p = personasStore[idx];
+        const name = prompt("表示名を入力してください", p.displayName);
+        if(name !== null){ p.displayName = name.trim() || p.displayName; }
+        const color = prompt("カラーコードを入力してください（例: #ff6b6b）", p.color);
+        if(color !== null){ p.color = color.trim() || p.color; }
+        syncStoresFromPersonasList(personasStore); renderPersonaTable();
+      } else if(action === "edit-events"){
+        openPersonaEventEditor(idx);
+      } else if(action === "edit-branches"){
+        openBranchEditorForPersona(idx);
+      }
+    });
+
+    // Simple persona event editor using prompts (keeps UI minimal and copy-paste friendly)
+    function openPersonaEventEditor(idx){
+      const p = personasStore[idx];
+      if(!p) return;
+      const list = p.events.map((ev,i)=> `${i+1}. ${ev.text} (${ev.money})`).join("\n");
+      const inp = prompt(`イベント一覧（行単位で "本文 | 金額"）\n現在:\n${list}\n\n入力して上書き（空でキャンセル）`, p.events.map(ev=>`${ev.text} | ${ev.money}`).join("\n"));
+      if(inp === null) return;
+      const lines = inp.split("\n").map(s=>s.trim()).filter(Boolean);
+      const newEvents = lines.map(line=>{
+        const parts = line.split("|").map(x=>x.trim());
+        return { text: parts[0] || "", money: Number(parts[1] || 0) };
+      });
+      p.events = newEvents;
+      syncStoresFromPersonasList(personasStore);
+      renderPersonaTable();
+    }
+
+    // Branch editor (rich modal)
+    let editingBranchTarget = null; // { personaIdx, branchIdx } or null
+    function openBranchEditor(branch, onSave){
+      branchTextInput.value = branch.text || "";
+      choicesListEl.innerHTML = "";
+      (branch.choices || []).forEach((ch, i) => {
+        addChoiceRow(ch.label || `選択肢${i+1}`, ch.probGood || 1.0, ch.success || {}, ch.failure || {});
+      });
+      branchEditorModal.showModal();
+
+      function getBranchFromUI(){
+        const choices = [];
+        choicesListEl.querySelectorAll(".choice-row").forEach(row=>{
+          const label = row.querySelector(".choice-label").value;
+          const prob = parseFloat(row.querySelector(".choice-prob").value) || 0;
+          const sText = row.querySelector(".choice-success-text").value;
+          const sMoney = Number(row.querySelector(".choice-success-money").value) || 0;
+          const sMove = Number(row.querySelector(".choice-success-move").value) || 0;
+          const fText = row.querySelector(".choice-failure-text").value;
+          const fMoney = Number(row.querySelector(".choice-failure-money").value) || 0;
+          const fMove = Number(row.querySelector(".choice-failure-move").value) || 0;
+          choices.push({
+            label,
+            probGood: prob,
+            success: { text: sText, money: sMoney, move: sMove },
+            failure: { text: fText, money: fMoney, move: fMove }
+          });
+        });
+        return { text: branchTextInput.value || "", choices };
+      }
+
+      function cleanup(){
+        branchEditorModal.close();
+        branchAddChoiceBtn.removeEventListener("click", onAddChoice);
+        branchSaveBtn.removeEventListener("click", onSaveClick);
+        branchCancelBtn.removeEventListener("click", onCancel);
+        branchPreviewBtn.removeEventListener("click", onPreview);
+      }
+      function onAddChoice(){ addChoiceRow("新しい選択肢", 0.6, {}, {}); }
+      function onSaveClick(){
+        const b = getBranchFromUI();
+        if(typeof onSave === "function") onSave(b);
+        cleanup();
+      }
+      function onCancel(){ cleanup(); }
+      function onPreview(){
+        const b = getBranchFromUI();
+        // simulate random player
+        const tempRng = createRNG(String(Math.random()));
+        const ch = b.choices.length ? b.choices[Math.floor(tempRng()*b.choices.length)] : null;
+        if(!ch) return alert("選択肢がありません");
+        const success = tempRng() < (ch.probGood || 1);
+        alert(`選択: ${ch.label}\n判定: ${success ? "成功" : "失敗"}\n結果: ${success ? JSON.stringify(ch.success) : JSON.stringify(ch.failure)}`);
+      }
+
+      branchAddChoiceBtn.addEventListener("click", onAddChoice);
+      branchSaveBtn.addEventListener("click", onSaveClick);
+      branchCancelBtn.addEventListener("click", onCancel);
+      branchPreviewBtn.addEventListener("click", onPreview);
+    }
+
+    function addChoiceRow(label, prob, success, failure){
+      const div = document.createElement("div"); div.className = "choice-row";
+      div.style.display = "grid"; div.style.gridTemplateColumns = "1fr 80px";
+      const left = document.createElement("div");
+      left.style.display = "grid"; left.style.gridTemplateColumns = "auto 60px"; left.style.gap = "6px";
+      const lbl = document.createElement("input"); lbl.type = "text"; lbl.className = "choice-label"; lbl.value = label || "";
+      const probInput = document.createElement("input"); probInput.type = "number"; probInput.min="0"; probInput.max="1"; probInput.step="0.01"; probInput.className = "choice-prob"; probInput.value = (typeof prob === "number"?prob:1);
+      left.appendChild(lbl); left.appendChild(probInput);
+
+      const right = document.createElement("div"); right.style.display="grid"; right.style.gridTemplateColumns="1fr 1fr"; right.style.gap="6px";
+      const sText = document.createElement("input"); sText.type="text"; sText.placeholder="成功テキスト"; sText.className="choice-success-text"; sText.value = (success && success.text) || "";
+      const sMoney = document.createElement("input"); sMoney.type="number"; sMoney.className="choice-success-money"; sMoney.value = (success && success.money) || 0;
+      const sMove = document.createElement("input"); sMove.type="number"; sMove.className="choice-success-move"; sMove.value = (success && success.move) || 0;
+      const fText = document.createElement("input"); fText.type="text"; fText.placeholder="失敗テキスト"; fText.className="choice-failure-text"; fText.value = (failure && failure.text) || "";
+      const fMoney = document.createElement("input"); fMoney.type="number"; fMoney.className="choice-failure-money"; fMoney.value = (failure && failure.money) || 0;
+      const fMove = document.createElement("input"); fMove.type="number"; fMove.className="choice-failure-move"; fMove.value = (failure && failure.move) || 0;
+
+      const col1 = document.createElement("div"); col1.appendChild(sText); col1.appendChild(sMoney); col1.appendChild(sMove);
+      const col2 = document.createElement("div"); col2.appendChild(fText); col2.appendChild(fMoney); col2.appendChild(fMove);
+
+      const controls = document.createElement("div");
+      const del = document.createElement("button"); del.textContent = "削除"; del.className = "tiny";
+      del.addEventListener("click", ()=> { div.remove(); });
+      controls.appendChild(del);
+
+      div.appendChild(left);
+      const middle = document.createElement("div"); middle.style.display = "flex"; middle.style.flexDirection = "column"; middle.style.gap = "6px";
+      middle.appendChild(col1); middle.appendChild(col2);
+      div.appendChild(middle);
+      div.appendChild(controls);
+      choicesListEl.appendChild(div);
+    }
+
+    function openBranchEditorForPersona(personaIdx){
+      const p = personasStore[personaIdx];
+      if(!p) return;
+      // choose to add new branch or edit existing
+      const list = (p.branchEvents || []).map((be,i)=> `${i+1}. ${be.text}`).join("\n");
+      const sel = prompt(`分岐イベント一覧（行単位）:\n${list}\n\n"new" を入力して新規作成、番号を入力して編集`, "");
+      if(sel === null) return;
+      if(sel.toLowerCase() === "new"){
+        const newBranch = { text: "新しい分岐イベント", choices: [ { label:"挑戦", probGood:0.6, success:{text:"成功",money:10000,move:1}, failure:{text:"失敗",money:-5000,move:0} } ] };
+        openBranchEditor(newBranch, (b)=> { p.branchEvents = p.branchEvents || []; p.branchEvents.push(b); syncStoresFromPersonasList(personasStore); renderPersonaTable(); });
+      } else {
+        const n = Number(sel) - 1;
+        if(isFinite(n) && p.branchEvents[n]){
+          openBranchEditor(deepClone(p.branchEvents[n]), (b)=> { p.branchEvents[n] = b; syncStoresFromPersonasList(personasStore); renderPersonaTable(); });
+        } else alert("無効な入力です");
+      }
+    }
 
     // Settings modal
     function buildSettingsForm(){
@@ -998,73 +1284,94 @@
 
     btnRoll.addEventListener("click", async ()=>{
       if(!state.started || state.animating) return;
-      const pl = state.players[state.currentPlayerIndex]; if(!pl || pl.finished){ nextPlayerTurn(); return; }
-      if(pl.skipTurn){ pushLog(`${pl.name}: ターンをスキップします`); pl.skipTurn=false; state.turn+=1; statTurnEl.textContent=String(state.turn); nextPlayerTurn(); return; }
-      const dice = rollDice(); pushLog(`${pl.name}: サイコロ → ${dice}`);
-      const remaining = (TOTAL_CELLS-1) - pl.position; const steps = state.overshoot==="clamp"? Math.min(dice, remaining): dice;
-      await animateMove(state.currentPlayerIndex, steps);
-      state.turn += 1; statTurnEl.textContent = String(state.turn);
-      if(isGameFinished()){ pushLog("全員ゴール！ゲーム終了！"); btnRoll.disabled=true; setTimeout(()=> { evaluateEndAchievements(); openResult(); }, 200); return; }
-      nextPlayerTurn(); btnRoll.disabled=false;
+      const cur = state.players[state.currentPlayerIndex];
+      if(!cur || cur.finished){
+        nextPlayerTurn(); return;
+      }
+      // If skipTurn is set it should skip this player's action
+      if(cur.skipTurn){
+        cur.skipTurn = false;
+        pushLog(`${cur.name} は休みのためターンをスキップしました`);
+        nextPlayerTurn();
+        return;
+      }
+
+      const n = rollDice();
+      pushLog(`${cur.name} が ${n} を出した`);
+      await animateMove(state.currentPlayerIndex, n);
+      // After move, if the game still running, advance the turn
+      if(!isGameFinished()){
+        // advance turn index to next non-finished player
+        const prevIndex = state.currentPlayerIndex;
+        state.currentPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
+        // ensure target is not finished
+        for(let i=0;i<state.players.length;i++){
+          const cand = state.players[(prevIndex + 1 + i) % state.players.length];
+          if(!cand.finished && !cand.skipTurn){ state.currentPlayerIndex = (prevIndex + 1 + i) % state.players.length; break; }
+        }
+        // count turn increments when we cycle back to player 0
+        if(state.currentPlayerIndex === 0) state.turn++;
+        highlightActiveToken(); renderPlayersPanel(); statTurnEl.textContent = String(state.turn);
+        statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
+      }
     });
 
-    function openResult(){
-      evaluateEndAchievements();
-      const rows = state.players.map((p,i)=>({i, name:p.name, money:p.money})).sort((a,b)=> b.money-a.money);
-      let html = `<table><thead><tr><th>順位</th><th>プレイヤー</th><th>所持金</th><th>差額</th></tr></thead><tbody>`;
-      const top = rows[0]?.money ?? 0;
-      rows.forEach((r,idx)=>{ const diff = r.money - top; html += `<tr><td>${idx+1}</td><td>${r.name}</td><td>${yen(r.money)}</td><td>${diff===0?"-":yen(diff)}</td></tr>`; });
-      html += `</tbody></table>`;
-      resultBody.innerHTML = html;
+    // Result display
+    function showResult(){
+      // compute ranking
+      const rows = state.players.map((p,i)=>({i, name:p.name, money:p.money, achievements:p.achievements||[]}));
+      rows.sort((a,b)=> b.money - a.money);
+      resultBody.innerHTML = "";
+      const table = document.createElement("div");
+      table.innerHTML = rows.map((r, idx)=> `<div style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px dashed #eee"><div><strong>#${idx+1}</strong> ${r.name}</div><div>${yen(r.money)}</div></div>`).join("");
+      resultBody.appendChild(table);
+      // achievements summary
+      const achDiv = document.createElement("div"); achDiv.style.marginTop = "12px"; achDiv.innerHTML = "<h4>実績</h4>";
+      rows.forEach(r=>{
+        const line = document.createElement("div");
+        line.textContent = `${r.name}: ${(r.achievements && r.achievements.length) ? r.achievements.map(a=>a.name).join(", ") : "なし"}`;
+        achDiv.appendChild(line);
+      });
+      resultBody.appendChild(achDiv);
       resultDlg.showModal();
     }
     resultClose.addEventListener("click", ()=> resultDlg.close());
 
-    // Keyboard shortcuts with dialog-aware behavior (fix dice-disabled bug)
-    window.addEventListener("keydown", e=>{
-      const openDialog = document.querySelector('dialog.modal[open]');
-      if(openDialog && !(openDialog.id === "shortcuts-modal" && (e.key.toLowerCase()==='h'))) {
-        if(e.key.toLowerCase() === 'h'){ e.preventDefault(); if(shortcutsModal.open) shortcutsModal.close(); else shortcutsModal.showModal(); }
-        return;
-      }
-      if(e.code==="Space" || e.key==="Enter"){ e.preventDefault(); btnRoll.click(); }
-      if(e.key.toLowerCase()==='r' && !state.animating){ btnReset.click(); }
-      if(e.key.toLowerCase()==='s'){ e.preventDefault(); btnSaveSlot.click(); }
-      if(e.key.toLowerCase()==='l'){ e.preventDefault(); btnLoadSlot.click(); }
-      if(e.key.toLowerCase()==='h'){ e.preventDefault(); shortcutsModal.showModal(); }
-      if(e.key.toLowerCase()==='z'){ if(e.shiftKey) zoomOut(); else zoomIn(); }
-      if(e.key.toLowerCase()==='f'){ fitBoard(); }
-    });
-
-    // Zoom controls
+    // Zoom / Fit handlers
     btnZoomIn.addEventListener("click", zoomIn);
     btnZoomOut.addEventListener("click", zoomOut);
     btnFit.addEventListener("click", fitBoard);
 
-    // History & shortcuts UI
-    btnHistory.addEventListener("click", showHistory);
+    // History & shortcuts
+    btnHistory.addEventListener("click", ()=> showHistory());
     btnShortcuts.addEventListener("click", ()=> shortcutsModal.showModal());
     shortcutsClose.addEventListener("click", ()=> shortcutsModal.close());
-    btnAchievements.addEventListener("click", ()=> { updateAchievementsModal(); achModal.showModal(); });
 
-    // Tooltip hide on scroll/resize
-    window.addEventListener("scroll", hideTooltip, true);
-    window.addEventListener("resize", ()=> { hideTooltip(); placeAllTokens(); });
+    // Persona modal open
+    btnManagePersonas.addEventListener("click", ()=> { renderPersonaTable(); personaModal.showModal(); });
 
-    // Ensure roll state sync when dialogs close
-    document.querySelectorAll('dialog.modal').forEach(d => {
-      d.addEventListener('close', ()=> { setTimeout(()=>{ btnRoll.disabled = !state.started || state.animating; }, 10); });
-      d.addEventListener('cancel', ()=> { setTimeout(()=>{ btnRoll.disabled = !state.started || state.animating; }, 10); });
+    // basic keyboard shortcuts
+    window.addEventListener("keydown", (e) => {
+      if(e.key === " " || e.key === "Enter"){ e.preventDefault(); btnRoll.click(); }
+      if(e.key === "s" || e.key === "S"){ if(document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "TEXTAREA") { btnSaveSlot.click(); } }
+      if(e.key === "l" || e.key === "L"){ if(document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "TEXTAREA") { btnLoadSlot.click(); } }
+      if(e.key === "h" || e.key === "H"){ if(document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "TEXTAREA") { if(shortcutsModal.open) shortcutsModal.close(); else shortcutsModal.showModal(); } }
+      if(e.key === "z" || e.key === "Z"){
+        if(e.shiftKey) zoomOut(); else zoomIn();
+      }
+      if(e.key === "f" || e.key === "F"){ fitBoard(); }
     });
 
-    // Initial render & fit
-    ensurePlayerSettings(parseInt(playersCountSel.value,10) || 4);
+    // initial render
     renderBoard();
-    setTimeout(()=> { fitBoard(); }, 80);
-    window.addEventListener("resize", ()=> placeAllTokens());
+    buildSettingsForm();
+    updateAchievementsModal();
 
-    // Expose for debugging
-    window._life = { state, personasStore, ACHIEVEMENTS, awardAchievement, evaluatePlayerAchievements };
+    // ensure UI safe state
+    updateRollState();
+
+    // expose some helpers to dev console for debugging
+    window.__life_game = { state, renderBoard, renderPlayersPanel, personasStore, syncStoresFromPersonasList };
 
   })();
   </script>
