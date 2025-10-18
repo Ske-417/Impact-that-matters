@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>コンサル体験ゲーム ver-12</title>
+  <title>人生ゲーム ver-13</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <style>
     :root{
-      --board-cols:8; --board-rows:5; --cell-size:72px;
+      --board-cols:10; --board-rows:6; --cell-size:68px;
       --accent:#ff6b6b; --bg:#fffaf0; --text:#222; --active:#4c9aff;
       --ok:#00c853; --warn:#ff8f00; --bad:#e53935; --muted:#94a3b8;
       --zoom-step:8px;
@@ -56,6 +56,8 @@
     .cell.event{background:#fff4cc}
     .cell.penalty{background:#ffe0e0}
     .cell.bonus{background:#e8ffea}
+    .cell.client{background:linear-gradient(135deg,#d9f0ff,#fff)}
+    .cell.workshop{background:linear-gradient(135deg,#f0f9d9,#fff)}
     .cell .idx{position:absolute; top:4px; left:6px; font-size:10px; color:#999}
 
     /* ===== Tokens ===== */
@@ -76,6 +78,7 @@
     .money.flash-minus{color:#b00020; transform:scale(.96)}
 
     .rep{font-size:12px;color:var(--muted);justify-self:end}
+    .csat{font-size:12px;color:#0b6;justify-self:end}
 
     .log{border:1px solid #eee; border-radius:10px; background:#fafcff; padding:10px; max-height:300px; overflow:auto; font-size:13px; line-height:1.4}
     .log p{margin:0 0 6px}
@@ -119,7 +122,7 @@
   <!-- App Bar -->
   <div class="appbar">
     <div class="toolbar" role="group" aria-label="ゲーム設定">
-      <div class="title" id="app-title">コンサル体験ゲーム ver-12</div>
+      <div class="title" id="app-title">人生ゲーム ver-13</div>
 
       <div class="group"><label for="players-count">人数</label><select id="players-count"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option></select></div>
       <div class="group"><label for="initial-money">初期資金</label><input id="initial-money" type="number" value="50000" min="0" step="1000" /></div>
@@ -304,8 +307,9 @@
 
   <script>
   // ===========================
-  // Consulting-experience game (ver-12)
-  // Complete, self-contained version — copy/pasteで動作します
+  // 人生ゲーム — コンサル体験拡張 ver-13
+  // ・タイトルを「人生ゲーム」に戻し、コンサル要素を増加
+  // ・盤面サイズを拡張（10x6=60セル）
   // ===========================
   (function(){
     const $ = s => document.querySelector(s);
@@ -332,101 +336,19 @@
     const resultDlg = $("#result"), resultBody = $("#result-body"), resultClose = $("#result-close");
     const btnAchievements = $("#btn-achievements"), achModal = $("#achievements-modal"), achListEl = $("#ach-list"), achClose = $("#ach-close"), achReset = $("#ach-reset");
 
-    const BOARD_COLS = 8, BOARD_ROWS = 5, TOTAL_CELLS = BOARD_COLS * BOARD_ROWS;
+    // Board size expanded
+    const BOARD_COLS = 10, BOARD_ROWS = 6, TOTAL_CELLS = BOARD_COLS * BOARD_ROWS;
     const PLAYER_COLORS = ["#ff6b6b", "#4c9aff", "#00c853", "#ff8f00", "#9c27b0", "#00acc1"];
-    const BRANCH_CHANCE = 0.36; // consulting-focused: more branching opportunities
+    const BRANCH_CHANCE = 0.36;
 
-    // personas: consulting roles and typical events/branch events
+    // Personas (consulting roles)
     const DEFAULT_PERSONAS = [
-      {
-        id:"junior",
-        displayName:"ジュニアコンサル",
-        color:"#ff6b6b",
-        events:[
-          { text:"資料作成の効率化で時間短縮、報酬+¥8,000", money:8000, rep: +1 },
-          { text:"ミスで修正対応、コスト-¥6,000", money:-6000, rep: -1 }
-        ],
-        branchEvents:[
-          { text:"クライアント訪問の提案をする", choices:[
-            { label:"積極的に提案", probGood:0.45, success:{money:20000,move:1,text:"提案が刺さった！受注"}, failure:{money:-2000,move:0,text:"準備に時間を取られた"} },
-            { label:"様子見", probGood:0.85, success:{money:5000,move:0,text:"上手く調整できた"}, failure:{money:0,move:0,text:"変化なし"} }
-          ] }
-        ]
-      },
-      {
-        id:"senior",
-        displayName:"シニアコンサル",
-        color:"#4c9aff",
-        events:[
-          { text:"クライアント折衝で追加案件獲得+¥30,000", money:30000, rep:+3 },
-          { text:"要求過多で残業、コスト-¥8,000", money:-8000, rep:-1 }
-        ],
-        branchEvents:[
-          { text:"大口案件の提案を主導", choices:[
-            { label:"リスク高めで提案", probGood:0.55, success:{money:80000,move:2,text:"大型案件を獲得！"}, failure:{money:-20000,move:0,text:"見込み外れで損失"} },
-            { label:"慎重に提案", probGood:0.75, success:{money:30000,move:1,text:"中規模案件を獲得"}, failure:{money:-5000,move:0,text:"提案が採用されず"} }
-          ] }
-        ]
-      },
-      {
-        id:"manager",
-        displayName:"マネージャー",
-        color:"#00c853",
-        events:[
-          { text:"チームの改善で効率化+¥25,000", money:25000, rep:+2 },
-          { text:"クライアントクレーム対応でコスト-¥12,000", money:-12000, rep:-2 }
-        ],
-        branchEvents:[
-          { text:"プロジェクト再構築の提案", choices:[
-            { label:"大胆に再設計", probGood:0.5, success:{money:100000,move:2,text:"大成功！高評価"}, failure:{money:-40000,move:0,text:"失敗し大損"} },
-            { label:"段階的に提案", probGood:0.8, success:{money:20000,move:0,text:"小さな改善が受け入れられた"}, failure:{money:-5000,move:0,text:"反応薄し"} }
-          ] }
-        ]
-      },
-      {
-        id:"partner",
-        displayName:"パートナー",
-        color:"#ff8f00",
-        events:[
-          { text:"トップ営業で大型契約+¥150,000", money:150000, rep:+5 },
-          { text:"投資判断ミスで-¥60,000", money:-60000, rep:-4 }
-        ],
-        branchEvents:[
-          { text:"経営層に直接提案", choices:[
-            { label:"大胆投資提案", probGood:0.4, success:{money:200000,move:3,text:"一発で大受注！"}, failure:{money:-80000,move:0,text:"大きな損失"} },
-            { label:"保守的提案", probGood:0.8, success:{money:50000,move:1,text:"堅実に受注"}, failure:{money:-5000,move:0,text:"見送り"} }
-          ] }
-        ]
-      },
-      {
-        id:"freelance",
-        displayName:"フリーコンサル",
-        color:"#9c27b0",
-        events:[
-          { text:"短期案件を受注+¥40,000", money:40000, rep:+2 },
-          { text:"契約トラブルで-¥15,000", money:-15000, rep:-2 }
-        ],
-        branchEvents:[
-          { text:"スタートアップの提案をする", choices:[
-            { label:"エクイティ含め提案", probGood:0.35, success:{money:100000,move:2,text:"高報酬案件獲得"}, failure:{money:-20000,move:0,text:"契約キャンセル"} },
-            { label:"通常契約で提案", probGood:0.7, success:{money:30000,move:1,text:"受注成功"}, failure:{money:-5000,move:0,text:"落選"} }
-          ] }
-        ]
-      },
-      {
-        id:"analyst",
-        displayName:"アナリスト",
-        color:"#00acc1",
-        events:[
-          { text:"分析で価値を示し+¥12,000", money:12000, rep:+1 },
-          { text:"データ不備で-¥4,000", money:-4000, rep:-1 }
-        ],
-        branchEvents:[
-          { text:"詳細分析を提案", choices:[
-            { label:"深掘り提案", probGood:0.6, success:{money:30000,move:1,text:"高度分析が評価された"}, failure:{money:-8000,move:0,text:"期待に届かず"} }
-          ] }
-        ]
-      }
+      { id:"junior", displayName:"ジュニアコンサル", color:"#ff6b6b", events:[ { text:"資料作成効率化で+¥8,000", money:8000, rep:1, csat:+1 }, { text:"ミスで修正費-¥6,000", money:-6000, rep:-1, csat:-1 } ], branchEvents:[ { text:"クライアント訪問の提案", choices:[ { label:"積極提案", probGood:0.45, success:{money:20000,move:1,rep:1,csat:+2,text:"提案が刺さった"}, failure:{money:-2000,move:0,rep:-1,csat:-1,text:"準備負担"} }, { label:"様子見", probGood:0.85, success:{money:5000,move:0,rep:0,csat:+1,text:"調整で小成功"}, failure:{money:0,move:0,rep:0,csat:0,text:"変化なし"} } ] } ] },
+      { id:"senior", displayName:"シニアコンサル", color:"#4c9aff", events:[ { text:"交渉で追加案件+¥30,000", money:30000, rep:2, csat:+2 }, { text:"要求過多で残業-¥8,000", money:-8000, rep:-1, csat:-1 } ], branchEvents:[ { text:"大口案件を提案", choices:[ { label:"リスク高提案", probGood:0.55, success:{money:80000,move:2,rep:2,csat:+3,text:"大型案件獲得！"}, failure:{money:-20000,move:0,rep:-2,csat:-2,text:"見込み外れ"} }, { label:"慎重提案", probGood:0.75, success:{money:30000,move:1,rep:1,csat:+2,text:"中規模案件獲得"}, failure:{money:-5000,move:0,rep:-1,csat:-1,text:"採用されず"} } ] } ] },
+      { id:"manager", displayName:"マネージャー", color:"#00c853", events:[ { text:"改善で効率化+¥25,000", money:25000, rep:2, csat:+2 }, { text:"クレーム対応で-¥12,000", money:-12000, rep:-2, csat:-3 } ], branchEvents:[ { text:"再構築提案", choices:[ { label:"大胆再設計", probGood:0.5, success:{money:100000,move:2,rep:3,csat:+4,text:"大成功！高評価"}, failure:{money:-40000,move:0,rep:-3,csat:-4,text:"失敗し大損"} }, { label:"段階的提案", probGood:0.8, success:{money:20000,move:0,rep:1,csat:+1,text:"小改善が受け入れ"}, failure:{money:-5000,move:0,rep:-1,csat:-1,text:"反応薄し"} } ] } ] },
+      { id:"partner", displayName:"パートナー", color:"#ff8f00", events:[ { text:"トップ営業で大型契約+¥150,000", money:150000, rep:5, csat:+5 }, { text:"投資ミスで-¥60,000", money:-60000, rep:-4, csat:-4 } ], branchEvents:[ { text:"経営層提案", choices:[ { label:"大胆投資", probGood:0.4, success:{money:200000,move:3,rep:5,csat:+6,text:"一発で大受注！"}, failure:{money:-80000,move:0,rep:-4,csat:-5,text:"大損"} }, { label:"保守提案", probGood:0.8, success:{money:50000,move:1,rep:2,csat:+2,text:"堅実に受注"}, failure:{money:-5000,move:0,rep:-1,csat:-1,text:"見送り"} } ] } ] },
+      { id:"freelance", displayName:"フリーコンサル", color:"#9c27b0", events:[ { text:"短期案件を受注+¥40,000", money:40000, rep:2, csat:+2 }, { text:"契約トラブルで-¥15,000", money:-15000, rep:-2, csat:-2 } ], branchEvents:[ { text:"スタートアップ提案", choices:[ { label:"エクイティ含む", probGood:0.35, success:{money:100000,move:2,rep:3,csat:+4,text:"高報酬案件獲得"}, failure:{money:-20000,move:0,rep:-2,csat:-3,text:"キャンセル"} }, { label:"通常契約", probGood:0.7, success:{money:30000,move:1,rep:1,csat:+1,text:"受注成功"}, failure:{money:-5000,move:0,rep:-1,csat:-1,text:"落選"} } ] } ] },
+      { id:"analyst", displayName:"アナリスト", color:"#00acc1", events:[ { text:"分析で価値示し+¥12,000", money:12000, rep:1, csat:+1 }, { text:"データ不備で-¥4,000", money:-4000, rep:-1, csat:-1 } ], branchEvents:[ { text:"詳細分析提案", choices:[ { label:"深掘り提案", probGood:0.6, success:{money:30000,move:1,rep:2,csat:+2,text:"分析が評価された"}, failure:{money:-8000,move:0,rep:-1,csat:-1,text:"届かず"} } ] } ] }
     ];
 
     let personasStore = [], PERSONAS = [], personaEventMap = {}, personaBranchMap = {};
@@ -437,7 +359,7 @@
         id: p.id || (p.displayName || "p").toLowerCase().replace(/\s+/g,"_")+Math.floor(Math.random()*1000),
         displayName: p.displayName || "未設定",
         color: p.color || PLAYER_COLORS[0],
-        events: Array.isArray(p.events) ? p.events.map(ev => ({ text: ev.text||"", money: Number(ev.money)||0, rep: Number(ev.rep)||0 })) : [],
+        events: Array.isArray(p.events) ? p.events.map(ev => ({ text: ev.text||"", money: Number(ev.money)||0, rep: Number(ev.rep)||0, csat: Number(ev.csat)||0 })) : [],
         branchEvents: Array.isArray(p.branchEvents) ? p.branchEvents.map(be => deepClone(be)) : []
       }));
       PERSONAS = personasStore.map(p => p.displayName);
@@ -459,7 +381,7 @@
       syncStoresFromPersonasList(DEFAULT_PERSONAS);
     })();
 
-    // RNG (seedable)
+    // RNG
     function createRNG(seed){
       if(!seed) return Math.random;
       let h = 2166136261 >>> 0;
@@ -470,28 +392,36 @@
     const yen = n => "¥" + Number(n).toLocaleString("ja-JP");
     const sleep = ms => new Promise(res=>setTimeout(res, ms));
 
-    // board cells
+    // board cells generation (scale-friendly)
     const cells = Array.from({length:TOTAL_CELLS},(_,i)=>({index:i,type:"none",label:""}));
     cells[0] = {index:0,type:"start",label:"スタート"};
     cells[TOTAL_CELLS-1] = {index:TOTAL_CELLS-1,type:"goal",label:"ゴール"};
-    const mark = (idxs, type, label)=> idxs.forEach(i=>{ if(cells[i]){ cells[i].type=type; cells[i].label=label } });
-    // designating consulting-themed special cells
-    mark([3,6,9,12,15,18,23,27,31,33], "event", "案件/イベント");
-    mark([4,10,16,22,30], "bonus", "案件成功");
-    mark([8,14,20,26,34], "penalty", "コスト発生");
 
-    // generic consulting-themed events
+    // mark generator: pattern-based so expansion keeps meaning
+    (function markCells(){
+      for(let i=1;i<TOTAL_CELLS-1;i++){
+        // priority: client > workshop > event > bonus > penalty
+        if(i % 11 === 0) { cells[i].type = "client"; cells[i].label = "クライアント"; }
+        else if(i % 13 === 0) { cells[i].type = "workshop"; cells[i].label = "ワークショップ"; }
+        else if(i % 6 === 0) { cells[i].type = "event"; cells[i].label = "案件/イベント"; }
+        else if(i % 5 === 0) { cells[i].type = "bonus"; cells[i].label = "案件成功"; }
+        else if(i % 7 === 0) { cells[i].type = "penalty"; cells[i].label = "コスト発生"; }
+        else { cells[i].type = "none"; cells[i].label = ""; }
+      }
+    })();
+
+    // consulting-themed events
     const eventTable = [
-      { text:"短期支援が入り報酬+¥20,000", money:+20000, rep:+1 },
-      { text:"見積もり漏れで追加負担-¥15,000", money:-15000, rep:-1 },
-      { text:"顧客紹介で新規案件+¥40,000", money:+40000, rep:+2 },
-      { text:"資料誤記で修正費-¥5,000", money:-5000, rep:-1 },
-      { text:"アップセル成功で+¥30,000", money:+30000, rep:+2 },
-      { text:"請求の遅延で資金ショート-¥10,000", money:-10000, rep:0 },
-      { text:"分析成果が評価され+¥12,000", money:+12000, rep:+1 },
-      { text:"外注コスト増で-¥20,000", money:-20000, rep:-1 },
-      { text:"クライアントの内部事情で停止（何もしない）", money:0, rep:0 },
-      { text:"プロトタイプがウケて+¥50,000", money:+50000, rep:+3 }
+      { text:"短期支援入り +¥20,000", money:+20000, rep:+1, csat:+1 },
+      { text:"見積り漏れで-¥15,000", money:-15000, rep:-1, csat:-2 },
+      { text:"紹介で新規案件+¥40,000", money:+40000, rep:+2, csat:+2 },
+      { text:"資料誤記で修正費-¥5,000", money:-5000, rep:-1, csat:-1 },
+      { text:"アップセル成功で+¥30,000", money:+30000, rep:+2, csat:+2 },
+      { text:"請求遅延で-¥10,000", money:-10000, rep:0, csat:-1 },
+      { text:"分析成果評価+¥12,000", money:+12000, rep:+1, csat:+1 },
+      { text:"外注コスト増で-¥20,000", money:-20000, rep:-1, csat:-1 },
+      { text:"プロトタイプが好評+¥50,000", money:+50000, rep:+3, csat:+3 },
+      { text:"内部調整で停滞（変化なし）", money:0, rep:0, csat:0 }
     ];
 
     // state
@@ -511,14 +441,14 @@
       state.playerSettings.length = count;
     }
 
-    // Achievements definitions (consulting-oriented)
+    // Achievements extended
     const ACHIEVEMENTS = [
-      { id: "early_goal", name:"スピードゴール", desc:"短期でゴール（ターン <= 12）", type:"goal_turn", threshold:12 },
-      { id: "billings_100k", name:"請求100K超え", desc:"累計請求額が¥100,000を超えたことがある", type:"max_money", threshold:100000 },
-      { id: "close_deal", name:"受注王", desc:"分岐で受注（成功）を2回達成", type:"branch_success", threshold:2 },
-      { id: "on_time", name:"納期厳守", desc:"遅延なくゴールした（ペナルティに3回未満）", type:"on_time", threshold:0 },
-      { id: "big_deal", name:"大型案件獲得", desc:"1度に¥150,000以上の増加を得る", type:"single_gain", threshold:150000 },
-      { id: "consulting_star", name:"コンサルの星", desc:"ゲーム終了時に1位", type:"end_rank", threshold:1 },
+      { id: "early_goal", name:"スピードゴール", desc:"短期でゴール（ターン <= 12）" },
+      { id: "billings_100k", name:"請求100K超え", desc:"累計請求額が¥100,000を超えたことがある" },
+      { id: "close_deal", name:"受注王", desc:"分岐で受注（成功）を2回達成" },
+      { id: "client_champion", name:"顧客満足チャンピオン", desc:"顧客満足度が80以上になったことがある" },
+      { id: "big_deal", name:"大型案件獲得", desc:"1度に¥150,000以上の増加を得る" },
+      { id: "consulting_star", name:"コンサルの星", desc:"ゲーム終了時に1位" }
     ];
 
     function awardAchievement(playerIndex, achId){
@@ -543,8 +473,7 @@
       if((p.maxMoneyReached||0) >= 100000) awardAchievement(i, "billings_100k");
       if((p.branchSuccessCount||0) >= 2) awardAchievement(i, "close_deal");
       if((p.highestSingleGain||0) >= 150000) awardAchievement(i, "big_deal");
-      // on_time: simple heuristic: if penaltyCount < 3 by the time of goal
-      if((p.penaltyCount||0) < 3) awardAchievement(i, "on_time");
+      if((p.clientSatisfaction||0) >= 80) awardAchievement(i, "client_champion");
     }
 
     function evaluateEndAchievements(){
@@ -552,7 +481,6 @@
       if(rows[0]) awardAchievement(rows[0].i, "consulting_star");
     }
 
-    // Achievements modal
     function updateAchievementsModal(){
       achListEl.innerHTML = "";
       ACHIEVEMENTS.forEach(a=>{
@@ -569,18 +497,18 @@
         achListEl.appendChild(div);
       });
     }
+
     achClose.addEventListener("click", ()=> achModal.close());
     achReset.addEventListener("click", ()=> {
       if(!confirm("全実績をリセットしますか？（プレイヤーデータは残ります）")) return;
-      state.players.forEach(p => { p.achievements = []; p.bonusCount = 0; p.branchSuccessCount = 0; p.maxMoneyReached = p.money; p.highestSingleGain = 0; p.turnsToGoal = null; p.penaltyCount = 0; });
+      state.players.forEach(p => { p.achievements = []; p.bonusCount = 0; p.branchSuccessCount = 0; p.maxMoneyReached = p.money; p.highestSingleGain = 0; p.turnsToGoal = null; p.penaltyCount = 0; p.clientSatisfaction = p.clientSatisfaction || 50; });
       pushLog("実績をリセットしました");
       updateAchievementsModal();
     });
-    $("#btn-achievements").addEventListener("click", ()=> { updateAchievementsModal(); achModal.showModal(); });
 
     // Rendering helpers
     function getCellSize(){
-      const val = getComputedStyle(document.documentElement).getPropertyValue('--cell-size') || '72px';
+      const val = getComputedStyle(document.documentElement).getPropertyValue('--cell-size') || '68px';
       return parseInt(val);
     }
     function setCellSize(px){
@@ -682,7 +610,8 @@
         const pos=document.createElement("div"); pos.textContent = "位置: "+pl.position;
         const money=document.createElement("div"); money.className="money"; money.id=moneyId(i); money.textContent=yen(pl.money);
         const rep=document.createElement("div"); rep.className="rep"; rep.textContent = `評判: ${pl.reputation || 0}`;
-        row.appendChild(left); row.appendChild(pos); row.appendChild(money); row.appendChild(rep);
+        const csat=document.createElement("div"); csat.className="csat"; csat.textContent = `顧客満足: ${pl.clientSatisfaction || 50}`;
+        row.appendChild(left); row.appendChild(pos); row.appendChild(money); row.appendChild(rep); row.appendChild(csat);
         playersPanelEl.appendChild(row);
       });
     }
@@ -717,6 +646,7 @@
       info.push(`${pl.name}`);
       info.push(`所持金: ${yen(pl.money)}`);
       info.push(`評判: ${pl.reputation || 0}`);
+      info.push(`顧客満足: ${pl.clientSatisfaction || 50}`);
       info.push(`位置: ${pl.position}`);
       if(pl.finished) info.push("ゴール済み");
       tooltip.innerHTML = info.join("<br>");
@@ -746,7 +676,7 @@
       genericModal.showModal();
     }
 
-    // Branch modal adjusted for consulting: success probability influenced by reputation
+    // Branch modal: reputation affects probability, and results can include csat
     function showBranchModal(branchEv, playerIndex){
       genericTitle.textContent = "案件分岐 (提案)";
       genericText.textContent = branchEv.text;
@@ -757,12 +687,10 @@
         b.addEventListener("click", async ()=>{
           const baseProb = (typeof choice.probGood === "number") ? choice.probGood : 1.0;
           const pl = state.players[playerIndex];
-          // reputation modifies probability (clamped)
-          const repBonus = Math.max(-0.3, Math.min(0.3, (pl.reputation || 0) / 200)); // reputation 0..100 maps to -0.3..+0.3
+          const repBonus = Math.max(-0.3, Math.min(0.3, ((pl.reputation || 50) - 50) / 200));
           const prob = Math.max(0.05, Math.min(0.95, baseProb + repBonus));
           const success = state.rng() < prob;
           const res = success ? (choice.success||{}) : (choice.failure||{});
-          // apply money and reputation
           if(typeof res.money === "number" && res.money !== 0){
             const delta = res.money;
             pl.money += delta;
@@ -770,12 +698,11 @@
             if(pl.money > (pl.maxMoneyReached || 0)) pl.maxMoneyReached = pl.money;
             flashMoney(playerIndex, res.money);
           }
-          if(typeof res.rep === "number") pl.reputation = (pl.reputation || 0) + res.rep;
-          // success increases branchSuccessCount
+          if(typeof res.rep === "number") pl.reputation = Math.max(0, Math.min(100, (pl.reputation || 50) + res.rep));
+          if(typeof res.csat === "number") pl.clientSatisfaction = Math.max(0, Math.min(100, (pl.clientSatisfaction || 50) + res.csat));
           if(success) pl.branchSuccessCount = (pl.branchSuccessCount || 0) + 1;
-          const text = success ? (res.text || `${choice.label} → 受注成功`) : (res.text || `${choice.label} → 失注`);
+          const text = success ? (res.text || `${choice.label} → 成功`) : (res.text || `${choice.label} → 失敗`);
           pushLog(`${pl.name}: ${text} ${res.money ? `(${res.money>0?'+':''}${yen(res.money)})` : ""}`, success ? "ok" : "bad");
-          // moves
           if(typeof res.move === "number" && res.move !== 0){
             if(res.move > 0) await animateMove(playerIndex, res.move);
             else { pl.position = Math.max(0, pl.position + res.move); placeAllTokens(); resolveCell(playerIndex, pl.position); }
@@ -792,7 +719,7 @@
       genericModal.showModal();
     }
 
-    // dialog state updates
+    // When any dialog closes, ensure roll button state is consistent
     function updateRollState(){
       btnRoll.disabled = !state.started || state.animating;
     }
@@ -801,17 +728,17 @@
       d.addEventListener('cancel', updateRollState);
     });
 
-    // resolveCell (consulting logic, with reputation updates)
+    // resolveCell with consulting behaviors
     function resolveCell(playerIndex, index){
       const pl = state.players[playerIndex]; const cell = cells[index]; if(!cell||!pl) return;
       switch(cell.type){
-        case "start": pushLog(`${pl.name}: プロジェクト開始地点へ`, "ok"); break;
+        case "start": pushLog(`${pl.name}: プロジェクト開始`, "ok"); break;
         case "goal":
           if(!pl.finished){
             pl.finished = true; state.finishedCount += 1; $("#"+tokenId(playerIndex))?.classList.add("finished");
             pl.turnsToGoal = state.turn;
             pushLog(`${pl.name}: プロジェクト完了（ゴール）！`);
-            showCard("ゴール（プロジェクト完了）", `${pl.name} がゴール！`, `現在残高: ${yen(pl.money)} / 評判: ${pl.reputation || 0}`);
+            showCard("ゴール", `${pl.name} がゴール！`, `残高: ${yen(pl.money)} / 評判: ${pl.reputation || 50} / 顧客満足: ${pl.clientSatisfaction || 50}`);
             evaluatePlayerAchievements(playerIndex);
             if(isGameFinished()){
               evaluateEndAchievements();
@@ -822,54 +749,88 @@
         case "bonus":{
           const amount = randPick(state.rng, [15000,20000,30000,50000]); pl.money += amount; flashMoney(playerIndex, amount);
           pl.bonusCount = (pl.bonusCount || 0) + 1;
-          pl.reputation = (pl.reputation || 0) + 1;
+          pl.reputation = Math.min(100, (pl.reputation||50) + 2);
+          pl.clientSatisfaction = Math.min(100, (pl.clientSatisfaction||50) + 2);
           if(pl.money > (pl.maxMoneyReached||0)) pl.maxMoneyReached = pl.money;
           if(amount > (pl.highestSingleGain||0)) pl.highestSingleGain = amount;
-          pushLog(`${pl.name}: 案件成功！${yen(amount)}獲得（残高: ${yen(pl.money)}）`, "ok");
+          pushLog(`${pl.name}: 案件成功！${yen(amount)}（残高: ${yen(pl.money)}）`, "ok");
           evaluatePlayerAchievements(playerIndex);
           break;
         }
         case "penalty":{
           const amount = randPick(state.rng, [8000,12000,18000,25000]); pl.money -= amount; flashMoney(playerIndex, -amount);
           pl.penaltyCount = (pl.penaltyCount||0) + 1;
-          pl.reputation = Math.max(0, (pl.reputation||0) - 1);
+          pl.reputation = Math.max(0, (pl.reputation||50) - 2);
+          pl.clientSatisfaction = Math.max(0, (pl.clientSatisfaction||50) - 2);
           pushLog(`${pl.name}: コスト発生…${yen(amount)}失う（残高: ${yen(pl.money)}）`, "bad");
           break;
         }
+        case "client":{
+          // client meeting: chance influenced by reputation
+          const base = 0.55;
+          const repBonus = ((pl.reputation||50) - 50) / 200;
+          const prob = Math.max(0.05, Math.min(0.95, base + repBonus));
+          const success = state.rng() < prob;
+          if(success){
+            const pay = randPick(state.rng, [20000,30000,45000]);
+            pl.money += pay; pl.clientSatisfaction = Math.min(100, (pl.clientSatisfaction||50) + randPick(state.rng, [3,5,8]));
+            pl.reputation = Math.min(100, (pl.reputation||50) + 2);
+            flashMoney(playerIndex, pay);
+            pushLog(`${pl.name}: クライアント面談成功！${yen(pay)} 獲得（CSAT↑）`, "ok");
+          } else {
+            const loss = randPick(state.rng, [5000,10000]);
+            pl.money -= loss; pl.clientSatisfaction = Math.max(0, (pl.clientSatisfaction||50) - randPick(state.rng, [2,4]));
+            pl.reputation = Math.max(0, (pl.reputation||50) - 1);
+            flashMoney(playerIndex, -loss);
+            pushLog(`${pl.name}: 面談が振るわず…${yen(loss)}のコスト（CSAT↓）`, "bad");
+          }
+          evaluatePlayerAchievements(playerIndex);
+          break;
+        }
+        case "workshop":{
+          // skill/workshop: increases reputation and small money or small cost
+          const gain = randPick(state.rng, [0,5000,10000]);
+          pl.money += gain; flashMoney(playerIndex, gain);
+          pl.reputation = Math.min(100, (pl.reputation||50) + randPick(state.rng, [1,2,3]));
+          pl.clientSatisfaction = Math.min(100, (pl.clientSatisfaction||50) + 1);
+          pushLog(`${pl.name}: ワークショップでスキル向上（評判↑ / ${gain?`報酬 ${yen(gain)}`:"報酬なし"}）`, "ok");
+          evaluatePlayerAchievements(playerIndex);
+          break;
+        }
         case "event":{
-          // Branch possibility: client pitch / proposal
           if(state.rng() < BRANCH_CHANCE){
             const pb = personaBranchMap[pl.name];
             if(pb && pb.length>0){ const be = randPick(state.rng, pb); showBranchModal(be, playerIndex); return; }
-            const defaultBranch = { text: "クライアントへの提案機会", choices: [
-              { label:"攻めの提案", probGood:0.5, success:{money:40000,move:1,rep:+2,text:"提案が受注！"}, failure:{money:-10000,move:0,rep:-1,text:"提案が否決された"} },
-              { label:"守りの提案", probGood:0.8, success:{money:15000,move:0,rep:+1,text:"小さな案件を獲得"}, failure:{money:0,move:0,rep:0,text:"何もしなかった"} }
+            const defaultBranch = { text: "クライアント提案の機会", choices: [
+              { label:"攻める提案", probGood:0.5, success:{money:40000,move:1,rep:+2,csat:+3,text:"提案受注！"}, failure:{money:-10000,move:0,rep:-1,csat:-2,text:"提案失敗"} },
+              { label:"守る提案", probGood:0.8, success:{money:15000,move:0,rep:+1,csat:+1,text:"小案件を獲得"}, failure:{money:0,move:0,rep:0,csat:0,text:"変わらず"} }
             ]};
             showBranchModal(defaultBranch, playerIndex); return;
           }
-          // persona-specific event or generic consulting event
           const personaEvents = personaEventMap[pl.name];
-          if(personaEvents && personaEvents.length>0 && state.rng() < 0.7){
+          if(personaEvents && personaEvents.length>0 && state.rng() < 0.75){
             const ev = randPick(state.rng, personaEvents);
-            pl.money += ev.money; flashMoney(playerIndex, ev.money);
-            if(typeof ev.rep === "number") pl.reputation = (pl.reputation || 0) + ev.rep;
+            pl.money += ev.money; flashMoney(playerIndex, ev.money || 0);
+            if(typeof ev.rep === "number") pl.reputation = Math.max(0, Math.min(100, (pl.reputation || 50) + ev.rep));
+            if(typeof ev.csat === "number") pl.clientSatisfaction = Math.max(0, Math.min(100, (pl.clientSatisfaction || 50) + ev.csat));
             if(ev.money > (pl.highestSingleGain||0)) pl.highestSingleGain = ev.money;
             if(pl.money > (pl.maxMoneyReached||0)) pl.maxMoneyReached = pl.money;
-            pushLog(`${pl.name}: ${ev.text}（残高: ${yen(pl.money)} / 評判: ${pl.reputation || 0}）`, ev.money>=0?"ok":"bad");
+            pushLog(`${pl.name}: ${ev.text}（残高: ${yen(pl.money)} / 評判: ${pl.reputation || 50} / CSAT: ${pl.clientSatisfaction || 50}）`, ev.money>=0?"ok":"bad");
             if(state.rng() < 0.10){ pl.skipTurn = true; pushLog(`${pl.name}: 次のターンはお休み（リフレッシュ）`); }
-            showCard("案件イベント", ev.text, `${pl.name} / 残高: ${yen(pl.money)} / 評判: ${pl.reputation || 0}`);
+            showCard("案件イベント", ev.text, `${pl.name} / 残高: ${yen(pl.money)} / 評判: ${pl.reputation || 50} / CSAT: ${pl.clientSatisfaction || 50}`);
             evaluatePlayerAchievements(playerIndex);
             renderPlayersPanel();
             return;
           }
-          const ev = randPick(state.rng, eventTable);
-          pl.money += ev.money; flashMoney(playerIndex, ev.money);
-          if(typeof ev.rep === "number") pl.reputation = (pl.reputation || 0) + ev.rep;
-          if(ev.money > (pl.highestSingleGain||0)) pl.highestSingleGain = ev.money;
+          const ev2 = randPick(state.rng, eventTable);
+          pl.money += ev2.money; flashMoney(playerIndex, ev2.money || 0);
+          if(typeof ev2.rep === "number") pl.reputation = Math.max(0, Math.min(100, (pl.reputation || 50) + ev2.rep));
+          if(typeof ev2.csat === "number") pl.clientSatisfaction = Math.max(0, Math.min(100, (pl.clientSatisfaction || 50) + ev2.csat));
+          if(ev2.money > (pl.highestSingleGain||0)) pl.highestSingleGain = ev2.money;
           if(pl.money > (pl.maxMoneyReached||0)) pl.maxMoneyReached = pl.money;
-          pushLog(`${pl.name}: ${ev.text}（残高: ${yen(pl.money)} / 評判: ${pl.reputation || 0}）`, ev.money>=0?"ok":"bad");
+          pushLog(`${pl.name}: ${ev2.text}（残高: ${yen(pl.money)} / 評判: ${pl.reputation || 50} / CSAT: ${pl.clientSatisfaction || 50}）`, ev2.money>=0?"ok":"bad");
           if(state.rng() < 0.10){ pl.skipTurn = true; pushLog(`${pl.name}: 次のターンはお休み（リフレッシュ）`); }
-          showCard("案件イベント", ev.text, `${pl.name} / 残高: ${yen(pl.money)} / 評判: ${pl.reputation || 0}`);
+          showCard("案件イベント", ev2.text, `${pl.name} / 残高: ${yen(pl.money)} / 評判: ${pl.reputation || 50} / CSAT: ${pl.clientSatisfaction || 50}`);
           evaluatePlayerAchievements(playerIndex);
           break;
         }
@@ -923,7 +884,6 @@
     function nextPlayerTurn(){
       const total = state.players.length; let i = state.currentPlayerIndex;
       for(let c=0;c<total;c++){ i=(i+1)%total; const p=state.players[i]; if(!p.finished){ state.currentPlayerIndex=i; break; } }
-      // consume skip if present
       if(state.players[state.currentPlayerIndex] && state.players[state.currentPlayerIndex].skipTurn){
         const skipped = state.players[state.currentPlayerIndex];
         skipped.skipTurn = false;
@@ -965,7 +925,7 @@
     btnLoad.addEventListener("click", ()=>{ const s=localStorage.getItem("life-game-save"); if(!s) return alert("保存がありません"); restore(s); });
     btnExport.addEventListener("click", ()=>{
       const blob = new Blob([snapshot()], {type:"application/json"});
-      const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href=url; a.download="consulting-game-save.json"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href=url; a.download="life-game-save.json"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
     });
 
     btnSaveSlot.addEventListener("click", ()=> {
@@ -1025,7 +985,7 @@
       }
     });
 
-    // Persona manager & editors (simple UI)
+    // Persona manager & editors
     function renderPersonaTable(){
       personaTbody.innerHTML = "";
       personasStore.forEach((p, idx) => {
@@ -1087,20 +1047,20 @@
     function openPersonaEventEditor(idx){
       const p = personasStore[idx];
       if(!p) return;
-      const list = p.events.map((ev,i)=> `${i+1}. ${ev.text} (${ev.money})`).join("\n");
-      const inp = prompt(`イベント一覧（行単位で "本文 | 金額 | 評判変化"）\n現在:\n${list}\n\n入力して上書き（空でキャンセル）`, p.events.map(ev=>`${ev.text} | ${ev.money} | ${ev.rep||0}`).join("\n"));
+      const list = p.events.map((ev,i)=> `${i+1}. ${ev.text} (${ev.money}, rep:${ev.rep||0}, csat:${ev.csat||0})`).join("\n");
+      const inp = prompt(`イベント一覧（行単位で "本文 | 金額 | 評判変化 | 顧客満足変化"）\n現在:\n${list}\n\n入力して上書き（空でキャンセル）`, p.events.map(ev=>`${ev.text} | ${ev.money} | ${ev.rep||0} | ${ev.csat||0}`).join("\n"));
       if(inp === null) return;
       const lines = inp.split("\n").map(s=>s.trim()).filter(Boolean);
       const newEvents = lines.map(line=>{
         const parts = line.split("|").map(x=>x.trim());
-        return { text: parts[0] || "", money: Number(parts[1] || 0), rep: Number(parts[2] || 0) };
+        return { text: parts[0] || "", money: Number(parts[1] || 0), rep: Number(parts[2] || 0), csat: Number(parts[3] || 0) };
       });
       p.events = newEvents;
       syncStoresFromPersonasList(personasStore);
       renderPersonaTable();
     }
 
-    // Branch editor (modal) implementation (keeps same as prior)
+    // Branch editor (modal)
     let editingBranchTarget = null;
     function openBranchEditor(branch, onSave){
       branchTextInput.value = branch.text || "";
@@ -1119,15 +1079,17 @@
           const sMoney = Number(row.querySelector(".choice-success-money").value) || 0;
           const sMove = Number(row.querySelector(".choice-success-move").value) || 0;
           const sRep = Number(row.querySelector(".choice-success-rep")?.value || 0);
+          const sCsat = Number(row.querySelector(".choice-success-csat")?.value || 0);
           const fText = row.querySelector(".choice-failure-text").value;
           const fMoney = Number(row.querySelector(".choice-failure-money").value) || 0;
           const fMove = Number(row.querySelector(".choice-failure-move").value) || 0;
           const fRep = Number(row.querySelector(".choice-failure-rep")?.value || 0);
+          const fCsat = Number(row.querySelector(".choice-failure-csat")?.value || 0);
           choices.push({
             label,
             probGood: prob,
-            success: { text: sText, money: sMoney, move: sMove, rep: sRep },
-            failure: { text: fText, money: fMoney, move: fMove, rep: fRep }
+            success: { text: sText, money: sMoney, move: sMove, rep: sRep, csat: sCsat },
+            failure: { text: fText, money: fMoney, move: fMove, rep: fRep, csat: fCsat }
           });
         });
         return { text: branchTextInput.value || "", choices };
@@ -1171,19 +1133,23 @@
       const probInput = document.createElement("input"); probInput.type = "number"; probInput.min="0"; probInput.max="1"; probInput.step="0.01"; probInput.className = "choice-prob"; probInput.value = (typeof prob === "number"?prob:1);
       left.appendChild(lbl); left.appendChild(probInput);
 
-      const right = document.createElement("div"); right.style.display="grid"; right.style.gridTemplateColumns="repeat(3,1fr)"; right.style.gap="6px";
+      const block = document.createElement("div"); block.style.display="grid"; block.style.gridTemplateRows="repeat(2,auto)"; block.style.gap="4px";
+      const row1 = document.createElement("div"); row1.style.display="flex"; row1.style.gap="6px";
       const sText = document.createElement("input"); sText.type="text"; sText.placeholder="成功テキスト"; sText.className="choice-success-text"; sText.value = (success && success.text) || "";
       const sMoney = document.createElement("input"); sMoney.type="number"; sMoney.className="choice-success-money"; sMoney.value = (success && success.money) || 0;
       const sMove = document.createElement("input"); sMove.type="number"; sMove.className="choice-success-move"; sMove.value = (success && success.move) || 0;
       const sRep = document.createElement("input"); sRep.type="number"; sRep.className="choice-success-rep"; sRep.value = (success && success.rep) || 0;
+      const sCsat = document.createElement("input"); sCsat.type="number"; sCsat.className="choice-success-csat"; sCsat.value = (success && success.csat) || 0;
+      row1.appendChild(sText); row1.appendChild(sMoney); row1.appendChild(sMove); row1.appendChild(sRep); row1.appendChild(sCsat);
+
+      const row2 = document.createElement("div"); row2.style.display="flex"; row2.style.gap="6px";
       const fText = document.createElement("input"); fText.type="text"; fText.placeholder="失敗テキスト"; fText.className="choice-failure-text"; fText.value = (failure && failure.text) || "";
       const fMoney = document.createElement("input"); fMoney.type="number"; fMoney.className="choice-failure-money"; fMoney.value = (failure && failure.money) || 0;
       const fMove = document.createElement("input"); fMove.type="number"; fMove.className="choice-failure-move"; fMove.value = (failure && failure.move) || 0;
       const fRep = document.createElement("input"); fRep.type="number"; fRep.className="choice-failure-rep"; fRep.value = (failure && failure.rep) || 0;
-      // arrange success inputs
-      const block = document.createElement("div"); block.style.display="grid"; block.style.gridTemplateRows="repeat(2,auto)"; block.style.gap="4px";
-      const row1 = document.createElement("div"); row1.style.display="flex"; row1.style.gap="6px"; row1.appendChild(sText); row1.appendChild(sMoney); row1.appendChild(sMove); row1.appendChild(sRep);
-      const row2 = document.createElement("div"); row2.style.display="flex"; row2.style.gap="6px"; row2.appendChild(fText); row2.appendChild(fMoney); row2.appendChild(fMove); row2.appendChild(fRep);
+      const fCsat = document.createElement("input"); fCsat.type="number"; fCsat.className="choice-failure-csat"; fCsat.value = (failure && failure.csat) || 0;
+      row2.appendChild(fText); row2.appendChild(fMoney); row2.appendChild(fMove); row2.appendChild(fRep); row2.appendChild(fCsat);
+
       block.appendChild(row1); block.appendChild(row2);
 
       const controls = document.createElement("div");
@@ -1204,7 +1170,7 @@
       const sel = prompt(`分岐イベント一覧（番号を入力して編集、"new"で新規）:\n${list}\n`, "");
       if(sel === null) return;
       if(sel.toLowerCase() === "new"){
-        const newBranch = { text: "新しい案件提案", choices: [ { label:"提案", probGood:0.6, success:{text:"成功",money:10000,move:1,rep:1}, failure:{text:"失敗",money:-5000,move:0,rep:-1} } ] };
+        const newBranch = { text: "新しい案件提案", choices: [ { label:"提案", probGood:0.6, success:{text:"成功",money:10000,move:1,rep:1,csat:1}, failure:{text:"失敗",money:-5000,move:0,rep:-1,csat:-1} } ] };
         openBranchEditor(newBranch, (b)=> { p.branchEvents = p.branchEvents || []; p.branchEvents.push(b); syncStoresFromPersonasList(personasStore); renderPersonaTable(); });
       } else {
         const n = Number(sel) - 1;
@@ -1267,10 +1233,10 @@
       state.players = Array.from({length:count},(_,i)=>{
         const s = state.playerSettings[i] || { persona: PERSONAS[i] || `プレイヤー${i+1}`, color: PLAYER_COLORS[i % PLAYER_COLORS.length] };
         return { name: s.persona, color: s.color, position:0, money:initial, finished:false, skipTurn:false,
-          achievements:[], bonusCount:0, branchSuccessCount:0, maxMoneyReached: initial, highestSingleGain:0, turnsToGoal:null, reputation: 50, penaltyCount:0 };
+          achievements:[], bonusCount:0, branchSuccessCount:0, maxMoneyReached: initial, highestSingleGain:0, turnsToGoal:null, reputation: 50, penaltyCount:0, clientSatisfaction:50 };
       });
       state.started=true; state.turn=1; state.currentPlayerIndex=0; state.finishedCount=0; state.overshoot = overshootSel.value; state.speed = Number(speedInput.value||180);
-      pushLog(`ゲーム開始！(コンサル体験) 初期資金: ${yen(initial)} | プレイヤー数: ${count} ${seed?`| シード:${seed}`:""}`, "ok");
+      pushLog(`ゲーム開始！初期資金: ${yen(initial)} | プレイヤー数: ${count} ${seed?`| シード:${seed}`:""}`, "ok");
       renderBoard(); renderPlayersPanel(); statTurnEl.textContent=String(state.turn); statCurrentEl.textContent=state.players[state.currentPlayerIndex].name; btnRoll.disabled=false; diceEl.textContent='-';
     });
 
@@ -1310,11 +1276,11 @@
 
     // Result display
     function showResult(){
-      const rows = state.players.map((p,i)=>({i, name:p.name, money:p.money, achievements:p.achievements||[], reputation:p.reputation||0}));
+      const rows = state.players.map((p,i)=>({i, name:p.name, money:p.money, achievements:p.achievements||[], reputation:p.reputation||0, csat:p.clientSatisfaction||50}));
       rows.sort((a,b)=> b.money - a.money);
       resultBody.innerHTML = "";
       const table = document.createElement("div");
-      table.innerHTML = rows.map((r, idx)=> `<div style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px dashed #eee"><div><strong>#${idx+1}</strong> ${r.name} (評判:${r.reputation})</div><div>${yen(r.money)}</div></div>`).join("");
+      table.innerHTML = rows.map((r, idx)=> `<div style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px dashed #eee"><div><strong>#${idx+1}</strong> ${r.name} (評判:${r.reputation} / CSAT:${r.csat})</div><div>${yen(r.money)}</div></div>`).join("");
       resultBody.appendChild(table);
       const achDiv = document.createElement("div"); achDiv.style.marginTop = "12px"; achDiv.innerHTML = "<h4>実績</h4>";
       rows.forEach(r=>{
@@ -1352,12 +1318,12 @@
       if(e.key === "f" || e.key === "F"){ fitBoard(); }
     });
 
-    // initial render & safety
+    // initial render & setup
     renderBoard();
     buildSettingsForm();
     updateAchievementsModal();
     updateRollState();
-    window.__consulting_game = { state, renderBoard, renderPlayersPanel, personasStore, syncStoresFromPersonasList };
+    window.__life_game = { state, renderBoard, renderPlayersPanel, personasStore, syncStoresFromPersonasList };
 
   })();
   </script>
