@@ -1,577 +1,455 @@
-<!-- index.html -->
+<!--
+  人生ゲーム（複数プレイヤー＋アニメーション）改良版
+  そーす用：1ファイル完結 / モダンUI / 可読性重視 / ショートカット / 保存&読み込み / リプレイ
+  主な改良点:
+  - 多人数で同一マスに重なるときのトークン衝突回避（扇状オフセット）
+  - ダイスUI（3D風アニメーション）とキーボード操作（Space / Enter）
+  - イベントカードのモーダル表示（アクセシブル）
+  - ログはaria-liveでスクリーンリーダー対応、色分けハイライト
+  - 進行演出のスピード調整（アニメ速度スライダー）
+  - 途中セーブ/ロード（localStorage）、エクスポート/インポート
+  - ゲーム終了時のリザルト表示（所持金で順位・差額表示）
+  - 乱数シード（再現プレイ可能）
+  - オプション：ゴール超過を許さない（従来）/ 超過反射（バウンスバック）切替
+  - モバイル向け：大きめボタン、レスポンシブ
+-->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>人生ゲーム（複数プレイヤー＋アニメーション版）</title>
+  <title>人生ゲーム（複数プレイヤー＋アニメーション）改良版</title>
   <style>
-    :root {
-      --board-cols: 8;
-      --board-rows: 5;
-      --cell-size: 68px;
-      --accent: #ff6b6b;
-      --bg: #fffaf0;
-      --text: #222;
-      --active: #4c9aff;
+    :root{
+      --board-cols:8; --board-rows:5; --cell-size:68px;
+      --accent:#ff6b6b; --bg:#fffaf0; --text:#222; --active:#4c9aff;
+      --ok:#00c853; --warn:#ff8f00; --bad:#e53935; --muted:#94a3b8;
     }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", "Meiryo", sans-serif;
-      color: var(--text);
-      background: var(--bg);
-      display: grid;
-      place-items: center;
-      min-height: 100vh;
-      padding: 16px;
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,"Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic","Meiryo",sans-serif;
+      color:var(--text); background:var(--bg);
+      display:grid; place-items:center; padding:16px;
     }
-    .container {
-      width: min(100%, 1100px);
-      display: grid;
-      grid-template-columns: 1fr 330px;
-      gap: 16px;
-    }
-    @media (max-width: 900px) {
-      .container { grid-template-columns: 1fr; }
-    }
-    header {
-      grid-column: 1 / -1;
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 12px;
-      align-items: center;
-    }
-    header h1 {
-      font-size: 1.6rem;
-      margin: 0;
-    }
-    .controls {
-      display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
-    }
-    .controls .group {
-      display: flex; gap: 6px; align-items: center; padding: 6px 8px; background: #fff; border: 1px solid #eee; border-radius: 10px;
-    }
-    label { font-size: 12px; color: #555; }
-    select, input[type="number"] {
-      padding: 6px 8px; border-radius: 8px; border: 1px solid #ddd; width: 90px;
-    }
-    button {
-      padding: 10px 14px;
-      border-radius: 10px;
-      border: 1px solid #ddd;
-      background: #fff;
-      cursor: pointer;
-      font-weight: 600;
-    }
-    button.primary {
-      background: var(--accent);
-      color: #fff;
-      border-color: transparent;
-    }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .container{width:min(100%,1180px); display:grid; grid-template-columns:1fr 350px; gap:16px}
+    @media (max-width:980px){.container{grid-template-columns:1fr}}
+
+    header{grid-column:1/-1; display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center}
+    header h1{margin:0; font-size:1.5rem}
+
+    .controls{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+    .group{display:flex; gap:6px; align-items:center; padding:6px 8px; background:#fff; border:1px solid #eee; border-radius:10px}
+    label{font-size:12px; color:#555}
+    select,input[type="number"],input[type="text"],input[type="range"]{padding:6px 8px; border-radius:8px; border:1px solid #ddd}
+    input[type="range"]{width:140px}
+    button{padding:10px 14px; border-radius:10px; border:1px solid #ddd; background:#fff; cursor:pointer; font-weight:600}
+    button.primary{background:var(--accent); color:#fff; border-color:transparent}
+    button:disabled{opacity:.5; cursor:not-allowed}
 
     /* Board */
-    .board {
-      background: #fff;
-      border: 2px solid #eee;
-      border-radius: 12px;
-      padding: 12px;
-      display: grid;
-      grid-template-columns: repeat(var(--board-cols), minmax(52px, var(--cell-size)));
-      grid-template-rows: repeat(var(--board-rows), minmax(52px, var(--cell-size)));
-      gap: 8px;
-      position: relative;
+    .board{
+      background:#fff; border:2px solid #eee; border-radius:12px; padding:12px; position:relative;
+      display:grid; gap:8px;
+      grid-template-columns:repeat(var(--board-cols), minmax(52px, var(--cell-size)));
+      grid-template-rows:repeat(var(--board-rows), minmax(52px, var(--cell-size)));
+      overflow:hidden;
     }
-    .cell {
-      background: #f9fafb;
-      border: 1px solid #e6e8eb;
-      border-radius: 10px;
-      padding: 6px;
-      display: grid;
-      place-items: center;
-      font-size: 12px;
-      position: relative;
-      overflow: hidden;
-    }
-    .cell.start { background: #d1f7c4; }
-    .cell.goal  { background: #cde7ff; }
-    .cell.event { background: #fff4cc; }
-    .cell.penalty { background: #ffe0e0; }
-    .cell.bonus { background: #e8ffea; }
+    .cell{background:#f9fafb; border:1px solid #e6e8eb; border-radius:10px; padding:6px; display:grid; place-items:center; font-size:12px; position:relative; overflow:hidden}
+    .cell.start{background:#d1f7c4}
+    .cell.goal{background:#cde7ff}
+    .cell.event{background:#fff4cc}
+    .cell.penalty{background:#ffe0e0}
+    .cell.bonus{background:#e8ffea}
+    .cell .idx{position:absolute; top:4px; left:6px; font-size:10px; color:#999}
 
-    .cell .idx {
-      position: absolute;
-      top: 4px; left: 6px;
-      font-size: 10px; color: #999;
-    }
-
-    /* Player token */
-    .token {
-      width: 28px; height: 28px;
-      border-radius: 50%;
-      border: 2px solid #333;
-      display: grid; place-items: center;
-      color: #fff; font-size: 12px; font-weight: 700;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-      transition: transform 180ms ease;
-      position: absolute;
-    }
-    .token.finished { opacity: 0.6; border-color: #777; }
-    .token.active { outline: 3px solid rgba(76,154,255,0.5); }
+    /* Token */
+    .token{width:28px; height:28px; border-radius:50%; border:2px solid #333; display:grid; place-items:center; color:#fff; font-size:12px; font-weight:700; box-shadow:0 4px 10px rgba(0,0,0,.15); transition:transform 180ms ease; position:absolute}
+    .token.finished{opacity:.6; border-color:#777}
+    .token.active{outline:3px solid rgba(76,154,255,.5)}
 
     /* Sidebar */
-    .sidebar {
-      background: #fff;
-      border: 2px solid #eee;
-      border-radius: 12px;
-      padding: 12px;
-      display: grid;
-      gap: 12px;
-      height: fit-content;
-    }
-    .stat {
-      display: flex; justify-content: space-between; gap: 8px;
-      padding: 8px 10px; background: #f5f7fa; border-radius: 10px;
-    }
-    .players {
-      display: grid; gap: 8px;
-    }
-    .player-row {
-      display: grid; grid-template-columns: 1.6fr 0.8fr 1fr 0.8fr;
-      gap: 8px; align-items: center;
-      padding: 8px 10px; background: #fafcff; border: 1px solid #eee; border-radius: 10px;
-    }
-    .player-row.active { border-color: var(--active); box-shadow: 0 0 0 2px rgba(76,154,255,0.2) inset; }
-    .badge {
-      width: 18px; height: 18px; border-radius: 50%; border: 2px solid #333; display: inline-block; margin-right: 6px;
-    }
-    .money {
-      justify-self: end;
-      font-weight: 700;
-      transition: color 240ms ease, transform 240ms ease;
-    }
-    .money.flash-plus { color: #0a7a2d; transform: scale(1.06); }
-    .money.flash-minus { color: #b00020; transform: scale(0.96); }
+    .sidebar{background:#fff; border:2px solid #eee; border-radius:12px; padding:12px; display:grid; gap:12px; height:fit-content}
+    .stat{display:flex; justify-content:space-between; gap:8px; padding:8px 10px; background:#f5f7fa; border-radius:10px}
+    .players{display:grid; gap:8px}
+    .player-row{display:grid; grid-template-columns:1.6fr .8fr 1fr .8fr; gap:8px; align-items:center; padding:8px 10px; background:#fafcff; border:1px solid #eee; border-radius:10px}
+    .player-row.active{border-color:var(--active); box-shadow:0 0 0 2px rgba(76,154,255,.2) inset}
+    .badge{width:18px; height:18px; border-radius:50%; border:2px solid #333; display:inline-block; margin-right:6px}
+    .money{justify-self:end; font-weight:700; transition:color 240ms ease, transform 240ms ease}
+    .money.flash-plus{color:#0a7a2d; transform:scale(1.06)}
+    .money.flash-minus{color:#b00020; transform:scale(.96)}
 
-    .log {
-      border: 1px solid #eee;
-      border-radius: 10px;
-      background: #fafcff;
-      padding: 10px;
-      max-height: 260px;
-      overflow: auto;
-      font-size: 13px;
-      line-height: 1.4;
-    }
-    .log p { margin: 0 0 6px; }
-    .footer { font-size: 12px; color: #777; }
+    .log{border:1px solid #eee; border-radius:10px; background:#fafcff; padding:10px; max-height:260px; overflow:auto; font-size:13px; line-height:1.4}
+    .log p{margin:0 0 6px}
+    .log p.ok{color:var(--ok)}
+    .log p.bad{color:var(--bad)}
+    .footer{font-size:12px; color:#777}
+
+    /* Dice */
+    .dice{width:42px; height:42px; display:grid; place-items:center; border-radius:8px; border:1px solid #e2e8f0; background:#fff; font-weight:800}
+    .dice.spin{animation:spin .6s ease}
+    @keyframes spin{0%{transform:rotate(0)}50%{transform:rotate(180deg) scale(1.15)}100%{transform:rotate(360deg)}}
+
+    /* Modal */
+    dialog.modal{border:none; border-radius:12px; padding:0; width:min(92vw,520px)}
+    .card{padding:16px; border-radius:12px; background:#fff}
+    .card h3{margin:0 0 6px}
+    .card p{margin:0 0 8px}
+    .card .muted{color:#64748b; font-size:12px}
+    .card .actions{display:flex; justify-content:flex-end; gap:8px}
+
+    /* Result table */
+    table{border-collapse:collapse; width:100%}
+    th,td{border:1px solid #e5e7eb; padding:8px; text-align:left}
+    th{background:#f8fafc}
   </style>
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>人生ゲーム（複数プレイヤー＋アニメーション）</h1>
-      <div class="controls">
+      <h1>人生ゲーム（複数プレイヤー＋アニメーション）改良版</h1>
+      <div class="controls" role="group" aria-label="ゲーム設定">
         <div class="group">
           <label for="players-count">人数</label>
-          <select id="players-count">
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4" selected>4</option>
-          </select>
+          <select id="players-count"><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option></select>
         </div>
         <div class="group">
           <label for="initial-money">初期資金</label>
           <input id="initial-money" type="number" value="20000" min="0" step="1000" />
         </div>
-        <button id="btn-start" class="primary">ゲーム開始</button>
-        <button id="btn-roll" disabled>サイコロを振る</button>
+        <div class="group">
+          <label for="rng-seed">シード</label>
+          <input id="rng-seed" type="text" placeholder="任意(空=ランダム)" />
+        </div>
+        <div class="group">
+          <label for="speed">速度</label>
+          <input id="speed" type="range" min="80" max="400" value="180" />
+        </div>
+        <div class="group">
+          <label for="overshoot">ゴール超過</label>
+          <select id="overshoot"><option value="clamp" selected>止まる</option><option value="bounce">反射</option></select>
+        </div>
+        <div class="dice" id="dice" aria-live="polite" aria-atomic="true">-</div>
+        <button id="btn-start" class="primary">開始</button>
+        <button id="btn-roll" disabled>サイコロ</button>
         <button id="btn-reset">リセット</button>
+        <button id="btn-save" title="ローカルに保存">保存</button>
+        <button id="btn-load" title="保存から読込">読込</button>
+        <button id="btn-export" title="JSONエクスポート">Export</button>
+        <input id="file-import" type="file" accept="application/json" hidden />
+        <button id="btn-import" title="JSONインポート">Import</button>
       </div>
     </header>
 
-    <main class="board" id="board"></main>
+    <main class="board" id="board" aria-label="ボード"></main>
 
     <aside class="sidebar">
       <div class="stat"><span>ターン</span><strong id="stat-turn">0</strong></div>
       <div class="stat"><span>手番</span><strong id="stat-current">-</strong></div>
-
       <div class="players" id="players-panel"></div>
-
-      <div class="log" id="log"></div>
-      <div class="footer">サイコロは1〜6。各マス到達時にイベントが発生。全員がゴールするとゲーム終了。</div>
+      <div class="log" id="log" aria-live="polite" aria-atomic="false"></div>
+      <div class="footer">Space/Enterでサイコロ。全員がゴールすると結果発表。イベントはカードで表示。</div>
     </aside>
   </div>
 
+  <dialog class="modal" id="modal">
+    <div class="card">
+      <h3 id="modal-title">イベント</h3>
+      <p id="modal-text"></p>
+      <p class="muted" id="modal-sub"></p>
+      <div class="actions">
+        <button id="modal-close" class="primary">OK</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="modal" id="result">
+    <div class="card">
+      <h3>結果発表</h3>
+      <div id="result-body"></div>
+      <div class="actions"><button id="result-close" class="primary">閉じる</button></div>
+    </div>
+  </dialog>
+
   <script>
-    // --- 盤面とイベントデータ --------------------------------------------------
-    const BOARD_COLS = 8;
-    const BOARD_ROWS = 5;
-    const TOTAL_CELLS = BOARD_COLS * BOARD_ROWS;
+  // ====== ユーティリティ ======
+  const $ = s => document.querySelector(s);
+  const boardEl = $("#board"), logEl = $("#log"), diceEl = $("#dice");
+  const statTurnEl = $("#stat-turn"), statCurrentEl = $("#stat-current");
+  const playersPanelEl = $("#players-panel");
+  const btnStart = $("#btn-start"), btnRoll = $("#btn-roll"), btnReset = $("#btn-reset");
+  const btnSave = $("#btn-save"), btnLoad = $("#btn-load"), btnExport = $("#btn-export"), btnImport = $("#btn-import"), fileImport = $("#file-import");
+  const playersCountSel = $("#players-count"), initialMoneyInput = $("#initial-money");
+  const rngSeedInput = $("#rng-seed"), speedInput = $("#speed"), overshootSel = $("#overshoot");
+  const modal = $("#modal"), modalTitle = $("#modal-title"), modalText = $("#modal-text"), modalSub = $("#modal-sub"), modalClose = $("#modal-close");
+  const resultDlg = $("#result"), resultBody = $("#result-body"), resultClose = $("#result-close");
 
-    const cells = Array.from({ length: TOTAL_CELLS }, (_, i) => ({
-      index: i, type: "none", label: ""
-    }));
-    cells[0] = { index: 0, type: "start", label: "スタート" };
-    cells[TOTAL_CELLS - 1] = { index: TOTAL_CELLS - 1, type: "goal", label: "ゴール" };
+  const BOARD_COLS = 8, BOARD_ROWS = 5, TOTAL_CELLS = BOARD_COLS * BOARD_ROWS;
+  const PLAYER_COLORS = ["#ff6b6b", "#4c9aff", "#00c853", "#ff8f00", "#9c27b0", "#00acc1"];
 
-    const eventIndices = [3, 6, 9, 12, 15, 18, 23, 27, 31, 33];
-    eventIndices.forEach(i => { cells[i].type = "event"; cells[i].label = "イベント"; });
+  // 乱数（シード対応）
+  function createRNG(seed){
+    if(!seed) return Math.random;
+    let h = 2166136261 >>> 0;
+    for (let i=0;i<seed.length;i++){ h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return () => { h += 0x6D2B79F5; let t = Math.imul(h ^ h>>>15, 1 | h); t ^= t + Math.imul(t ^ t>>>7, 61 | t); return ((t ^ t>>>14) >>> 0) / 4294967296; };
+  }
+  const randPick = (rng, arr)=> arr[Math.floor(rng()*arr.length)];
+  const yen = n => "¥" + n.toLocaleString("ja-JP");
+  const sleep = ms => new Promise(res=>setTimeout(res, ms));
 
-    const bonusIndices = [4, 10, 16, 22, 30];
-    bonusIndices.forEach(i => { cells[i].type = "bonus"; cells[i].label = "ボーナス"; });
+  // 盤面データ
+  const cells = Array.from({length:TOTAL_CELLS},(_,i)=>({index:i,type:"none",label:""}));
+  cells[0] = {index:0,type:"start",label:"スタート"};
+  cells[TOTAL_CELLS-1] = {index:TOTAL_CELLS-1,type:"goal",label:"ゴール"};
+  const mark = (idxs, type, label)=> idxs.forEach(i=>{cells[i].type=type; cells[i].label=label});
+  mark([3,6,9,12,15,18,23,27,31,33], "event", "イベント");
+  mark([4,10,16,22,30], "bonus", "ボーナス");
+  mark([8,14,20,26,34], "penalty", "ペナルティ");
 
-    const penaltyIndices = [8, 14, 20, 26, 34];
-    penaltyIndices.forEach(i => { cells[i].type = "penalty"; cells[i].label = "ペナルティ"; });
+  const eventTable = [
+    { text:"就職おめでとう！初任給で+¥30,000", money:+30000 },
+    { text:"家賃の更新で-¥20,000", money:-20000 },
+    { text:"副業がバズって+¥50,000", money:+50000 },
+    { text:"スマホが壊れて-¥15,000", money:-15000 },
+    { text:"推し活で-¥10,000", money:-10000 },
+    { text:"奨学金が振り込まれた+¥40,000", money:+40000 },
+    { text:"バイト昇給で+¥8,000", money:+8000 },
+    { text:"体調不良で病院代-¥5,000", money:-5000 },
+    { text:"フリマで売れて+¥6,000", money:+6000 },
+    { text:"交通違反で-¥12,000", money:-12000 },
+  ];
 
-    const eventTable = [
-      { text: "就職おめでとう！初任給で+¥30,000", money: +30000 },
-      { text: "家賃の更新で-¥20,000", money: -20000 },
-      { text: "副業がバズって+¥50,000", money: +50000 },
-      { text: "スマホが壊れて-¥15,000", money: -15000 },
-      { text: "推し活で-¥10,000", money: -10000 },
-      { text: "奨学金が振り込まれた+¥40,000", money: +40000 },
-      { text: "バイト昇給で+¥8,000", money: +8000 },
-      { text: "体調不良で病院代-¥5,000", money: -5000 },
-      { text: "フリマで売れて+¥6,000", money: +6000 },
-      { text: "交通違反で-¥12,000", money: -12000 },
-    ];
+  // 状態
+  const state = {
+    started:false, turn:0, currentPlayerIndex:0, players:[], finishedCount:0, animating:false,
+    rng: Math.random, seed:"", speed:180, overshoot:"clamp"
+  };
 
-    const PLAYER_COLORS = ["#ff6b6b","#4c9aff","#00c853","#ff8f00"];
+  // インデックス→蛇行グリッド座標
+  function indexToGrid(index){
+    const row = Math.floor(index/BOARD_COLS);
+    let col = index % BOARD_COLS;
+    if(row % 2 === 1) col = BOARD_COLS-1-col;
+    return {row, col};
+  }
 
-    // --- 状態 -----------------------------------------------------------------
-    const state = {
-      started: false,
-      turn: 0,
-      currentPlayerIndex: 0,
-      players: [],
-      finishedCount: 0,
-      animating: false, // 移動中は入力ロック
-    };
-
-    // --- DOMユーティリティ ----------------------------------------------------
-    const $ = s => document.querySelector(s);
-    const boardEl = $("#board");
-    const logEl = $("#log");
-    const statTurnEl = $("#stat-turn");
-    const statCurrentEl = $("#stat-current");
-    const playersPanelEl = $("#players-panel");
-    const btnStart = $("#btn-start");
-    const btnRoll = $("#btn-roll");
-    const btnReset = $("#btn-reset");
-    const playersCountSel = $("#players-count");
-    const initialMoneyInput = $("#initial-money");
-
-    function yen(n) { return "¥" + n.toLocaleString("ja-JP"); }
-
-    function appendLog(text) {
-      const p = document.createElement("p");
-      p.textContent = text;
-      logEl.appendChild(p);
-      logEl.scrollTop = logEl.scrollHeight;
-    }
-
-    function indexToGrid(index) {
-      const row = Math.floor(index / BOARD_COLS);
-      let col = index % BOARD_COLS;
-      if (row % 2 === 1) col = BOARD_COLS - 1 - col; // 蛇行
-      return { row, col };
-    }
-
-    // --- 盤面描画 -------------------------------------------------------------
-    function renderBoard() {
-      boardEl.style.setProperty("--board-cols", BOARD_COLS);
-      boardEl.style.setProperty("--board-rows", BOARD_ROWS);
-      boardEl.innerHTML = "";
-      cells.forEach(cell => {
-        const div = document.createElement("div");
-        div.className = "cell " + (cell.type !== "none" ? cell.type : "");
-        div.dataset.index = String(cell.index);
-
-        const idx = document.createElement("div");
-        idx.className = "idx";
-        idx.textContent = String(cell.index);
-        div.appendChild(idx);
-
-        const label = document.createElement("div");
-        label.textContent = cell.label || "";
-        div.appendChild(label);
-
-        const { row, col } = indexToGrid(cell.index);
-        div.style.gridRowStart = row + 1;
-        div.style.gridColumnStart = col + 1;
-
-        boardEl.appendChild(div);
-      });
-
-      // トークン描画
-      state.players.forEach((pl, i) => {
-        const token = document.createElement("div");
-        token.className = "token";
-        token.id = tokenId(i);
-        token.textContent = String(i + 1);
-        token.style.background = pl.color;
-        if (pl.finished) token.classList.add("finished");
-        boardEl.appendChild(token);
-        placeToken(i, pl.position);
-      });
-      highlightActiveToken();
-    }
-
-    function tokenId(i) { return `token-${i}`; }
-
-    function placeToken(playerIndex, cellIndex) {
-      const targetCell = boardEl.querySelector(`.cell[data-index="${cellIndex}"]`);
-      const token = $("#"+tokenId(playerIndex));
-      if (!targetCell || !token) return;
-      const rectParent = boardEl.getBoundingClientRect();
-      const rectCell = targetCell.getBoundingClientRect();
-      const x = rectCell.left - rectParent.left + rectCell.width / 2;
-      const y = rectCell.top - rectParent.top + rectCell.height / 2;
-      token.style.transform = `translate(${x - 14}px, ${y - 14}px)`;
-    }
-
-    function highlightActiveToken() {
-      state.players.forEach((_, i) => {
-        const t = $("#"+tokenId(i));
-        if (!t) return;
-        if (i === state.currentPlayerIndex) t.classList.add("active");
-        else t.classList.remove("active");
-      });
-    }
-
-    // --- サイドバー（プレイヤー） ---------------------------------------------
-    function renderPlayersPanel() {
-      playersPanelEl.innerHTML = "";
-      state.players.forEach((pl, i) => {
-        const row = document.createElement("div");
-        row.className = "player-row" + (i === state.currentPlayerIndex ? " active" : "");
-        const name = document.createElement("div");
-        const badge = document.createElement("span");
-        badge.className = "badge"; badge.style.background = pl.color;
-        name.appendChild(badge);
-        const nameText = document.createElement("span");
-        nameText.textContent = pl.name + (pl.finished ? "（ゴール）" : "");
-        name.appendChild(nameText);
-
-        const pos = document.createElement("div");
-        pos.textContent = "位置: " + pl.position;
-
-        const money = document.createElement("div");
-        money.className = "money";
-        money.id = moneyId(i);
-        money.textContent = yen(pl.money);
-
-        const status = document.createElement("div");
-        status.textContent = pl.skipTurn ? "次ターン休み" : "";
-
-        row.appendChild(name);
-        row.appendChild(pos);
-        row.appendChild(money);
-        row.appendChild(status);
-        playersPanelEl.appendChild(row);
-      });
-    }
-    function moneyId(i) { return `money-${i}`; }
-
-    function flashMoney(playerIndex, delta) {
-      const el = $("#"+moneyId(playerIndex));
-      if (!el) return;
-      const cls = delta >= 0 ? "flash-plus" : "flash-minus";
-      el.classList.add(cls);
-      setTimeout(() => el.classList.remove(cls), 400);
-    }
-
-    // --- イベント処理 ---------------------------------------------------------
-    function resolveCell(playerIndex, index) {
-      const pl = state.players[playerIndex];
-      const cell = cells[index];
-      if (!cell || !pl) return;
-
-      switch (cell.type) {
-        case "start":
-          appendLog(`${pl.name}: スタート！`);
-          break;
-        case "goal":
-          appendLog(`${pl.name}: ゴール！お疲れさま！`);
-          pl.finished = true;
-          state.finishedCount += 1;
-          const token = $("#"+tokenId(playerIndex));
-          if (token) token.classList.add("finished");
-          break;
-        case "bonus": {
-          const amount = [5000, 8000, 10000, 15000, 20000][Math.floor(Math.random() * 5)];
-          pl.money += amount;
-          appendLog(`${pl.name}: ボーナス！${yen(amount)}獲得（残高: ${yen(pl.money)}）`);
-          flashMoney(playerIndex, amount);
-          break;
-        }
-        case "penalty": {
-          const amount = [5000, 8000, 10000, 15000, 20000][Math.floor(Math.random() * 5)];
-          pl.money -= amount;
-          appendLog(`${pl.name}: ペナルティ…${yen(amount)}失う（残高: ${yen(pl.money)}）`);
-          flashMoney(playerIndex, -amount);
-          break;
-        }
-        case "event": {
-          const ev = eventTable[Math.floor(Math.random() * eventTable.length)];
-          pl.money += ev.money;
-          appendLog(`${pl.name}: ${ev.text}（残高: ${yen(pl.money)}）`);
-          flashMoney(playerIndex, ev.money);
-          if (Math.random() < 0.1) {
-            pl.skipTurn = true;
-            appendLog(`${pl.name}: 次のターンはお休み（スキップ）`);
-          }
-          break;
-        }
-        default:
-          break;
-      }
-      renderPlayersPanel();
-    }
-
-    // --- アニメーション付き移動 ----------------------------------------------
-    function sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
-
-    async function animateMove(playerIndex, steps) {
-      const pl = state.players[playerIndex];
-      if (!pl || pl.finished) return;
-
-      state.animating = true;
-      btnRoll.disabled = true;
-
-      for (let s = 0; s < steps; s++) {
-        let nextPos = pl.position + 1;
-        if (nextPos >= TOTAL_CELLS - 1) { // ゴールを超えない
-          nextPos = TOTAL_CELLS - 1;
-        }
-        pl.position = nextPos;
-        placeToken(playerIndex, pl.position);
-        await sleep(180);
-
-        // 最終到達時にイベント解決（好みで毎マスでもOK）
-        if (s === steps - 1) {
-          resolveCell(playerIndex, pl.position);
-        }
-
-        if (pl.position === TOTAL_CELLS - 1) break; // ゴール到達
-      }
-
-      state.animating = false;
-    }
-
-    // --- ターン進行 -----------------------------------------------------------
-    function nextPlayerTurn() {
-      const total = state.players.length;
-      let i = state.currentPlayerIndex;
-      for (let c = 0; c < total; c++) {
-        i = (i + 1) % total;
-        const p = state.players[i];
-        if (!p.finished) {
-          state.currentPlayerIndex = i;
-          break;
-        }
-      }
-      highlightActiveToken();
-      renderPlayersPanel();
-      statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
-    }
-
-    function isGameFinished() {
-      return state.finishedCount === state.players.length;
-    }
-
-    // --- 入力ハンドラ ---------------------------------------------------------
-    btnStart.addEventListener("click", () => {
-      if (state.started) return;
-      const count = parseInt(playersCountSel.value, 10);
-      const initial = parseInt(initialMoneyInput.value, 10) || 0;
-
-      state.players = Array.from({ length: count }, (_, i) => ({
-        name: `プレイヤー${i + 1}`,
-        color: PLAYER_COLORS[i % PLAYER_COLORS.length],
-        position: 0,
-        money: initial,
-        finished: false,
-        skipTurn: false,
-      }));
-      state.started = true;
-      state.turn = 1;
-      state.currentPlayerIndex = 0;
-      state.finishedCount = 0;
-
-      appendLog(`ゲーム開始！初期資金: ${yen(initial)} | プレイヤー数: ${count}`);
-      renderBoard();
-      renderPlayersPanel();
-      statTurnEl.textContent = String(state.turn);
-      statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
-      btnRoll.disabled = false;
+  // 盤面描画
+  function renderBoard(){
+    boardEl.style.setProperty("--board-cols", BOARD_COLS);
+    boardEl.style.setProperty("--board-rows", BOARD_ROWS);
+    boardEl.innerHTML = "";
+    cells.forEach(cell=>{
+      const div = document.createElement("div");
+      div.className = "cell "+(cell.type!="none"?cell.type:"");
+      div.dataset.index = String(cell.index);
+      const idx = document.createElement("div"); idx.className = "idx"; idx.textContent = String(cell.index); div.appendChild(idx);
+      const label = document.createElement("div"); label.textContent = cell.label||""; div.appendChild(label);
+      const {row,col} = indexToGrid(cell.index); div.style.gridRowStart = row+1; div.style.gridColumnStart = col+1;
+      boardEl.appendChild(div);
     });
+    // トークン
+    state.players.forEach((pl,i)=>{
+      const token=document.createElement("div"); token.className="token"; token.id=tokenId(i); token.textContent=String(i+1); token.style.background=pl.color; if(pl.finished) token.classList.add("finished"); boardEl.appendChild(token);
+    });
+    placeAllTokens(); highlightActiveToken();
+  }
 
-    btnRoll.addEventListener("click", async () => {
-      if (!state.started) return;
-      if (state.animating) return;
+  function tokenId(i){ return `token-${i}` }
 
-      const pl = state.players[state.currentPlayerIndex];
-      if (!pl || pl.finished) { nextPlayerTurn(); return; }
+  // 同一マスの重なり回避：扇形に並べる
+  function placeAllTokens(){
+    const groups = new Map();
+    state.players.forEach((pl,i)=>{
+      if(!groups.has(pl.position)) groups.set(pl.position, []);
+      groups.get(pl.position).push(i);
+    });
+    groups.forEach((idxs, pos)=>{
+      const targetCell = boardEl.querySelector(`.cell[data-index="${pos}"]`);
+      if(!targetCell) return;
+      const rectBoard = boardEl.getBoundingClientRect();
+      const rc = targetCell.getBoundingClientRect();
+      const cx = rc.left - rectBoard.left + rc.width/2; const cy = rc.top - rectBoard.top + rc.height/2;
+      const r = Math.min(rc.width, rc.height) / 3.2;
+      const n = idxs.length; const baseAngle = -90; // 上向き中心
+      idxs.forEach((pi, k)=>{
+        const angle = baseAngle + (n===1?0: (k-(n-1)/2) * 30);
+        const rad = angle * Math.PI / 180;
+        const x = cx + r * Math.cos(rad) - 14; const y = cy + r * Math.sin(rad) - 14;
+        const t = $("#"+tokenId(pi)); if(t) t.style.transform = `translate(${x}px, ${y}px)`;
+      });
+    });
+  }
 
-      if (pl.skipTurn) {
-        appendLog(`${pl.name}: ターンをスキップします`);
-        pl.skipTurn = false;
-        state.turn += 1;
-        statTurnEl.textContent = String(state.turn);
-        nextPlayerTurn();
-        return;
+  function highlightActiveToken(){
+    state.players.forEach((_,i)=>{
+      const t=$("#"+tokenId(i)); if(!t) return; if(i===state.currentPlayerIndex) t.classList.add("active"); else t.classList.remove("active");
+    });
+  }
+
+  // サイドバー
+  function moneyId(i){return `money-${i}`}
+  function renderPlayersPanel(){
+    playersPanelEl.innerHTML="";
+    state.players.forEach((pl,i)=>{
+      const row=document.createElement("div"); row.className="player-row"+(i===state.currentPlayerIndex?" active":"");
+      const name=document.createElement("div");
+      const badge=document.createElement("span"); badge.className="badge"; badge.style.background=pl.color; name.appendChild(badge);
+      const nameText=document.createElement("span"); nameText.textContent = pl.name + (pl.finished?"（ゴール）":""); name.appendChild(nameText);
+      const pos=document.createElement("div"); pos.textContent = "位置: "+pl.position;
+      const money=document.createElement("div"); money.className="money"; money.id=moneyId(i); money.textContent=yen(pl.money);
+      const status=document.createElement("div"); status.textContent = pl.skipTurn?"次ターン休み":"";
+      row.appendChild(name); row.appendChild(pos); row.appendChild(money); row.appendChild(status);
+      playersPanelEl.appendChild(row);
+    });
+  }
+  function flashMoney(i,delta){ const el=$("#"+moneyId(i)); if(!el) return; const cls=delta>=0?"flash-plus":"flash-minus"; el.classList.add(cls); setTimeout(()=>el.classList.remove(cls), 400) }
+
+  // ログ
+  function pushLog(text, kind){ const p=document.createElement("p"); p.textContent=text; if(kind) p.classList.add(kind); logEl.appendChild(p); logEl.scrollTop = logEl.scrollHeight; }
+
+  // モーダル
+  function showCard(title, text, sub){ modalTitle.textContent=title; modalText.textContent=text; modalSub.textContent=sub||""; modal.showModal(); }
+  modalClose.addEventListener("click", ()=> modal.close());
+
+  // セル効果
+  function resolveCell(playerIndex, index){
+    const pl = state.players[playerIndex]; const cell = cells[index]; if(!cell||!pl) return;
+    switch(cell.type){
+      case "start": pushLog(`${pl.name}: スタート！`, "ok"); break;
+      case "goal":
+        pl.finished = true; state.finishedCount += 1; $("#"+tokenId(playerIndex))?.classList.add("finished");
+        pushLog(`${pl.name}: ゴール！お疲れ！`);
+        showCard("ゴール", `${pl.name} がゴール！`, `現在残高: ${yen(pl.money)}`);
+        break;
+      case "bonus":{
+        const amount = randPick(state.rng, [5000,8000,10000,15000,20000]); pl.money += amount; flashMoney(playerIndex, amount);
+        pushLog(`${pl.name}: ボーナス！${yen(amount)}獲得（残高: ${yen(pl.money)}）`, "ok"); break;
       }
-
-      // サイコロ
-      const dice = Math.floor(Math.random() * 6) + 1;
-      appendLog(`${pl.name}: サイコロ → ${dice}`);
-
-      // 実際に進めるステップ数（ゴール直前で調整）
-      const remaining = (TOTAL_CELLS - 1) - pl.position;
-      const steps = Math.min(dice, remaining);
-
-      await animateMove(state.currentPlayerIndex, steps);
-
-      // ゴール後や通常ターン終了の処理
-      state.turn += 1;
-      statTurnEl.textContent = String(state.turn);
-
-      if (isGameFinished()) {
-        appendLog("全員ゴール！ゲーム終了！");
-        btnRoll.disabled = true;
-        return;
+      case "penalty":{
+        const amount = randPick(state.rng, [5000,8000,10000,15000,20000]); pl.money -= amount; flashMoney(playerIndex, -amount);
+        pushLog(`${pl.name}: ペナルティ…${yen(amount)}失う（残高: ${yen(pl.money)}）`, "bad"); break;
       }
+      case "event":{
+        const ev = randPick(state.rng, eventTable); pl.money += ev.money; flashMoney(playerIndex, ev.money);
+        pushLog(`${pl.name}: ${ev.text}（残高: ${yen(pl.money)}）`, ev.money>=0?"ok":"bad");
+        // 10%でスキップ
+        if(state.rng() < 0.10){ pl.skipTurn = true; pushLog(`${pl.name}: 次のターンはお休み（スキップ）`); }
+        showCard("イベント", ev.text, `${pl.name} / 残高: ${yen(pl.money)}`);
+        break;
+      }
+    }
+    renderPlayersPanel();
+  }
 
-      nextPlayerTurn();
-      btnRoll.disabled = false;
-    });
+  // ダイス
+  function rollDice(){ const n = Math.floor(state.rng()*6)+1; diceEl.textContent = n; diceEl.classList.add("spin"); setTimeout(()=>diceEl.classList.remove("spin"), 620); return n; }
 
-    btnReset.addEventListener("click", () => {
-      state.started = false;
-      state.turn = 0;
-      state.currentPlayerIndex = 0;
-      state.players = [];
-      state.finishedCount = 0;
-      state.animating = false;
-      btnRoll.disabled = true;
-      logEl.innerHTML = "";
-      statTurnEl.textContent = "0";
-      statCurrentEl.textContent = "-";
-      renderBoard(); // 盤面のみ再描画（トークンなし）
-      playersPanelEl.innerHTML = "";
-      appendLog("リセットしました");
-    });
+  // トークン移動
+  async function animateMove(playerIndex, steps){
+    const pl = state.players[playerIndex]; if(!pl || pl.finished) return;
+    state.animating = true; btnRoll.disabled = true; const delay = Number(speedInput.value || state.speed);
 
-    // 初期盤面（ゲーム開始前）
-    renderBoard();
+    let pos = pl.position; let remain = steps;
+    while(remain>0){
+      let next = pos + 1;
+      if(next >= TOTAL_CELLS-1){
+        if(state.overshoot === "clamp"){ next = TOTAL_CELLS-1; pos = next; pl.position = pos; placeAllTokens(); await sleep(delay); break; }
+        else { // bounce
+          const extra = remain - 1 - ((TOTAL_CELLS-1) - pos - 1);
+          // 進み切って反射
+          pos = TOTAL_CELLS-1; pl.position = pos; placeAllTokens(); await sleep(delay);
+          for(let b=0; b<extra; b++){ pos -= 1; pl.position = pos; placeAllTokens(); await sleep(delay); }
+          remain = 0; break;
+        }
+      }
+      pos = next; pl.position = pos; placeAllTokens(); await sleep(delay); remain--;
+    }
+    resolveCell(playerIndex, pl.position);
+    state.animating = false;
+  }
 
-    // レイアウト変化時はトークン位置再計算
-    window.addEventListener("resize", () => {
-      state.players.forEach((pl, i) => placeToken(i, pl.position));
-    });
+  function nextPlayerTurn(){
+    const total = state.players.length; let i = state.currentPlayerIndex;
+    for(let c=0;c<total;c++){ i=(i+1)%total; const p=state.players[i]; if(!p.finished){ state.currentPlayerIndex=i; break; } }
+    highlightActiveToken(); renderPlayersPanel(); statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
+  }
+  const isGameFinished = ()=> state.finishedCount === state.players.length;
+
+  // 結果表示
+  function openResult(){
+    const rows = state.players.map((p,i)=>({i, name:p.name, money:p.money})).sort((a,b)=> b.money-a.money);
+    let html = `<table><thead><tr><th>順位</th><th>プレイヤー</th><th>所持金</th><th>差額</th></tr></thead><tbody>`;
+    const top = rows[0]?.money ?? 0;
+    rows.forEach((r,idx)=>{ const diff = r.money - top; html += `<tr><td>${idx+1}</td><td>${r.name}</td><td>${yen(r.money)}</td><td>${diff===0?"-":yen(diff)}</td></tr>`; });
+    html += `</tbody></table>`;
+    resultBody.innerHTML = html; resultDlg.showModal();
+  }
+  resultClose.addEventListener("click", ()=> resultDlg.close());
+
+  // 保存/読込/IO
+  const SAVE_KEY = "life-game-save-v2";
+  function snapshot(){ return JSON.stringify({
+    started:state.started, turn:state.turn, currentPlayerIndex:state.currentPlayerIndex, finishedCount:state.finishedCount,
+    players:state.players, seed:state.seed, overshoot:state.overshoot, speed:Number(speedInput.value||state.speed)
+  }); }
+  function restore(json){ try{
+    const d = JSON.parse(json);
+    state.started = d.started; state.turn = d.turn; state.currentPlayerIndex = d.currentPlayerIndex; state.finishedCount = d.finishedCount;
+    state.players = d.players; state.seed = d.seed||""; state.overshoot = d.overshoot||"clamp"; state.rng = createRNG(state.seed||"");
+    speedInput.value = String(d.speed||180); overshootSel.value = state.overshoot; rngSeedInput.value = state.seed;
+    renderBoard(); renderPlayersPanel(); statTurnEl.textContent = String(state.turn); statCurrentEl.textContent = state.players[state.currentPlayerIndex]?.name || "-";
+    pushLog("保存データを読み込みました。", "ok");
+  }catch(e){ alert("読み込みに失敗しました"); }}
+
+  btnSave.addEventListener("click", ()=>{ localStorage.setItem(SAVE_KEY, snapshot()); pushLog("保存しました", "ok"); });
+  btnLoad.addEventListener("click", ()=>{ const s=localStorage.getItem(SAVE_KEY); if(!s) return alert("保存がありません"); restore(s); });
+  btnExport.addEventListener("click", ()=>{
+    const blob = new Blob([snapshot()], {type:"application/json"});
+    const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href=url; a.download="life-game-save.json"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  });
+  btnImport.addEventListener("click", ()=> fileImport.click());
+  fileImport.addEventListener("change", async e=>{ const f=e.target.files?.[0]; if(!f) return; const txt = await f.text(); restore(txt); fileImport.value=""; });
+
+  // ボタン/開始
+  btnStart.addEventListener("click", ()=>{
+    if(state.started) return;
+    const count = parseInt(playersCountSel.value,10); const initial = parseInt(initialMoneyInput.value,10)||0;
+    const seed = (rngSeedInput.value||"").trim(); state.seed = seed; state.rng = createRNG(seed);
+    state.players = Array.from({length:count},(_,i)=>({ name:`プレイヤー${i+1}`, color:PLAYER_COLORS[i % PLAYER_COLORS.length], position:0, money:initial, finished:false, skipTurn:false }));
+    state.started=true; state.turn=1; state.currentPlayerIndex=0; state.finishedCount=0; state.overshoot = overshootSel.value; state.speed = Number(speedInput.value||180);
+    pushLog(`ゲーム開始！初期資金: ${yen(initial)} | プレイヤー数: ${count} ${seed?`| シード:${seed}`:""}`, "ok");
+    renderBoard(); renderPlayersPanel(); statTurnEl.textContent=String(state.turn); statCurrentEl.textContent=state.players[state.currentPlayerIndex].name; btnRoll.disabled=false; diceEl.textContent='-';
+  });
+
+  btnReset.addEventListener("click", ()=>{
+    Object.assign(state, {started:false, turn:0, currentPlayerIndex:0, players:[], finishedCount:0, animating:false});
+    btnRoll.disabled=true; logEl.innerHTML=""; statTurnEl.textContent="0"; statCurrentEl.textContent="-"; diceEl.textContent='-';
+    renderBoard(); playersPanelEl.innerHTML=""; pushLog("リセットしました");
+  });
+
+  btnRoll.addEventListener("click", async ()=>{
+    if(!state.started || state.animating) return;
+    const pl = state.players[state.currentPlayerIndex]; if(!pl || pl.finished){ nextPlayerTurn(); return; }
+    if(pl.skipTurn){ pushLog(`${pl.name}: ターンをスキップします`); pl.skipTurn=false; state.turn+=1; statTurnEl.textContent=String(state.turn); nextPlayerTurn(); return; }
+    const dice = rollDice(); pushLog(`${pl.name}: サイコロ → ${dice}`);
+    // 残り
+    const remaining = (TOTAL_CELLS-1) - pl.position; const steps = state.overshoot==="clamp"? Math.min(dice, remaining): dice;
+    await animateMove(state.currentPlayerIndex, steps);
+    state.turn += 1; statTurnEl.textContent = String(state.turn);
+    if(isGameFinished()){ pushLog("全員ゴール！ゲーム終了！"); btnRoll.disabled=true; openResult(); return; }
+    nextPlayerTurn(); btnRoll.disabled=false;
+  });
+
+  // キーボード: Space/Enterでサイコロ、Rでリセット
+  window.addEventListener("keydown", e=>{
+    if(e.code==="Space" || e.key==="Enter"){ e.preventDefault(); btnRoll.click(); }
+    if(e.key.toLowerCase()==='r' && !state.animating){ btnReset.click(); }
+  });
+
+  // 初期描画＆リサイズ時の再配置
+  renderBoard();
+  window.addEventListener("resize", ()=> placeAllTokens());
   </script>
 </body>
 </html>
