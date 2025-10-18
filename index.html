@@ -25,7 +25,7 @@
 
     .group{display:flex; align-items:center; gap:6px; padding:6px 8px; background:#fff; border:1px solid #e6e8eb; border-radius:10px}
     label{font-size:12px; color:#555}
-    select,input[type="number"],input[type="text"],input[type="range"]{padding:6px 8px; border-radius:8px; border:1px solid #ddd}
+    select,input[type="number"],input[type="text"],input[type="range"],textarea,select{padding:6px 8px; border-radius:8px; border:1px solid #ddd}
     input[type="range"]{width:140px}
     button{padding:10px 14px; border-radius:10px; border:1px solid #ddd; background:#fff; cursor:pointer; font-weight:600}
     button.primary{background:var(--accent); color:#fff; border-color:transparent}
@@ -91,6 +91,11 @@
     .persona-table th, .persona-table td{border:1px solid #e5e7eb; padding:6px}
     .small{font-size:13px; color:#666}
     .muted-row{color:#666; font-size:13px}
+    .choice-row{display:flex; gap:6px; align-items:center; margin-bottom:6px}
+    .choice-row input[type="number"]{width:84px}
+    .choice-row input[type="text"]{flex:1}
+    .branch-editor { display:grid; gap:8px; }
+    .choices-list{border:1px dashed #ddd; padding:8px; border-radius:8px; max-height:260px; overflow:auto}
   </style>
 </head>
 <body>
@@ -164,9 +169,9 @@
   <dialog class="modal" id="persona-modal" aria-labelledby="persona-title">
     <div class="card">
       <h3 id="persona-title">ペルソナ管理</h3>
-      <p class="small">ペルソナを追加・編集・削除できます。イベントは簡易入力（1行 = テキスト|金額）で登録します。</p>
+      <p class="small">ペルソナを追加・編集・削除できます。イベントはGUIで詳しく編集できます。</p>
       <table class="persona-table" id="persona-table">
-        <thead><tr><th>#</th><th>表示名</th><th>色</th><th>イベント（1行: テキスト|金額）</th><th>アクション</th></tr></thead>
+        <thead><tr><th>#</th><th>表示名</th><th>色</th><th>イベント（GUI）</th><th>分岐イベント</th><th>アクション</th></tr></thead>
         <tbody id="persona-tbody"></tbody>
       </table>
       <div style="display:flex; gap:8px; margin-top:8px">
@@ -178,8 +183,30 @@
     </div>
   </dialog>
 
+  <!-- 分岐エディタモーダル（リッチ） -->
+  <dialog class="modal" id="branch-editor-modal" aria-labelledby="branch-editor-title">
+    <div class="card">
+      <h3 id="branch-editor-title">分岐イベントエディタ</h3>
+      <div id="branch-editor" class="branch-editor">
+        <label>イベント本文 (プレイヤーに表示される説明)</label>
+        <input id="branch-text" type="text" placeholder="イベントの説明を入力" />
+        <div>
+          <strong>選択肢</strong>
+          <div class="choices-list" id="choices-list"></div>
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <button id="branch-add-choice">選択肢を追加</button>
+            <button id="branch-preview" class="primary">プレビュー（乱数で判定）</button>
+            <div style="flex:1"></div>
+            <button id="branch-save" class="primary">保存</button>
+            <button id="branch-cancel">キャンセル</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
   <script>
-  // ====== ユーティリティ ======
+  // ====== ユーティリティ & DOM refs ======
   const $ = s => document.querySelector(s);
   const boardEl = $("#board"), logEl = $("#log"), diceEl = $("#dice");
   const statTurnEl = $("#stat-turn"), statCurrentEl = $("#stat-current");
@@ -195,11 +222,13 @@
   const btnImportPersonas = $("#btn-import-personas"), filePersonas = $("#file-personas");
   const btnManagePersonas = $("#btn-manage-personas"), personaModal = $("#persona-modal");
   const personaTbody = $("#persona-tbody"), personaAddBtn = $("#persona-add"), personaSaveBtn = $("#persona-save"), personaExportBtn = $("#persona-export"), personaCloseBtn = $("#persona-close");
+  const branchEditorModal = $("#branch-editor-modal"), branchTextInput = $("#branch-text"), choicesListEl = $("#choices-list");
+  const branchAddChoiceBtn = $("#branch-add-choice"), branchSaveBtn = $("#branch-save"), branchCancelBtn = $("#branch-cancel"), branchPreviewBtn = $("#branch-preview");
 
   const BOARD_COLS = 8, BOARD_ROWS = 5, TOTAL_CELLS = BOARD_COLS * BOARD_ROWS;
   const PLAYER_COLORS = ["#ff6b6b", "#4c9aff", "#00c853", "#ff8f00", "#9c27b0", "#00acc1"];
 
-  // 初期のペルソナ候補（用意された4名）
+  // ==== persona default store ====
   const DEFAULT_PERSONAS = [
     { id:"shinsotsu", displayName:"新卒さん", color:"#ff6b6b", events: [
       { text:"研修で評価されて昇給チャンス+¥15,000", money:15000 },
@@ -219,19 +248,13 @@
     ], branchEvents: [] },
   ];
 
-  // personasStore holds full persona objects (id, displayName, color, events[], branchEvents[])
+  // personasStore holds full persona objects
   let personasStore = [];
+  let PERSONAS = []; // displayName list
+  let personaEventMap = {}; // displayName -> events[]
+  let personaBranchMap = {}; // displayName -> branchEvents[]
 
-  // personaEventMap: displayName -> [{text,money}, ...] (kept for backward compatibility)
-  let personaEventMap = {};
-
-  // personaBranchMap: displayName -> branchEvents[]
-  let personaBranchMap = {};
-
-  // PERSONAS list used in select dropdowns (displayName strings)
-  let PERSONAS = [];
-
-  // 乱数（シード対応）
+  // RNG support
   function createRNG(seed){
     if(!seed) return Math.random;
     let h = 2166136261 >>> 0;
@@ -242,7 +265,7 @@
   const yen = n => "¥" + n.toLocaleString("ja-JP");
   const sleep = ms => new Promise(res=>setTimeout(res, ms));
 
-  // 盤面データ
+  // board cells
   const cells = Array.from({length:TOTAL_CELLS},(_,i)=>({index:i,type:"none",label:""}));
   cells[0] = {index:0,type:"start",label:"スタート"};
   cells[TOTAL_CELLS-1] = {index:TOTAL_CELLS-1,type:"goal",label:"ゴール"};
@@ -251,7 +274,6 @@
   mark([4,10,16,22,30], "bonus", "ボーナス");
   mark([8,14,20,26,34], "penalty", "ペナルティ");
 
-  // イベントテーブル（通常イベント）
   const eventTable = [
     { text:"就職おめでとう！初任給で+¥30,000", money:+30000 },
     { text:"家賃の更新で-¥20,000", money:-20000 },
@@ -265,53 +287,39 @@
     { text:"交通違反で-¥12,000", money:-12000 },
   ];
 
-  // 分岐イベント（共通）
   const branchEvents = [
     {
       text: "運命の分かれ道を見つけた。直感で選択しよう。",
       choices: [
-        { label: "奇跡を信じる（高リスク高リターン）", money: +80000, move: +2, probGood: 0.55 },
-        { label: "堅実に進む（小リターン）", money: +10000, move: +1, probGood: 1.0 },
-        { label: "賭けない（変化なし）", money: 0, move: 0, probGood: 1.0 }
+        { label: "奇跡を信じる（高リスク高リターン）", probGood:0.55,
+          success:{ money:80000, move:2, text:"奇跡が起きた！" },
+          failure:{ money:-30000, move:0, text:"失敗して損失…" }
+        },
+        { label: "堅実に進む（小リターン）", probGood:1.0,
+          success:{ money:10000, move:1, text:"堅実な前進" }, failure:{ money:0, move:0, text:"" }
+        }
       ]
-    },
-    {
-      text: "迷いの橋。橋の両端に選択肢がある。",
-      choices: [
-        { label: "左の光（前進チャンス）", money: +20000, move: +3, probGood: 0.6 },
-        { label: "右の闇（危険だが大きい）", money: -30000, move: +4, probGood: 0.45 },
-      ]
-    },
-    {
-      text: "謎の老人からの提案。判定次第で…",
-      choices: [
-        { label: "提案を受ける（判定あり）", money: +50000, move: 0, probGood: 0.5 },
-        { label: "断る（安全）", money: -5000, move: 0, probGood: 1.0 },
-      ]
-    },
+    }
   ];
 
-  // 分岐イベントが現れる確率（イベントセルに止まったとき）
   const BRANCH_CHANCE = 0.30;
 
-  // 状態
+  // state
   const state = {
     started:false, turn:0, currentPlayerIndex:0, players:[], finishedCount:0, animating:false,
     rng: Math.random, seed:"", speed:180, overshoot:"clamp",
     playerSettings: []
   };
 
-  // ==== ペルソナストアの初期化 / 同期ヘルパー ====
+  // sync helper: populate PERSONAS, personaEventMap, personaBranchMap
   function syncStoresFromPersonasList(list){
-    // list: array of persona objects with displayName,color,events,branchEvents
     personasStore = list.map(p => ({
       id: p.id || (p.displayName || "p").toLowerCase().replace(/\s+/g,"_")+Math.floor(Math.random()*1000),
       displayName: p.displayName || "未設定",
       color: p.color || PLAYER_COLORS[0],
       events: Array.isArray(p.events) ? p.events.map(ev => ({ text: ev.text||"", money: Number(ev.money)||0 })) : [],
-      branchEvents: Array.isArray(p.branchEvents) ? p.branchEvents : []
+      branchEvents: Array.isArray(p.branchEvents) ? p.branchEvents.map(be => deepClone(be)) : []
     }));
-    // rebuild helper maps
     PERSONAS = personasStore.map(p => p.displayName);
     personaEventMap = {};
     personaBranchMap = {};
@@ -321,7 +329,9 @@
     });
   }
 
-  // load saved personas from localStorage or use DEFAULT_PERSONAS
+  function deepClone(obj){ return JSON.parse(JSON.stringify(obj)); }
+
+  // load saved personas or defaults
   (function initPersonas(){
     try{
       const s = localStorage.getItem("imported-personas");
@@ -333,7 +343,7 @@
     syncStoresFromPersonasList(DEFAULT_PERSONAS);
   })();
 
-  // 初期の playerSettings を確保
+  // player settings ensure
   function ensurePlayerSettings(count = 4){
     if(!state.playerSettings || !Array.isArray(state.playerSettings)) state.playerSettings = [];
     for(let i=0;i<count;i++){
@@ -344,7 +354,7 @@
     state.playerSettings.length = count;
   }
 
-  // インデックス→蛇行グリッド座標
+  // board helpers
   function indexToGrid(index){
     const row = Math.floor(index/BOARD_COLS);
     let col = index % BOARD_COLS;
@@ -352,7 +362,6 @@
     return {row, col};
   }
 
-  // 盤面描画
   function renderBoard(){
     boardEl.style.setProperty("--board-cols", BOARD_COLS);
     boardEl.style.setProperty("--board-rows", BOARD_ROWS);
@@ -366,7 +375,6 @@
       const {row,col} = indexToGrid(cell.index); div.style.gridRowStart = row+1; div.style.gridColumnStart = col+1;
       boardEl.appendChild(div);
     });
-    // トークン
     state.players.forEach((pl,i)=>{
       const token=document.createElement("div"); token.className="token"; token.id=tokenId(i); token.textContent=String(i+1); token.style.background=pl.color; if(pl.finished) token.classList.add("finished");
       token.style.position = "absolute"; token.style.left = "0px"; token.style.top = "0px";
@@ -377,7 +385,6 @@
 
   function tokenId(i){ return `token-${i}` }
 
-  // 同一マスの重なり回避：扇形に並べる
   function placeAllTokens(){
     const groups = new Map();
     state.players.forEach((pl,i)=>{
@@ -391,7 +398,7 @@
       const rc = targetCell.getBoundingClientRect();
       const cx = rc.left - rectBoard.left + rc.width/2; const cy = rc.top - rectBoard.top + rc.height/2;
       const r = Math.min(rc.width, rc.height) / 3.2;
-      const n = idxs.length; const baseAngle = -90; // 上向き中心
+      const n = idxs.length; const baseAngle = -90;
       idxs.forEach((pi, k)=>{
         const angle = baseAngle + (n===1?0: (k-(n-1)/2) * 30);
         const rad = angle * Math.PI / 180;
@@ -407,7 +414,7 @@
     });
   }
 
-  // サイドバー
+  // sidebar
   function moneyId(i){return `money-${i}`}
   function renderPlayersPanel(){
     playersPanelEl.innerHTML="";
@@ -425,15 +432,14 @@
   }
   function flashMoney(i,delta){ const el=$("#"+moneyId(i)); if(!el) return; const cls=delta>=0?"flash-plus":"flash-minus"; el.classList.add(cls); setTimeout(()=>el.classList.remove(cls), 400) }
 
-  // ログ
+  // log
   function pushLog(text, kind){ const p=document.createElement("p"); p.textContent=text; if(kind) p.classList.add(kind); logEl.appendChild(p); logEl.scrollTop = logEl.scrollHeight; }
 
-  // モーダル（汎用）：通常メッセージ
+  // modal simple
   function showCard(title, text, sub){
     modalTitle.textContent = title;
     modalText.textContent = text;
     modalSub.textContent = sub || "";
-    // actions: OK only
     modalActions.innerHTML = "";
     const ok = document.createElement("button"); ok.id = "modal-close"; ok.className = "primary"; ok.textContent = "OK";
     ok.addEventListener("click", ()=> modal.close());
@@ -442,7 +448,7 @@
   }
   modalClose.addEventListener("click", ()=> modal.close());
 
-  // 分岐イベント用モーダル（選択肢を表示）
+  // Branch modal renderer for gameplay: uses new choice structure
   function showBranchModal(branchEv, playerIndex){
     modalTitle.textContent = "分岐イベント";
     modalText.textContent = branchEv.text;
@@ -454,25 +460,20 @@
       btn.textContent = choice.label;
       btn.addEventListener("click", async ()=>{
         const prob = (typeof choice.probGood === "number") ? choice.probGood : 1.0;
-        let success = true;
-        if(prob < 1.0){
-          success = state.rng() < prob;
-        }
+        const success = state.rng() < prob;
         const pl = state.players[playerIndex];
-        if(success){
-          if(choice.money) { pl.money += choice.money; flashMoney(playerIndex, choice.money); }
-          pushLog(`${pl.name}: ${choice.label} → 成功！ ${choice.money ? yen(choice.money) : ""}`, "ok");
-        } else {
-          const penalty = Math.min(pl.money, Math.abs(Math.floor((choice.money || 0) * 0.5))) || 0;
-          if(penalty) { pl.money -= penalty; flashMoney(playerIndex, -penalty); pushLog(`${pl.name}: ${choice.label} → 失敗… -${yen(penalty)}`, "bad"); }
-          else { pushLog(`${pl.name}: ${choice.label} → 失敗…`, "bad"); }
-        }
-        // 移動処理
-        if(choice.move && choice.move !== 0){
-          if(choice.move > 0){
-            await animateMove(playerIndex, choice.move);
+        const res = success ? (choice.success || {}) : (choice.failure || {});
+        // money
+        if(typeof res.money === "number" && res.money !== 0){ pl.money += res.money; flashMoney(playerIndex, res.money); }
+        // log with custom text if provided else default
+        const text = success ? (res.text || `${choice.label} → 成功`) : (res.text || `${choice.label} → 失敗`);
+        pushLog(`${pl.name}: ${text} ${res.money ? `(${res.money>0?'+':''}${yen(res.money)})` : ""}`, success ? "ok" : "bad");
+        // move
+        if(typeof res.move === "number" && res.move !== 0){
+          if(res.move > 0){
+            await animateMove(playerIndex, res.move);
           } else {
-            pl.position = Math.max(0, pl.position + choice.move);
+            pl.position = Math.max(0, pl.position + res.move);
             placeAllTokens();
             resolveCell(playerIndex, pl.position);
           }
@@ -487,11 +488,10 @@
     cancel.textContent = "やめる";
     cancel.addEventListener("click", ()=> modal.close());
     modalActions.appendChild(cancel);
-
     modal.showModal();
   }
 
-  // セル効果
+  // resolveCell uses personaBranchMap with new branch structure
   function resolveCell(playerIndex, index){
     const pl = state.players[playerIndex]; const cell = cells[index]; if(!cell||!pl) return;
     switch(cell.type){
@@ -512,7 +512,7 @@
         pushLog(`${pl.name}: ペナルティ…${yen(amount)}失う（残高: ${yen(pl.money)}）`, "bad"); break;
       }
       case "event":{
-        // まず分岐イベントの発生判定（プレイヤー固有分岐があれば優先）
+        // branch chance
         if(state.rng() < BRANCH_CHANCE){
           const pb = personaBranchMap[pl.name];
           if(pb && pb.length > 0){
@@ -525,7 +525,7 @@
             return;
           }
         }
-        // プレイヤー固有のイベント群を優先して選ぶ（あれば）
+        // persona events
         const personaEvents = personaEventMap[pl.name];
         if(personaEvents && personaEvents.length>0 && state.rng() < 0.7){
           const ev = randPick(state.rng, personaEvents);
@@ -536,7 +536,7 @@
           showCard("イベント", ev.text, `${pl.name} / 残高: ${yen(pl.money)}`);
           return;
         }
-        // それ以外は通常イベント
+        // fallback
         const ev = randPick(state.rng, eventTable);
         pl.money += ev.money; flashMoney(playerIndex, ev.money);
         pushLog(`${pl.name}: ${ev.text}（残高: ${yen(pl.money)}）`, ev.money>=0?"ok":"bad");
@@ -548,22 +548,19 @@
     renderPlayersPanel();
   }
 
-  // ダイス
+  // dice + move
   function rollDice(){ const n = Math.floor(state.rng()*6)+1; diceEl.textContent = n; diceEl.classList.add("spin"); setTimeout(()=>diceEl.classList.remove("spin"), 620); return n; }
 
-  // トークン移動
   async function animateMove(playerIndex, steps){
     const pl = state.players[playerIndex]; if(!pl || pl.finished) return;
     state.animating = true; btnRoll.disabled = true; const delay = Number(speedInput.value || state.speed);
-
     let pos = pl.position; let remain = steps;
     while(remain>0){
       let next = pos + 1;
       if(next >= TOTAL_CELLS-1){
         if(state.overshoot === "clamp"){ next = TOTAL_CELLS-1; pos = next; pl.position = pos; placeAllTokens(); await sleep(delay); break; }
-        else { // bounce
+        else {
           const extra = remain - 1 - ((TOTAL_CELLS-1) - pos - 1);
-          // 進み切って反射
           pos = TOTAL_CELLS-1; pl.position = pos; placeAllTokens(); await sleep(delay);
           for(let b=0; b<extra; b++){ pos -= 1; pl.position = pos; placeAllTokens(); await sleep(delay); }
           remain = 0; break;
@@ -582,7 +579,7 @@
   }
   const isGameFinished = ()=> state.finishedCount === state.players.length;
 
-  // 結果表示
+  // result
   function openResult(){
     const rows = state.players.map((p,i)=>({i, name:p.name, money:p.money})).sort((a,b)=> b.money-a.money);
     let html = `<table><thead><tr><th>順位</th><th>プレイヤー</th><th>所持金</th><th>差額</th></tr></thead><tbody>`;
@@ -593,12 +590,12 @@
   }
   resultClose.addEventListener("click", ()=> resultDlg.close());
 
-  // 保存/読込/IO
+  // save/load
   const SAVE_KEY = "life-game-save-v4-persona";
   function snapshot(){ return JSON.stringify({
     started:state.started, turn:state.turn, currentPlayerIndex:state.currentPlayerIndex, finishedCount:state.finishedCount,
     players:state.players, seed:state.seed, overshoot:state.overshoot, speed:Number(speedInput.value||state.speed),
-    playerSettings: state.playerSettings
+    playerSettings: state.playerSettings, personas: personasStore
   }); }
   function restore(json){ try{
     const d = JSON.parse(json);
@@ -606,6 +603,7 @@
     state.players = d.players; state.seed = d.seed||""; state.overshoot = d.overshoot||"clamp"; state.rng = createRNG(state.seed||"");
     speedInput.value = String(d.speed||180); overshootSel.value = state.overshoot; rngSeedInput.value = state.seed;
     state.playerSettings = d.playerSettings || [];
+    if(Array.isArray(d.personas)) { syncStoresFromPersonasList(d.personas); }
     renderBoard(); renderPlayersPanel(); statTurnEl.textContent = String(state.turn); statCurrentEl.textContent = state.players[state.currentPlayerIndex]?.name || "-";
     pushLog("保存データを読み込みました。", "ok");
   }catch(e){ alert("読み込みに失敗しました"); }}
@@ -619,18 +617,15 @@
   btnImport.addEventListener("click", ()=> fileImport.click());
   fileImport.addEventListener("change", async e=>{ const f=e.target.files?.[0]; if(!f) return; const txt = await f.text(); restore(txt); fileImport.value=""; });
 
-  // ===== ペルソナJSONインポートロジック =====
+  // persona JSON import
   function validatePersonaJSON(data){
     if(!data || typeof data !== "object") return "JSONがオブジェクトではありません";
     if(!Array.isArray(data.personas)) return "personas 配列がありません";
     for(const p of data.personas){
       if(typeof p.displayName !== "string") return "personas[].displayName が文字列ではありません";
-      if(p.events && !Array.isArray(p.events)) return "personas[].events が配列ではありません";
-      if(p.branchEvents && !Array.isArray(p.branchEvents)) return "personas[].branchEvents が配列ではありません";
     }
     return null;
   }
-
   btnImportPersonas.addEventListener("click", ()=> filePersonas.click());
   filePersonas.addEventListener("change", async (e) => {
     const f = e.target.files?.[0];
@@ -640,13 +635,9 @@
       const json = JSON.parse(txt);
       const err = validatePersonaJSON(json);
       if(err) return alert("読み込みエラー: " + err);
-
-      // merge imported personas into personasStore (append)
       const merged = personasStore.concat(json.personas);
       syncStoresFromPersonasList(merged);
-
       try { localStorage.setItem("imported-personas", JSON.stringify({ personas: personasStore })); } catch(e){}
-
       buildSettingsForm();
       pushLog("ペルソナを読み込みました: " + json.personas.map(x=>x.displayName).join(", "), "ok");
     }catch(err){
@@ -657,34 +648,25 @@
     }
   });
 
-  // ===== ペルソナ管理 UI =====
-  function openPersonaManager(){
-    renderPersonaTable();
-    personaModal.showModal();
-  }
-
+  // Persona manager UI
+  function openPersonaManager(){ renderPersonaTable(); personaModal.showModal(); }
   function renderPersonaTable(){
     personaTbody.innerHTML = "";
     personasStore.forEach((p, idx) => {
       const tr = document.createElement("tr");
-      // idx
       const tdIdx = document.createElement("td"); tdIdx.textContent = String(idx+1);
-      // displayName
-      const tdName = document.createElement("td");
-      const nameInput = document.createElement("input"); nameInput.type = "text"; nameInput.value = p.displayName; nameInput.dataset.idx = idx;
-      tdName.appendChild(nameInput);
-      // color
-      const tdColor = document.createElement("td");
-      const colorInput = document.createElement("input"); colorInput.type = "color"; colorInput.value = p.color; colorInput.dataset.idx = idx;
-      tdColor.appendChild(colorInput);
-      // events textarea (simple format: each line "テキスト|金額")
+      const tdName = document.createElement("td"); const nameInput = document.createElement("input"); nameInput.type="text"; nameInput.value=p.displayName; nameInput.dataset.idx=idx; tdName.appendChild(nameInput);
+      const tdColor = document.createElement("td"); const colorInput = document.createElement("input"); colorInput.type="color"; colorInput.value=p.color; colorInput.dataset.idx=idx; tdColor.appendChild(colorInput);
       const tdEvents = document.createElement("td");
-      const ta = document.createElement("textarea"); ta.rows = 4; ta.style.width = "100%"; ta.dataset.idx = idx;
-      ta.value = (p.events || []).map(ev => `${ev.text.replace(/\n/g,' ')}|${ev.money}`).join("\n");
-      tdEvents.appendChild(ta);
-      // action: delete
+      const evEditorBtn = document.createElement("button"); evEditorBtn.textContent = "イベント編集"; evEditorBtn.dataset.idx=idx;
+      evEditorBtn.addEventListener("click", ()=> openPersonaEventEditor(idx));
+      tdEvents.appendChild(evEditorBtn);
+      const tdBranches = document.createElement("td");
+      const brEditorBtn = document.createElement("button"); brEditorBtn.textContent = "分岐編集"; brEditorBtn.dataset.idx=idx;
+      brEditorBtn.addEventListener("click", ()=> openBranchEditorForPersona(idx));
+      tdBranches.appendChild(brEditorBtn);
       const tdAction = document.createElement("td");
-      const delBtn = document.createElement("button"); delBtn.textContent = "削除"; delBtn.dataset.idx = idx;
+      const delBtn = document.createElement("button"); delBtn.textContent = "削除"; delBtn.dataset.idx=idx;
       delBtn.addEventListener("click", ()=> {
         if(!confirm(`"${p.displayName}" を削除してよいですか？`)) return;
         personasStore.splice(idx,1);
@@ -693,11 +675,148 @@
       });
       tdAction.appendChild(delBtn);
 
-      tr.appendChild(tdIdx); tr.appendChild(tdName); tr.appendChild(tdColor); tr.appendChild(tdEvents); tr.appendChild(tdAction);
+      tr.appendChild(tdIdx); tr.appendChild(tdName); tr.appendChild(tdColor); tr.appendChild(tdEvents); tr.appendChild(tdBranches); tr.appendChild(tdAction);
       personaTbody.appendChild(tr);
     });
   }
 
+  // Simple persona event editor: opens a prompt-like editor for events list (kept small)
+  function openPersonaEventEditor(idx){
+    const persona = personasStore[idx];
+    const current = persona.events.map(ev => `${ev.text}|${ev.money}`).join("\n");
+    const res = prompt("イベントを1行ごとに入力: テキスト|金額", current);
+    if(res===null) return;
+    const events = res.split("\n").map(l=>l.trim()).filter(l=>l).map(l=>{
+      const parts = l.split("|");
+      return { text: (parts[0]||"").trim(), money: Number((parts[1]||"0").replace(/[^\d\-]/g,'')) || 0 };
+    });
+    persona.events = events;
+    syncStoresFromPersonasList(personasStore);
+    pushLog(`${persona.displayName} のイベントを更新しました`, "ok");
+  }
+
+  // Branch editor for persona: open editor modal and edit persona.branchEvents
+  let currentEditingPersonaIndex = null;
+  let editingBranchIndex = null; // which branch in persona we edit; null => new
+  function openBranchEditorForPersona(personaIdx, branchIdx = null){
+    currentEditingPersonaIndex = personaIdx;
+    editingBranchIndex = branchIdx;
+    const persona = personasStore[personaIdx];
+    const branch = (branchIdx!==null && persona.branchEvents[branchIdx]) ? deepClone(persona.branchEvents[branchIdx]) : { text: "", choices: [] };
+    openBranchEditor(branch, (updatedBranch) => {
+      if(branchIdx === null){
+        persona.branchEvents.push(updatedBranch);
+      } else {
+        persona.branchEvents[branchIdx] = updatedBranch;
+      }
+      syncStoresFromPersonasList(personasStore);
+      renderPersonaTable();
+      pushLog(`${persona.displayName} の分岐イベントを保存しました`, "ok");
+    });
+  }
+
+  // Branch Editor Modal: builds UI inside branch-editor modal and calls onSave(updatedBranch)
+  let branchEditorSaveCallback = null;
+  function openBranchEditor(branch, onSave){
+    branchEditorSaveCallback = onSave;
+    branchTextInput.value = branch.text || "";
+    renderChoicesList(branch.choices || []);
+    branchEditorModal.showModal();
+
+    // wire save/cancel
+    branchSaveBtn.onclick = () => {
+      const updated = {
+        text: branchTextInput.value.trim(),
+        choices: readChoicesFromUI()
+      };
+      branchEditorModal.close();
+      if(branchEditorSaveCallback) branchEditorSaveCallback(updated);
+    };
+    branchCancelBtn.onclick = () => { branchEditorModal.close(); };
+    branchAddChoiceBtn.onclick = ()=> {
+      addChoiceUI({ label:"新しい選択肢", probGood:0.5, success:{money:0,move:0,text:"成功"}, failure:{money:0,move:0,text:"失敗"} });
+    };
+    branchPreviewBtn.onclick = ()=> {
+      // simulate random choice selection and result
+      const choices = readChoicesFromUI();
+      if(!choices.length) return alert("選択肢がありません");
+      const idx = Math.floor(Math.random()*choices.length);
+      const c = choices[idx];
+      const success = Math.random() < (typeof c.probGood==="number"?c.probGood:1.0);
+      const res = success ? c.success : c.failure;
+      alert(`選択: ${c.label}\n判定: ${success? "成功":"失敗"}\n結果: ${res.text || "(説明なし)"}\n所持金変化: ${res.money ? res.money : 0}\n移動: ${res.move ? res.move : 0}`);
+    };
+  }
+
+  function renderChoicesList(choices){
+    choicesListEl.innerHTML = "";
+    choices.forEach((c, i) => addChoiceUI(c));
+  }
+
+  function addChoiceUI(choice){
+    const idx = choicesListEl.children.length;
+    const row = document.createElement("div"); row.className = "choice-row"; row.dataset.idx = idx;
+    const labelInput = document.createElement("input"); labelInput.type = "text"; labelInput.value = choice.label||""; labelInput.placeholder="選択肢ラベル";
+    const probInput = document.createElement("input"); probInput.type = "number"; probInput.step = "0.05"; probInput.min="0"; probInput.max="1"; probInput.value = typeof choice.probGood==="number"?String(choice.probGood):"1";
+    const successMoney = document.createElement("input"); successMoney.type="number"; successMoney.value = (choice.success && typeof choice.success.money==="number")?choice.success.money:0;
+    const successMove = document.createElement("input"); successMove.type="number"; successMove.value = (choice.success && typeof choice.success.move==="number")?choice.success.move:0;
+    const successText = document.createElement("input"); successText.type="text"; successText.value = (choice.success && choice.success.text) ? choice.success.text : "";
+    successText.placeholder = "成功時テキスト";
+    const failMoney = document.createElement("input"); failMoney.type="number"; failMoney.value = (choice.failure && typeof choice.failure.money==="number")?choice.failure.money:0;
+    const failMove = document.createElement("input"); failMove.type="number"; failMove.value = (choice.failure && typeof choice.failure.move==="number")?choice.failure.move:0;
+    const failText = document.createElement("input"); failText.type="text"; failText.value = (choice.failure && choice.failure.text) ? choice.failure.text : "";
+    failText.placeholder = "失敗時テキスト";
+    const delBtn = document.createElement("button"); delBtn.textContent = "削除";
+    delBtn.addEventListener("click", ()=> { row.remove(); reindexChoicesUI(); });
+    const previewBtn = document.createElement("button"); previewBtn.textContent = "プレビュー";
+    previewBtn.addEventListener("click", ()=>{
+      const prob = Number(probInput.value) || 0;
+      const success = Math.random() < prob;
+      const res = success ? { money: Number(successMoney.value)||0, move: Number(successMove.value)||0, text: successText.value } : { money: Number(failMoney.value)||0, move: Number(failMove.value)||0, text: failText.value };
+      alert(`選択: ${labelInput.value}\n判定: ${success? "成功":"失敗"}\n${res.text || ""}\n所持金変化: ${res.money}\n移動: ${res.move}`);
+    });
+
+    // layout: [label][prob][sMoney][sMove][sText][fMoney][fMove][fText][preview][del]
+    row.appendChild(labelInput);
+    row.appendChild(probInput);
+    row.appendChild(successMoney);
+    row.appendChild(successMove);
+    row.appendChild(successText);
+    row.appendChild(failMoney);
+    row.appendChild(failMove);
+    row.appendChild(failText);
+    row.appendChild(previewBtn);
+    row.appendChild(delBtn);
+    choicesListEl.appendChild(row);
+  }
+
+  function reindexChoicesUI(){ /* no-op for now; used if needed */ }
+
+  function readChoicesFromUI(){
+    const rows = choicesListEl.querySelectorAll(".choice-row");
+    const out = [];
+    rows.forEach(r=>{
+      const inputs = r.querySelectorAll("input");
+      // inputs order: label, prob, sMoney, sMove, sText, fMoney, fMove, fText
+      const label = inputs[0]?.value || "選択肢";
+      const prob = Number(inputs[1]?.value) || 0;
+      const sMoney = Number(inputs[2]?.value) || 0;
+      const sMove = Number(inputs[3]?.value) || 0;
+      const sText = inputs[4]?.value || "";
+      const fMoney = Number(inputs[5]?.value) || 0;
+      const fMove = Number(inputs[6]?.value) || 0;
+      const fText = inputs[7]?.value || "";
+      out.push({
+        label,
+        probGood: prob,
+        success: { money: sMoney, move: sMove, text: sText },
+        failure: { money: fMoney, move: fMove, text: fText }
+      });
+    });
+    return out;
+  }
+
+  // persona manager buttons
   personaAddBtn.addEventListener("click", ()=>{
     const newPersona = { id:`p${Date.now()}`, displayName:`ペルソナ${personasStore.length+1}`, color: PLAYER_COLORS[personasStore.length % PLAYER_COLORS.length], events: [], branchEvents: [] };
     personasStore.push(newPersona);
@@ -713,22 +832,14 @@
     rows.forEach((tr, idx) => {
       const nameInput = tr.querySelector('input[type="text"]');
       const colorInput = tr.querySelector('input[type="color"]');
-      const ta = tr.querySelector('textarea');
       const name = nameInput?.value?.trim() || `ペルソナ${idx+1}`;
       const color = colorInput?.value || PLAYER_COLORS[idx % PLAYER_COLORS.length];
-      const eventsText = ta?.value || "";
-      const events = eventsText.split("\n").map(line => line.trim()).filter(l=>l).map(l=>{
-        const [txt, money] = l.split("|");
-        return { text: (txt||"").trim(), money: Number((money||"0").replace(/[^\d\-]/g,'')) || 0 };
-      });
-      if(!personasStore[idx]) personasStore[idx] = { id:`p${Date.now()}${idx}`, displayName:name, color, events, branchEvents: [] };
+      if(!personasStore[idx]) personasStore[idx] = { id:`p${Date.now()}${idx}`, displayName:name, color, events: [], branchEvents: [] };
       else {
         personasStore[idx].displayName = name;
         personasStore[idx].color = color;
-        personasStore[idx].events = events;
       }
     });
-    // sync maps and persist
     syncStoresFromPersonasList(personasStore);
     try { localStorage.setItem("imported-personas", JSON.stringify({ personas: personasStore })); } catch(e){}
     buildSettingsForm();
@@ -743,9 +854,10 @@
     const a = document.createElement("a"); a.href = url; a.download = "personas-export.json"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
   });
 
-  btnManagePersonas.addEventListener("click", ()=> openPersonaManager());
+  // open manager
+  $("#btn-manage-personas").addEventListener("click", ()=> openPersonaManager());
 
-  // ===== 設定モーダルのロジック（ペルソナ選択） =====
+  // settings modal
   function buildSettingsForm(){
     const count = parseInt(playersCountSel.value,10) || 4;
     ensurePlayerSettings(count);
@@ -754,24 +866,18 @@
       const s = state.playerSettings[i] || { persona: PERSONAS[i] || `プレイヤー${i+1}`, color:PLAYER_COLORS[i % PLAYER_COLORS.length] };
       const row = document.createElement("div"); row.className = "settings-row";
       const idx = document.createElement("div"); idx.textContent = `${i+1}`; idx.style.width = "24px"; idx.style.textAlign = "center"; idx.style.fontWeight = "700";
-      // persona select
       const personaSelect = document.createElement("select");
       PERSONAS.forEach(p => {
         const opt = document.createElement("option"); opt.value = p; opt.textContent = p; personaSelect.appendChild(opt);
       });
       personaSelect.value = s.persona || PERSONAS[i] || `プレイヤー${i+1}`;
-      // color input
       const colorInput = document.createElement("input"); colorInput.type = "color"; colorInput.value = s.color || PLAYER_COLORS[i % PLAYER_COLORS.length];
       row.appendChild(idx); row.appendChild(personaSelect); row.appendChild(colorInput);
       settingsListEl.appendChild(row);
     }
   }
 
-  function openSettings(){
-    buildSettingsForm();
-    settingsModal.showModal();
-  }
-
+  function openSettings(){ buildSettingsForm(); settingsModal.showModal(); }
   settingsBtn.addEventListener("click", ()=> openSettings());
   settingsCancelBtn.addEventListener("click", ()=> settingsModal.close());
   settingsSaveBtn.addEventListener("click", ()=>{
@@ -783,7 +889,6 @@
       const color = colorInput?.value || PLAYER_COLORS[idx % PLAYER_COLORS.length];
       state.playerSettings[idx] = { persona, color };
     });
-    // ゲーム中ならプレイヤー情報を更新
     if(state.started && state.players && state.players.length > 0){
       for(let i=0;i<state.players.length;i++){
         const s = state.playerSettings[i];
@@ -800,12 +905,11 @@
     settingsModal.close();
   });
 
-  // ボタン/開始
+  // start/reset/roll
   btnStart.addEventListener("click", ()=>{
     if(state.started) return;
     const count = parseInt(playersCountSel.value,10); const initial = parseInt(initialMoneyInput.value,10)||0;
     const seed = (rngSeedInput.value||"").trim(); state.seed = seed; state.rng = createRNG(seed);
-    // playerSettings を確保して、それを元に players を作成
     ensurePlayerSettings(count);
     state.players = Array.from({length:count},(_,i)=>{
       const s = state.playerSettings[i] || { persona: PERSONAS[i] || `プレイヤー${i+1}`, color: PLAYER_COLORS[i % PLAYER_COLORS.length] };
@@ -834,13 +938,12 @@
     nextPlayerTurn(); btnRoll.disabled=false;
   });
 
-  // キーボード: Space/Enterでサイコロ、Rでリセット
   window.addEventListener("keydown", e=>{
     if(e.code==="Space" || e.key==="Enter"){ e.preventDefault(); btnRoll.click(); }
     if(e.key.toLowerCase()==='r' && !state.animating){ btnReset.click(); }
   });
 
-  // 初期描画＆リサイズ時の再配置
+  // initial render
   ensurePlayerSettings(parseInt(playersCountSel.value,10) || 4);
   renderBoard();
   window.addEventListener("resize", ()=> placeAllTokens());
