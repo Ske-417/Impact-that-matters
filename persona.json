@@ -1,0 +1,32 @@
+{
+  "personas": [
+    {
+      "id": "shinsotsu",
+      "displayName": "新卒さん",
+      "color": "#ff6b6b",
+      "events": [
+        { "text":"研修で評価されて昇給+¥15,000", "money":15000 },
+        { "text":"飲み会で交際費-¥5,000", "money":-5000 }
+      ],
+      "branchEvents": [
+        {
+          "text": "入社ルートの分岐",
+          "choices": [
+            { "label":"強気に出る", "money": 40000, "move": 2, "probGood": 0.5 },
+            { "label":"堅実に行く", "money": 10000, "move": 1, "probGood": 1.0 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chuto",
+      "displayName": "中途さん",
+      "color": "#4c9aff",
+      "events": [
+        { "text":"即戦力でプロジェクト入り+¥25,000", "money":25000 }
+      ]
+    },
+    { "id":"shigodeki","displayName":"しごできさん","color":"#00c853","events":[{ "text":"成果報酬で+¥40,000", "money":40000 }] },
+    { "id":"shacho","displayName":"社長さん","color":"#ff8f00","events":[{ "text":"事業が当たって大儲け+¥100,000", "money":100000 }] }
+  ]
+}
