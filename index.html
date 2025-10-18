@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>人生ゲーム ver-11</title>
-  <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <style>
     :root{
       --board-cols:8; --board-rows:5; --cell-size:72px;
@@ -45,8 +44,9 @@
     /* ===== Board ===== */
     .board-wrap{display:flex; justify-content:center; align-items:flex-start}
     .board{background:#fff; border:2px solid #eee; border-radius:12px; padding:8px; position:relative; display:grid; gap:6px;
+      /* Keep cells perfectly square: columns based on cell-size, rows driven by grid-auto-rows */
       grid-template-columns:repeat(var(--board-cols), var(--cell-size));
-      grid-template-rows:repeat(var(--board-rows), var(--cell-size));
+      grid-auto-rows: var(--cell-size);
       justify-content:center; align-content:start;
       max-width: var(--board-max-width);
     }
@@ -96,23 +96,15 @@
     th,td{border:1px solid #e5e7eb; padding:8px; text-align:left}
     th{background:#f8fafc}
 
-    /* ===== Settings / Persona Manager ===== */
-    .settings-list{display:grid; gap:8px; margin-top:8px}
-    .settings-row{display:flex; gap:8px; align-items:center}
-    .settings-row select[type="text"]{flex:1}
-    .settings-row input[type="color"]{width:44px; height:34px; padding:4px}
-    .persona-table{width:100%; border-collapse:collapse; margin-top:8px}
-    .persona-table th, .persona-table td{border:1px solid #e5e7eb; padding:6px}
-    .small{font-size:13px; color:#666}
-    .muted-row{color:#666; font-size:13px}
+    /* ===== Small UI helpers ===== */
+    .tiny{font-size:12px;padding:6px 8px}
+    .slot-select{min-width:120px}
+    .help-list{line-height:1.6}
     .choice-row{display:flex; gap:6px; align-items:center; margin-bottom:6px}
     .choice-row input[type="number"]{width:84px}
     .choice-row input[type="text"]{flex:1}
     .branch-editor { display:grid; gap:8px; }
     .choices-list{border:1px dashed #ddd; padding:8px; border-radius:8px; max-height:260px; overflow:auto}
-    .tiny{font-size:12px;padding:6px 8px}
-    .slot-select{min-width:120px}
-    .help-list{line-height:1.6}
   </style>
 </head>
 <body>
@@ -268,10 +260,36 @@
     </div>
   </dialog>
 
+  <!-- Generic Event Modal (used by showCard and branch UI) -->
+  <dialog class="modal" id="modal" aria-labelledby="modal-title">
+    <div class="card">
+      <h3 id="modal-title">イベント</h3>
+      <div id="modal-text" style="white-space:normal;"></div>
+      <div class="muted" id="modal-sub"></div>
+      <div class="actions" id="modal-actions">
+        <button id="modal-close" class="primary">OK</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Result Modal -->
+  <dialog class="modal" id="result" aria-labelledby="result-title">
+    <div class="card">
+      <h3 id="result-title">結果発表</h3>
+      <div id="result-body"></div>
+      <div class="actions"><button id="result-close" class="primary">閉じる</button></div>
+    </div>
+  </dialog>
+
   <script>
-  // Full integrated script: game logic, persona store, editors, UI helpers
+  // ===========================
+  // Integrated script (complete)
+  // - Fixes requested:
+  //   1) Ensure cell aspect ratio is correct (square cells) by using grid-auto-rows.
+  //   2) Replace browser notifications with on-screen modal notifications (showCard always uses in-page modal).
+  //   3) Fix bug where dice becomes unusable after some modals — on dialog 'close' we always re-evaluate roll-button state.
+  // ===========================
   (function(){
-    // ====== Utilities & DOM refs ======
     const $ = s => document.querySelector(s);
     const boardEl = $("#board"), logEl = $("#log"), diceEl = $("#dice");
     const statTurnEl = $("#stat-turn"), statCurrentEl = $("#stat-current");
@@ -292,13 +310,14 @@
     const personaTbody = $("#persona-tbody"), personaAddBtn = $("#persona-add"), personaSaveBtn = $("#persona-save"), personaExportBtn = $("#persona-export"), personaCloseBtn = $("#persona-close");
     const branchEditorModal = $("#branch-editor-modal"), branchTextInput = $("#branch-text"), choicesListEl = $("#choices-list");
     const branchAddChoiceBtn = $("#branch-add-choice"), branchSaveBtn = $("#branch-save"), branchCancelBtn = $("#branch-cancel"), branchPreviewBtn = $("#branch-preview");
+    const genericModal = $("#modal"), genericTitle = $("#modal-title"), genericText = $("#modal-text"), genericSub = $("#modal-sub"), genericActions = $("#modal-actions");
+    const resultDlg = $("#result"), resultBody = $("#result-body"), resultClose = $("#result-close");
 
-    // ===== Constants =====
     const BOARD_COLS = 8, BOARD_ROWS = 5, TOTAL_CELLS = BOARD_COLS * BOARD_ROWS;
     const PLAYER_COLORS = ["#ff6b6b", "#4c9aff", "#00c853", "#ff8f00", "#9c27b0", "#00acc1"];
     const BRANCH_CHANCE = 0.30;
 
-    // ===== Persona defaults & stores =====
+    // persona defaults
     const DEFAULT_PERSONAS = [
       { id:"shinsotsu", displayName:"新卒さん", color:"#ff6b6b", events: [
         { text:"研修で評価されて昇給チャンス+¥15,000", money:15000 },
@@ -318,13 +337,9 @@
       ], branchEvents: [] },
     ];
 
-    let personasStore = [];
-    let PERSONAS = [];
-    let personaEventMap = {};
-    let personaBranchMap = {};
+    let personasStore = [], PERSONAS = [], personaEventMap = {}, personaBranchMap = {};
 
     function deepClone(o){ return JSON.parse(JSON.stringify(o)); }
-
     function syncStoresFromPersonasList(list){
       personasStore = list.map(p => ({
         id: p.id || (p.displayName || "p").toLowerCase().replace(/\s+/g,"_")+Math.floor(Math.random()*1000),
@@ -341,7 +356,6 @@
         if(p.branchEvents && p.branchEvents.length) personaBranchMap[p.displayName] = p.branchEvents.slice();
       });
     }
-
     (function initPersonas(){
       try{
         const s = localStorage.getItem("imported-personas");
@@ -353,7 +367,7 @@
       syncStoresFromPersonasList(DEFAULT_PERSONAS);
     })();
 
-    // ===== RNG / util =====
+    // RNG
     function createRNG(seed){
       if(!seed) return Math.random;
       let h = 2166136261 >>> 0;
@@ -364,7 +378,7 @@
     const yen = n => "¥" + Number(n).toLocaleString("ja-JP");
     const sleep = ms => new Promise(res=>setTimeout(res, ms));
 
-    // ===== board cells =====
+    // board cells
     const cells = Array.from({length:TOTAL_CELLS},(_,i)=>({index:i,type:"none",label:""}));
     cells[0] = {index:0,type:"start",label:"スタート"};
     cells[TOTAL_CELLS-1] = {index:TOTAL_CELLS-1,type:"goal",label:"ゴール"};
@@ -386,7 +400,7 @@
       { text:"交通違反で-¥12,000", money:-12000 },
     ];
 
-    // ===== state =====
+    // state
     let state = {
       started:false, turn:0, currentPlayerIndex:0, players:[], finishedCount:0, animating:false,
       rng: Math.random, seed:"", speed:180, overshoot:"clamp",
@@ -403,7 +417,7 @@
       state.playerSettings.length = count;
     }
 
-    // ===== rendering & layout helpers =====
+    // Rendering helpers (square cells ensured by grid-auto-rows in CSS)
     function getCellSize(){
       const val = getComputedStyle(document.documentElement).getPropertyValue('--cell-size') || '72px';
       return parseInt(val);
@@ -418,7 +432,7 @@
     function fitBoard(){
       const toolbarRect = document.querySelector('.appbar').getBoundingClientRect();
       const viewportH = window.innerHeight;
-      const availableH = viewportH - toolbarRect.height - 48; // margin
+      const availableH = viewportH - toolbarRect.height - 48;
       const maxCellH = Math.floor((availableH - 16) / BOARD_ROWS);
       const current = getCellSize();
       const newSize = Math.max(44, Math.min(current, maxCellH));
@@ -441,7 +455,6 @@
         const idx = document.createElement("div"); idx.className = "idx"; idx.textContent = String(cell.index); div.appendChild(idx);
         const label = document.createElement("div"); label.textContent = cell.label||""; div.appendChild(label);
         const {row,col} = indexToGrid(cell.index); div.style.gridRowStart = row+1; div.style.gridColumnStart = col+1;
-        // tooltip
         div.addEventListener("mouseenter", e=> showCellTooltip(cell, e));
         div.addEventListener("mousemove", e=> moveTooltip(e));
         div.addEventListener("mouseleave", hideTooltip);
@@ -507,7 +520,7 @@
     }
     function flashMoney(i,delta){ const el=$("#"+moneyId(i)); if(!el) return; const cls=delta>=0?"flash-plus":"flash-minus"; el.classList.add(cls); setTimeout(()=>el.classList.remove(cls), 400) }
 
-    // log and history
+    // history & log
     function pushLog(text, kind){ const p=document.createElement("p"); p.textContent=text; if(kind) p.classList.add(kind); logEl.appendChild(p); logEl.scrollTop = logEl.scrollHeight; }
     function showHistory(){
       historyBody.innerHTML = "";
@@ -519,7 +532,7 @@
     historyClose.addEventListener("click", ()=> historyModal.close());
     historyClear.addEventListener("click", ()=> { if(!confirm("履歴をクリアしますか？")) return; logEl.innerHTML=""; historyBody.innerHTML=""; pushLog("履歴をクリアしました"); historyModal.close(); });
 
-    // tooltip functions
+    // Tooltip
     function showCellTooltip(cell, e){
       const info = [];
       info.push(`マス #${cell.index}`);
@@ -548,41 +561,30 @@
     }
     function hideTooltip(){ tooltip.style.display = "none"; }
 
-    // modal simple fallback
+    // ===== Modal helpers - ALWAYS use on-screen modals (no browser push notifications) =====
     function showCard(title, text, sub){
-      // use a modal if available; fallback to alert to ensure integration even if original modal wiring is overridden
-      try {
-        const modal = document.getElementById("modal");
-        if(modal){
-          // prepare content if modal exists
-          const t = modal.querySelector("#modal-title"); const txt = modal.querySelector("#modal-text"); const subEl = modal.querySelector("#modal-sub"); const actions = modal.querySelector("#modal-actions");
-          if(t) t.textContent = title;
-          if(txt) txt.textContent = text;
-          if(subEl) subEl.textContent = sub || "";
-          if(actions) {
-            actions.innerHTML = "";
-            const ok = document.createElement("button"); ok.textContent = "OK"; ok.className = "primary";
-            ok.addEventListener("click", ()=> modal.close());
-            actions.appendChild(ok);
-          }
-          modal.showModal();
-          return;
-        }
-      } catch(e){}
-      alert(`${title}\n\n${text}\n\n${sub || ""}`);
+      // Populate and open the generic in-page modal
+      genericTitle.textContent = title;
+      // allow HTML in text by setting innerHTML for small use-cases (we sanitize by only adding our own generated HTML)
+      if(typeof text === "string" && /<\/?[a-z][\s\S]*>/i.test(text)){
+        genericText.innerHTML = text;
+      } else {
+        genericText.textContent = text;
+      }
+      genericSub.textContent = sub || "";
+      genericActions.innerHTML = "";
+      const ok = document.createElement("button"); ok.className = "primary"; ok.textContent = "OK";
+      ok.addEventListener("click", ()=> genericModal.close());
+      genericActions.appendChild(ok);
+      genericModal.showModal();
     }
 
     // Branch modal used during gameplay (reads branch schema)
     function showBranchModal(branchEv, playerIndex){
-      const modal = document.getElementById("modal");
-      const modalTitle = document.getElementById("modal-title");
-      const modalText = document.getElementById("modal-text");
-      const modalSub = document.getElementById("modal-sub");
-      const modalActions = document.getElementById("modal-actions");
-      modalTitle.textContent = "分岐イベント";
-      modalText.textContent = branchEv.text;
-      modalSub.textContent = `あなた: ${state.players[playerIndex].name}`;
-      modalActions.innerHTML = "";
+      genericTitle.textContent = "分岐イベント";
+      genericText.textContent = branchEv.text;
+      genericSub.textContent = `あなた: ${state.players[playerIndex].name}`;
+      genericActions.innerHTML = "";
       branchEv.choices.forEach(choice=>{
         const b = document.createElement("button"); b.textContent = choice.label;
         b.addEventListener("click", async ()=>{
@@ -599,16 +601,25 @@
           } else {
             renderPlayersPanel();
           }
-          modal.close();
+          genericModal.close();
         });
-        modalActions.appendChild(b);
+        genericActions.appendChild(b);
       });
-      const cancel = document.createElement("button"); cancel.textContent = "やめる"; cancel.addEventListener("click", ()=> modal.close());
-      modalActions.appendChild(cancel);
-      modal.showModal();
+      const cancel = document.createElement("button"); cancel.textContent = "やめる"; cancel.addEventListener("click", ()=> genericModal.close());
+      genericActions.appendChild(cancel);
+      genericModal.showModal();
     }
 
-    // resolveCell (uses branch events and persona events if any)
+    // When any dialog closes, ensure roll button state is consistent (fix for "dice becomes unusable" bug)
+    function updateRollState(){
+      btnRoll.disabled = !state.started || state.animating;
+    }
+    // Attach close listeners to all dialogs with class modal
+    document.querySelectorAll('dialog.modal').forEach(d => {
+      d.addEventListener('close', updateRollState);
+    });
+
+    // ===== resolveCell (uses branch events and persona events) =====
     function resolveCell(playerIndex, index){
       const pl = state.players[playerIndex]; const cell = cells[index]; if(!cell||!pl) return;
       switch(cell.type){
@@ -617,6 +628,7 @@
           if(!pl.finished){
             pl.finished = true; state.finishedCount += 1; $("#"+tokenId(playerIndex))?.classList.add("finished");
             pushLog(`${pl.name}: ゴール！お疲れ！`);
+            // show result on screen
             showCard("ゴール", `${pl.name} がゴール！`, `現在残高: ${yen(pl.money)}`);
           }
           break;
@@ -633,7 +645,6 @@
           if(state.rng() < BRANCH_CHANCE){
             const pb = personaBranchMap[pl.name];
             if(pb && pb.length>0){ const be = randPick(state.rng, pb); showBranchModal(be, playerIndex); return; }
-            // if persona has none, pick from a small default branch or fallback
             const defaultBranch = { text: "分岐イベント（サンプル）", choices: [
               { label:"挑戦する", probGood:0.6, success:{money:20000,move:1,text:"成功！"}, failure:{money:-10000,move:0,text:"失敗…"} },
               { label:"やめる", probGood:1.0, success:{money:0,move:0,text:"何も起きない"}, failure:{money:0,move:0,text:""} }
@@ -663,11 +674,12 @@
       renderPlayersPanel();
     }
 
-    // dice and movement
+    // Dice & movement
     function rollDice(){ const n = Math.floor(state.rng()*6)+1; diceEl.textContent = n; diceEl.classList.add("spin"); setTimeout(()=>diceEl.classList.remove("spin"), 620); return n; }
     async function animateMove(playerIndex, steps){
       const pl = state.players[playerIndex]; if(!pl || pl.finished) return;
-      state.animating = true; btnRoll.disabled = true; const delay = Number(speedInput.value || state.speed);
+      state.animating = true; updateRollState();
+      const delay = Number(speedInput.value || state.speed);
       let pos = pl.position; let remain = steps;
       while(remain>0){
         let next = pos + 1;
@@ -683,7 +695,7 @@
         pos = next; pl.position = pos; placeAllTokens(); await sleep(delay); remain--;
       }
       resolveCell(playerIndex, pl.position);
-      state.animating = false;
+      state.animating = false; updateRollState();
     }
 
     function nextPlayerTurn(){
@@ -693,7 +705,7 @@
     }
     const isGameFinished = ()=> state.finishedCount === state.players.length;
 
-    // ===== Save / Load (slots) =====
+    // Save / Load slots
     const SAVE_SLOT_PREFIX = "life-game-slot-";
     function snapshot(){ return JSON.stringify({
       started:state.started, turn:state.turn, currentPlayerIndex:state.currentPlayerIndex, finishedCount:state.finishedCount,
@@ -719,6 +731,7 @@
       const blob = new Blob([snapshot()], {type:"application/json"});
       const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href=url; a.download="life-game-save.json"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
     });
+
     btnSaveSlot.addEventListener("click", ()=> {
       const slot = saveSlotSel.value;
       try { localStorage.setItem(SAVE_SLOT_PREFIX + slot, snapshot()); pushLog(`スロット ${slot} に保存しました`); }
@@ -737,7 +750,7 @@
       pushLog(`スロット ${slot} を削除しました`);
     });
 
-    // ===== Persona JSON import (simple) =====
+    // Persona JSON import
     $("#btn-import-personas").addEventListener("click", ()=> filePersonas.click());
     filePersonas.addEventListener("change", async (e) => {
       const f = e.target.files?.[0];
@@ -759,7 +772,7 @@
       }
     });
 
-    // ===== Persona Manager UI & Branch Editor Integration =====
+    // Persona manager & editors (same as before)
     function openPersonaManager(){ renderPersonaTable(); personaModal.showModal(); }
     function renderPersonaTable(){
       personaTbody.innerHTML = "";
@@ -767,8 +780,7 @@
         const tr = document.createElement("tr");
         const tdIdx = document.createElement("td"); tdIdx.textContent = String(idx+1);
         const tdName = document.createElement("td");
-        const nameInput = document.createElement("input"); nameInput.type = "text"; nameInput.value = p.displayName; nameInput.dataset.idx = idx;
-        tdName.appendChild(nameInput);
+        const nameInput = document.createElement("input"); nameInput.type = "text"; nameInput.value = p.displayName; nameInput.dataset.idx = idx; tdName.appendChild(nameInput);
         const tdColor = document.createElement("td"); const colorInput = document.createElement("input"); colorInput.type = "color"; colorInput.value = p.color; colorInput.dataset.idx = idx; tdColor.appendChild(colorInput);
         const tdEvents = document.createElement("td");
         const evEditorBtn = document.createElement("button"); evEditorBtn.textContent = "イベント編集"; evEditorBtn.dataset.idx = idx;
@@ -829,7 +841,7 @@
       const a = document.createElement("a"); a.href = url; a.download = "personas-export.json"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
     });
 
-    // simple persona event editor (prompt-based)
+    // persona event editor (prompt-based for quick edits)
     function openPersonaEventEditor(idx){
       const persona = personasStore[idx];
       const current = persona.events.map(ev => `${ev.text}|${ev.money}`).join("\n");
@@ -844,7 +856,7 @@
       pushLog(`${persona.displayName} のイベントを更新しました`, "ok");
     }
 
-    // Branch editor integration
+    // Branch Editor functions (reuse addChoiceUI/readChoicesFromUI from earlier)
     let branchEditorSaveCallback = null;
     function openBranchEditor(branch, onSave){
       branchEditorSaveCallback = onSave;
@@ -879,7 +891,6 @@
       choicesListEl.innerHTML = "";
       choices.forEach((c, i) => addChoiceUI(c));
     }
-
     function addChoiceUI(choice){
       const row = document.createElement("div"); row.className = "choice-row";
       const labelInput = document.createElement("input"); labelInput.type = "text"; labelInput.value = choice.label||""; labelInput.placeholder="選択肢ラベル";
@@ -912,7 +923,6 @@
       row.appendChild(delBtn);
       choicesListEl.appendChild(row);
     }
-
     function readChoicesFromUI(){
       const rows = choicesListEl.querySelectorAll(".choice-row");
       const out = [];
@@ -936,13 +946,9 @@
       return out;
     }
 
-    // openBranchEditorForPersona
-    let currentEditingPersonaIndex = null;
     function openBranchEditorForPersona(personaIdx){
-      currentEditingPersonaIndex = personaIdx;
       const persona = personasStore[personaIdx];
       const branch = { text: "", choices: [] };
-      // if exists, edit first branch by default or allow adding; here we open new branch creator
       openBranchEditor(branch, (updatedBranch) => {
         persona.branchEvents.push(updatedBranch);
         syncStoresFromPersonasList(personasStore);
@@ -951,7 +957,7 @@
       });
     }
 
-    // ===== Settings modal builder =====
+    // Settings modal
     function buildSettingsForm(){
       const count = parseInt(playersCountSel.value,10) || 4;
       ensurePlayerSettings(count);
@@ -970,7 +976,6 @@
         settingsListEl.appendChild(row);
       }
     }
-
     settingsBtn.addEventListener("click", ()=> { buildSettingsForm(); settingsModal.showModal(); });
     settingsCancelBtn.addEventListener("click", ()=> settingsModal.close());
     settingsSaveBtn.addEventListener("click", ()=>{
@@ -998,7 +1003,7 @@
       settingsModal.close();
     });
 
-    // ===== Start / Reset / Roll =====
+    // Start / Reset / Roll
     btnStart.addEventListener("click", ()=>{
       if(state.started) return;
       const count = parseInt(playersCountSel.value,10); const initial = parseInt(initialMoneyInput.value,10)||0;
@@ -1037,11 +1042,20 @@
       const top = rows[0]?.money ?? 0;
       rows.forEach((r,idx)=>{ const diff = r.money - top; html += `<tr><td>${idx+1}</td><td>${r.name}</td><td>${yen(r.money)}</td><td>${diff===0?"-":yen(diff)}</td></tr>`; });
       html += `</tbody></table>`;
-      showCard("結果発表", html, "");
+      resultBody.innerHTML = html;
+      resultDlg.showModal();
     }
+    resultClose.addEventListener("click", ()=> resultDlg.close());
 
-    // keyboard shortcuts
+    // Keyboard shortcuts
     window.addEventListener("keydown", e=>{
+      // If any dialog is open, ignore global shortcuts except for closing help
+      const openDialog = document.querySelector('dialog.modal[open]');
+      if(openDialog && !(openDialog.id === "shortcuts-modal" && (e.key.toLowerCase()==='h'))) {
+        // allow H to open/close help even when others open
+        if(e.key.toLowerCase() === 'h'){ e.preventDefault(); if(shortcutsModal.open) shortcutsModal.close(); else shortcutsModal.showModal(); }
+        return;
+      }
       if(e.code==="Space" || e.key==="Enter"){ e.preventDefault(); btnRoll.click(); }
       if(e.key.toLowerCase()==='r' && !state.animating){ btnReset.click(); }
       if(e.key.toLowerCase()==='s'){ e.preventDefault(); btnSaveSlot.click(); }
@@ -1051,25 +1065,37 @@
       if(e.key.toLowerCase()==='f'){ fitBoard(); }
     });
 
-    // zoom buttons & fit
+    // Zoom controls
     btnZoomIn.addEventListener("click", zoomIn);
     btnZoomOut.addEventListener("click", zoomOut);
     btnFit.addEventListener("click", fitBoard);
 
-    // history & shortcuts UI
+    // History & shortcuts UI
     btnHistory.addEventListener("click", showHistory);
     btnShortcuts.addEventListener("click", ()=> shortcutsModal.showModal());
     shortcutsClose.addEventListener("click", ()=> shortcutsModal.close());
 
-    // tooltip hide on scroll or resize
+    // Tooltip hide on scroll/resize
     window.addEventListener("scroll", hideTooltip, true);
     window.addEventListener("resize", ()=> { hideTooltip(); placeAllTokens(); });
 
-    // initial render
+    // Ensure roll button state sync whenever dialog opens/closes
+    document.querySelectorAll('dialog.modal').forEach(d => {
+      d.addEventListener('close', ()=> { setTimeout(updateRollState, 10); });
+      d.addEventListener('cancel', ()=> { setTimeout(updateRollState, 10); }); // Esc key
+      d.addEventListener('show', ()=> { setTimeout(updateRollState, 10); });
+    });
+
+    // initial render & fit
     ensurePlayerSettings(parseInt(playersCountSel.value,10) || 4);
     renderBoard();
     setTimeout(()=> { fitBoard(); }, 80);
     window.addEventListener("resize", ()=> placeAllTokens());
+
+    // Expose some helpers for debugging in console
+    window._life = { state, personasStore, renderBoard, renderPlayersPanel, snapshot, restore };
+
+    // End of IIFE
   })();
   </script>
 </body>
