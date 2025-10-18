@@ -19,7 +19,7 @@
     }
 
     /* ===== App Bar / Toolbar ===== */
-    .appbar{position:sticky; top:0; z-index:10; width:100%; display:flex; justify-content:center; background:linear-gradient(180deg, rgba(255,250,240,.95), rgba(255,250,240,.85)); backdrop-filter:saturate(1.2) blur(2px); border-bottom:1px solid #eee}
+    .appbar{position:sticky; top:0; z-index:10; width:100%; display:flex; justify-content:center; background:linear-gradient(180deg, rgba(255,250,240,.95), rgba(255,250,240,.85)); backdrop-filter:saturate(1.05)}
     .toolbar{width:min(1100px,100%); padding:12px 16px; display:flex; flex-wrap:wrap; align-items:center; gap:10px}
     .title{font-weight:800; font-size:16px; color:#111; letter-spacing:.02em; white-space:nowrap; margin-right:auto}
 
@@ -39,7 +39,7 @@
     @media (max-width:980px){ .wrap{grid-template-columns:1fr} }
 
     /* ===== Board ===== */
-    .board{background:#fff; border:2px solid #eee; border-radius:12px; padding:12px; position:relative; display:grid; gap:8px; grid-template-columns:repeat(var(--board-cols), minmax(52px, var(--cell-size))); grid-template-rows:repeat(var(--board-rows), minmax(52px, var(--cell-size))); overflow:hidden}
+    .board{background:#fff; border:2px solid #eee; border-radius:12px; padding:12px; position:relative; display:grid; gap:8px; grid-template-columns:repeat(var(--board-cols), minmax(52px, var(--cell-size))); grid-template-rows:repeat(var(--board-rows), minmax(52px, var(--cell-size))); min-height: calc(var(--board-rows) * var(--cell-size));}
     .cell{background:#f9fafb; border:1px solid #e6e8eb; border-radius:10px; padding:6px; display:grid; place-items:center; font-size:12px; position:relative}
     .cell.start{background:#d1f7c4}
     .cell.goal{background:#cde7ff}
@@ -49,7 +49,7 @@
     .cell .idx{position:absolute; top:4px; left:6px; font-size:10px; color:#999}
 
     /* ===== Tokens ===== */
-    .token{width:28px; height:28px; border-radius:50%; border:2px solid #333; display:grid; place-items:center; color:#fff; font-size:12px; font-weight:700; box-shadow:0 4px 10px rgba(0,0,0,.15); transition:transform 180ms ease; position:absolute}
+    .token{width:28px; height:28px; border-radius:50%; border:2px solid #333; display:grid; place-items:center; color:#fff; font-size:12px; font-weight:700; box-shadow:0 4px 10px rgba(0,0,0,.15); transition:transform .18s ease}
     .token.finished{opacity:.6; border-color:#777}
     .token.active{outline:3px solid rgba(76,154,255,.5)}
 
@@ -76,10 +76,18 @@
     .card h3{margin:0 0 6px}
     .card p{margin:0 0 8px}
     .card .muted{color:#64748b; font-size:12px}
-    .card .actions{display:flex; justify-content:flex-end; gap:8px}
+    .card .actions{display:flex; justify-content:flex-end; gap:8px; margin-top:12px}
+    .card .actions button{min-width:84px}
     table{border-collapse:collapse; width:100%}
     th,td{border:1px solid #e5e7eb; padding:8px; text-align:left}
     th{background:#f8fafc}
+
+    /* ===== Settings Form ===== */
+    .settings-list{display:grid; gap:8px; margin-top:8px}
+    .settings-row{display:flex; gap:8px; align-items:center}
+    .settings-row select[type="text"]{flex:1}
+    .settings-row input[type="color"]{width:44px; height:34px; padding:4px}
+    .small{font-size:13px; color:#666}
   </style>
 </head>
 <body>
@@ -87,7 +95,7 @@
   <div class="appbar">
     <div class="toolbar" role="group" aria-label="ゲーム設定">
       <div class="title">人生ゲーム ver-4</div>
-      <div class="group"><label for="players-count">人数</label><select id="players-count"><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option></select></div>
+      <div class="group"><label for="players-count">人数</label><select id="players-count"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option></select></div>
       <div class="group"><label for="initial-money">初期資金</label><input id="initial-money" type="number" value="20000" min="0" step="1000" /></div>
       <div class="group"><label for="rng-seed">シード</label><input id="rng-seed" type="text" placeholder="任意(空=ランダム)" /></div>
       <div class="group"><label for="speed">速度</label><input id="speed" type="range" min="80" max="400" value="180" /></div>
@@ -101,6 +109,7 @@
       <button id="btn-export" title="JSONエクスポート">Export</button>
       <input id="file-import" type="file" accept="application/json" hidden />
       <button id="btn-import" title="JSONインポート">Import</button>
+      <button id="btn-settings" title="プレイヤー設定">設定</button>
     </div>
   </div>
 
@@ -120,7 +129,7 @@
       <h3 id="modal-title">イベント</h3>
       <p id="modal-text"></p>
       <p class="muted" id="modal-sub"></p>
-      <div class="actions"><button id="modal-close" class="primary">OK</button></div>
+      <div class="actions" id="modal-actions"><button id="modal-close" class="primary">OK</button></div>
     </div>
   </dialog>
 
@@ -129,6 +138,19 @@
       <h3>結果発表</h3>
       <div id="result-body"></div>
       <div class="actions"><button id="result-close" class="primary">閉じる</button></div>
+    </div>
+  </dialog>
+
+  <!-- 設定モーダル（プレイヤー名・色） -->
+  <dialog class="modal" id="settings-modal" aria-labelledby="settings-title">
+    <div class="card">
+      <h3 id="settings-title">プレイヤー設定</h3>
+      <p class="small">人数は上部の「人数」で切り替え。あらかじめ用意した4名から選べます。</p>
+      <div id="settings-list" class="settings-list"></div>
+      <div class="actions">
+        <button id="settings-cancel">キャンセル</button>
+        <button id="settings-save" class="primary">保存</button>
+      </div>
     </div>
   </dialog>
 
@@ -142,11 +164,16 @@
   const btnSave = $("#btn-save"), btnLoad = $("#btn-load"), btnExport = $("#btn-export"), btnImport = $("#btn-import"), fileImport = $("#file-import");
   const playersCountSel = $("#players-count"), initialMoneyInput = $("#initial-money");
   const rngSeedInput = $("#rng-seed"), speedInput = $("#speed"), overshootSel = $("#overshoot");
-  const modal = $("#modal"), modalTitle = $("#modal-title"), modalText = $("#modal-text"), modalSub = $("#modal-sub"), modalClose = $("#modal-close");
+  const modal = $("#modal"), modalTitle = $("#modal-title"), modalText = $("#modal-text"), modalSub = $("#modal-sub"), modalActions = $("#modal-actions"), modalClose = $("#modal-close");
   const resultDlg = $("#result"), resultBody = $("#result-body"), resultClose = $("#result-close");
+  const settingsBtn = $("#btn-settings"), settingsModal = $("#settings-modal"), settingsListEl = $("#settings-list");
+  const settingsSaveBtn = $("#settings-save"), settingsCancelBtn = $("#settings-cancel");
 
   const BOARD_COLS = 8, BOARD_ROWS = 5, TOTAL_CELLS = BOARD_COLS * BOARD_ROWS;
   const PLAYER_COLORS = ["#ff6b6b", "#4c9aff", "#00c853", "#ff8f00", "#9c27b0", "#00acc1"];
+
+  // 用意された「実在4名（仮）」の候補
+  const PERSONAS = ["新卒さん", "中途さん", "しごできさん", "社長さん"];
 
   // 乱数（シード対応）
   function createRNG(seed){
@@ -168,6 +195,7 @@
   mark([4,10,16,22,30], "bonus", "ボーナス");
   mark([8,14,20,26,34], "penalty", "ペナルティ");
 
+  // イベントテーブル（通常イベント）
   const eventTable = [
     { text:"就職おめでとう！初任給で+¥30,000", money:+30000 },
     { text:"家賃の更新で-¥20,000", money:-20000 },
@@ -181,11 +209,79 @@
     { text:"交通違反で-¥12,000", money:-12000 },
   ];
 
+  // プレイヤーごとの専用イベント（プレイヤー名をキーにして使う）
+  // ここにプレイヤー固有のイベントを追加すると、そのプレイヤーがイベントセルに止まったときに選択されやすくなります。
+  const personaEventMap = {
+    "新卒さん": [
+      { text: "研修で評価されて昇給チャンス+¥15,000", money:+15000 },
+      { text: "飲み会で交際費-¥5,000", money:-5000 },
+      { text: "初めてのボーナス+¥20,000", money:+20000 },
+    ],
+    "中途さん": [
+      { text: "即戦力でプロジェクト入り+¥25,000", money:+25000 },
+      { text: "引越し費用-¥30,000", money:-30000 },
+      { text: "転職オファーで選択肢（高リスク高リターン）", money:+40000 },
+    ],
+    "しごできさん": [
+      { text: "成果報酬で+¥40,000", money:+40000 },
+      { text: "過労で病院-¥8,000", money:-8000 },
+      { text: "副業が好調+¥20,000", money:+20000 },
+    ],
+    "社長さん": [
+      { text: "事業が当たって大儲け+¥100,000", money:+100000 },
+      { text: "投資の失敗-¥60,000", money:-60000 },
+      { text: "社員に奢る-¥20,000", money:-20000 },
+    ]
+  };
+
+  // 分岐イベント（到達すると選択肢が表示され「命運が左右される」イベント群）
+  const branchEvents = [
+    {
+      text: "運命の分かれ道を見つけた。直感で選択しよう。",
+      choices: [
+        { label: "奇跡を信じる（高リスク高リターン）", money: +80000, move: +2, probGood: 0.55 },
+        { label: "堅実に進む（小リターン）", money: +10000, move: +1, probGood: 1.0 },
+        { label: "賭けない（変化なし）", money: 0, move: 0, probGood: 1.0 }
+      ]
+    },
+    {
+      text: "迷いの橋。橋の両端に選択肢がある。",
+      choices: [
+        { label: "左の光（前進チャンス）", money: +20000, move: +3, probGood: 0.6 },
+        { label: "右の闇（危険だが大きい）", money: -30000, move: +4, probGood: 0.45 },
+      ]
+    },
+    {
+      text: "謎の老人からの提案。判定次第で…",
+      choices: [
+        { label: "提案を受ける（判定あり）", money: +50000, move: 0, probGood: 0.5 },
+        { label: "断る（安全）", money: -5000, move: 0, probGood: 1.0 },
+      ]
+    },
+  ];
+
+  // 分岐イベントが現れる確率（イベントセルに止まったとき）
+  const BRANCH_CHANCE = 0.30;
+
   // 状態
   const state = {
     started:false, turn:0, currentPlayerIndex:0, players:[], finishedCount:0, animating:false,
-    rng: Math.random, seed:"", speed:180, overshoot:"clamp"
+    rng: Math.random, seed:"", speed:180, overshoot:"clamp",
+    playerSettings: []
   };
+
+  // 初期の playerSettings を確保
+  function ensurePlayerSettings(count = 4){
+    if(!state.playerSettings || !Array.isArray(state.playerSettings)) state.playerSettings = [];
+    for(let i=0;i<count;i++){
+      if(!state.playerSettings[i]) {
+        // デフォルトで用意された4名の名前を優先
+        state.playerSettings[i] = { persona: PERSONAS[i] || `プレイヤー${i+1}`, color: PLAYER_COLORS[i % PLAYER_COLORS.length] };
+      }
+    }
+    // 切り詰め
+    state.playerSettings.length = count;
+  }
 
   // インデックス→蛇行グリッド座標
   function indexToGrid(index){
@@ -211,7 +307,9 @@
     });
     // トークン
     state.players.forEach((pl,i)=>{
-      const token=document.createElement("div"); token.className="token"; token.id=tokenId(i); token.textContent=String(i+1); token.style.background=pl.color; if(pl.finished) token.classList.add("finished"); boardEl.appendChild(token);
+      const token=document.createElement("div"); token.className="token"; token.id=tokenId(i); token.textContent=String(i+1); token.style.background=pl.color; if(pl.finished) token.classList.add("finished");
+      token.style.position = "absolute"; token.style.left = "0px"; token.style.top = "0px";
+      boardEl.appendChild(token);
     });
     placeAllTokens(); highlightActiveToken();
   }
@@ -269,9 +367,68 @@
   // ログ
   function pushLog(text, kind){ const p=document.createElement("p"); p.textContent=text; if(kind) p.classList.add(kind); logEl.appendChild(p); logEl.scrollTop = logEl.scrollHeight; }
 
-  // モーダル
-  function showCard(title, text, sub){ modalTitle.textContent=title; modalText.textContent=text; modalSub.textContent=sub||""; modal.showModal(); }
+  // モーダル（汎用）：通常メッセージ
+  function showCard(title, text, sub){
+    modalTitle.textContent = title;
+    modalText.textContent = text;
+    modalSub.textContent = sub || "";
+    // actions: OK only
+    modalActions.innerHTML = "";
+    const ok = document.createElement("button"); ok.id = "modal-close"; ok.className = "primary"; ok.textContent = "OK";
+    ok.addEventListener("click", ()=> modal.close());
+    modalActions.appendChild(ok);
+    modal.showModal();
+  }
   modalClose.addEventListener("click", ()=> modal.close());
+
+  // 分岐イベント用モーダル（選択肢を表示）
+  function showBranchModal(branchEv, playerIndex){
+    modalTitle.textContent = "分岐イベント";
+    modalText.textContent = branchEv.text;
+    modalSub.textContent = `あなた: ${state.players[playerIndex].name}`;
+    modalActions.innerHTML = "";
+
+    branchEv.choices.forEach((choice, idx)=>{
+      const btn = document.createElement("button");
+      btn.textContent = choice.label;
+      btn.addEventListener("click", async ()=>{
+        const prob = (typeof choice.probGood === "number") ? choice.probGood : 1.0;
+        let success = true;
+        if(prob < 1.0){
+          success = state.rng() < prob;
+        }
+        const pl = state.players[playerIndex];
+        if(success){
+          if(choice.money) { pl.money += choice.money; flashMoney(playerIndex, choice.money); }
+          pushLog(`${pl.name}: ${choice.label} → 成功！ ${choice.money ? yen(choice.money) : ""}`, "ok");
+        } else {
+          const penalty = Math.min(pl.money, Math.abs(Math.floor((choice.money || 0) * 0.5))) || 0;
+          if(penalty) { pl.money -= penalty; flashMoney(playerIndex, -penalty); pushLog(`${pl.name}: ${choice.label} → 失敗… -${yen(penalty)}`, "bad"); }
+          else { pushLog(`${pl.name}: ${choice.label} → 失敗…`, "bad"); }
+        }
+        // 移動処理
+        if(choice.move && choice.move !== 0){
+          if(choice.move > 0){
+            await animateMove(playerIndex, choice.move);
+          } else {
+            pl.position = Math.max(0, pl.position + choice.move);
+            placeAllTokens();
+            resolveCell(playerIndex, pl.position);
+          }
+        } else {
+          renderPlayersPanel();
+        }
+        modal.close();
+      });
+      modalActions.appendChild(btn);
+    });
+    const cancel = document.createElement("button");
+    cancel.textContent = "やめる";
+    cancel.addEventListener("click", ()=> modal.close());
+    modalActions.appendChild(cancel);
+
+    modal.showModal();
+  }
 
   // セル効果
   function resolveCell(playerIndex, index){
@@ -279,9 +436,11 @@
     switch(cell.type){
       case "start": pushLog(`${pl.name}: スタート！`, "ok"); break;
       case "goal":
-        pl.finished = true; state.finishedCount += 1; $("#"+tokenId(playerIndex))?.classList.add("finished");
-        pushLog(`${pl.name}: ゴール！お疲れ！`);
-        showCard("ゴール", `${pl.name} がゴール！`, `現在残高: ${yen(pl.money)}`);
+        if(!pl.finished){
+          pl.finished = true; state.finishedCount += 1; $("#"+tokenId(playerIndex))?.classList.add("finished");
+          pushLog(`${pl.name}: ゴール！お疲れ！`);
+          showCard("ゴール", `${pl.name} がゴール！`, `現在残高: ${yen(pl.money)}`);
+        }
         break;
       case "bonus":{
         const amount = randPick(state.rng, [5000,8000,10000,15000,20000]); pl.money += amount; flashMoney(playerIndex, amount);
@@ -292,7 +451,27 @@
         pushLog(`${pl.name}: ペナルティ…${yen(amount)}失う（残高: ${yen(pl.money)}）`, "bad"); break;
       }
       case "event":{
-        const ev = randPick(state.rng, eventTable); pl.money += ev.money; flashMoney(playerIndex, ev.money);
+        // まず分岐イベントの発生判定
+        if(state.rng() < BRANCH_CHANCE){
+          const be = randPick(state.rng, branchEvents);
+          showBranchModal(be, playerIndex);
+          return;
+        }
+        // プレイヤー固有のイベント群を優先して選ぶ（あれば）
+        const personaEvents = personaEventMap[pl.name];
+        if(personaEvents && personaEvents.length>0 && state.rng() < 0.7){
+          // 70%の確率で固有イベントを選ぶ（残りは汎用イベント）
+          const ev = randPick(state.rng, personaEvents);
+          pl.money += ev.money; flashMoney(playerIndex, ev.money);
+          pushLog(`${pl.name}: ${ev.text}（残高: ${yen(pl.money)}）`, ev.money>=0?"ok":"bad");
+          renderPlayersPanel();
+          if(state.rng() < 0.10){ pl.skipTurn = true; pushLog(`${pl.name}: 次のターンはお休み（スキップ）`); }
+          showCard("イベント", ev.text, `${pl.name} / 残高: ${yen(pl.money)}`);
+          return;
+        }
+        // それ以外は通常イベント
+        const ev = randPick(state.rng, eventTable);
+        pl.money += ev.money; flashMoney(playerIndex, ev.money);
         pushLog(`${pl.name}: ${ev.text}（残高: ${yen(pl.money)}）`, ev.money>=0?"ok":"bad");
         if(state.rng() < 0.10){ pl.skipTurn = true; pushLog(`${pl.name}: 次のターンはお休み（スキップ）`); }
         showCard("イベント", ev.text, `${pl.name} / 残高: ${yen(pl.money)}`);
@@ -348,16 +527,18 @@
   resultClose.addEventListener("click", ()=> resultDlg.close());
 
   // 保存/読込/IO
-  const SAVE_KEY = "life-game-save-v3";
+  const SAVE_KEY = "life-game-save-v4-persona";
   function snapshot(){ return JSON.stringify({
     started:state.started, turn:state.turn, currentPlayerIndex:state.currentPlayerIndex, finishedCount:state.finishedCount,
-    players:state.players, seed:state.seed, overshoot:state.overshoot, speed:Number(speedInput.value||state.speed)
+    players:state.players, seed:state.seed, overshoot:state.overshoot, speed:Number(speedInput.value||state.speed),
+    playerSettings: state.playerSettings
   }); }
   function restore(json){ try{
     const d = JSON.parse(json);
     state.started = d.started; state.turn = d.turn; state.currentPlayerIndex = d.currentPlayerIndex; state.finishedCount = d.finishedCount;
     state.players = d.players; state.seed = d.seed||""; state.overshoot = d.overshoot||"clamp"; state.rng = createRNG(state.seed||"");
     speedInput.value = String(d.speed||180); overshootSel.value = state.overshoot; rngSeedInput.value = state.seed;
+    state.playerSettings = d.playerSettings || [];
     renderBoard(); renderPlayersPanel(); statTurnEl.textContent = String(state.turn); statCurrentEl.textContent = state.players[state.currentPlayerIndex]?.name || "-";
     pushLog("保存データを読み込みました。", "ok");
   }catch(e){ alert("読み込みに失敗しました"); }}
@@ -371,12 +552,72 @@
   btnImport.addEventListener("click", ()=> fileImport.click());
   fileImport.addEventListener("change", async e=>{ const f=e.target.files?.[0]; if(!f) return; const txt = await f.text(); restore(txt); fileImport.value=""; });
 
+  // ===== 設定モーダルのロジック（ペルソナ選択） =====
+  function buildSettingsForm(){
+    const count = parseInt(playersCountSel.value,10) || 4;
+    ensurePlayerSettings(count);
+    settingsListEl.innerHTML = "";
+    for(let i=0;i<count;i++){
+      const s = state.playerSettings[i] || { persona: PERSONAS[i] || `プレイヤー${i+1}`, color:PLAYER_COLORS[i % PLAYER_COLORS.length] };
+      const row = document.createElement("div"); row.className = "settings-row";
+      const idx = document.createElement("div"); idx.textContent = `${i+1}`; idx.style.width = "24px"; idx.style.textAlign = "center"; idx.style.fontWeight = "700";
+      // persona select
+      const personaSelect = document.createElement("select");
+      PERSONAS.forEach(p => {
+        const opt = document.createElement("option"); opt.value = p; opt.textContent = p; personaSelect.appendChild(opt);
+      });
+      personaSelect.value = s.persona || PERSONAS[i] || `プレイヤー${i+1}`;
+      // color input
+      const colorInput = document.createElement("input"); colorInput.type = "color"; colorInput.value = s.color || PLAYER_COLORS[i % PLAYER_COLORS.length];
+      row.appendChild(idx); row.appendChild(personaSelect); row.appendChild(colorInput);
+      settingsListEl.appendChild(row);
+    }
+  }
+
+  function openSettings(){
+    buildSettingsForm();
+    settingsModal.showModal();
+  }
+
+  settingsBtn.addEventListener("click", ()=> openSettings());
+  settingsCancelBtn.addEventListener("click", ()=> settingsModal.close());
+  settingsSaveBtn.addEventListener("click", ()=>{
+    const rows = settingsListEl.querySelectorAll(".settings-row");
+    rows.forEach((row, idx)=>{
+      const personaSelect = row.querySelector('select');
+      const colorInput = row.querySelector('input[type="color"]');
+      const persona = personaSelect?.value || PERSONAS[idx] || `プレイヤー${idx+1}`;
+      const color = colorInput?.value || PLAYER_COLORS[idx % PLAYER_COLORS.length];
+      state.playerSettings[idx] = { persona, color };
+    });
+    // ゲーム中ならプレイヤー情報を更新
+    if(state.started && state.players && state.players.length > 0){
+      for(let i=0;i<state.players.length;i++){
+        const s = state.playerSettings[i];
+        if(!s) continue;
+        state.players[i].name = s.persona;
+        state.players[i].color = s.color;
+      }
+      renderBoard();
+      renderPlayersPanel();
+      pushLog("プレイヤー設定を更新しました。", "ok");
+    } else {
+      pushLog("プレイヤー設定を保存しました。", "ok");
+    }
+    settingsModal.close();
+  });
+
   // ボタン/開始
   btnStart.addEventListener("click", ()=>{
     if(state.started) return;
     const count = parseInt(playersCountSel.value,10); const initial = parseInt(initialMoneyInput.value,10)||0;
     const seed = (rngSeedInput.value||"").trim(); state.seed = seed; state.rng = createRNG(seed);
-    state.players = Array.from({length:count},(_,i)=>({ name:`プレイヤー${i+1}`, color:PLAYER_COLORS[i % PLAYER_COLORS.length], position:0, money:initial, finished:false, skipTurn:false }));
+    // playerSettings を確保して、それを元に players を作成
+    ensurePlayerSettings(count);
+    state.players = Array.from({length:count},(_,i)=>{
+      const s = state.playerSettings[i] || { persona: PERSONAS[i] || `プレイヤー${i+1}`, color: PLAYER_COLORS[i % PLAYER_COLORS.length] };
+      return { name: s.persona, color: s.color, position:0, money:initial, finished:false, skipTurn:false };
+    });
     state.started=true; state.turn=1; state.currentPlayerIndex=0; state.finishedCount=0; state.overshoot = overshootSel.value; state.speed = Number(speedInput.value||180);
     pushLog(`ゲーム開始！初期資金: ${yen(initial)} | プレイヤー数: ${count} ${seed?`| シード:${seed}`:""}`, "ok");
     renderBoard(); renderPlayersPanel(); statTurnEl.textContent=String(state.turn); statCurrentEl.textContent=state.players[state.currentPlayerIndex].name; btnRoll.disabled=false; diceEl.textContent='-';
@@ -393,7 +634,6 @@
     const pl = state.players[state.currentPlayerIndex]; if(!pl || pl.finished){ nextPlayerTurn(); return; }
     if(pl.skipTurn){ pushLog(`${pl.name}: ターンをスキップします`); pl.skipTurn=false; state.turn+=1; statTurnEl.textContent=String(state.turn); nextPlayerTurn(); return; }
     const dice = rollDice(); pushLog(`${pl.name}: サイコロ → ${dice}`);
-    // 残り
     const remaining = (TOTAL_CELLS-1) - pl.position; const steps = state.overshoot==="clamp"? Math.min(dice, remaining): dice;
     await animateMove(state.currentPlayerIndex, steps);
     state.turn += 1; statTurnEl.textContent = String(state.turn);
@@ -408,6 +648,7 @@
   });
 
   // 初期描画＆リサイズ時の再配置
+  ensurePlayerSettings(parseInt(playersCountSel.value,10) || 4);
   renderBoard();
   window.addEventListener("resize", ()=> placeAllTokens());
   </script>
