@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>人生ゲーム（アイコン＋勝敗ルール対応）</title>
+  <title>人生ゲーム（複数プレイヤー＋アニメーション版）</title>
   <style>
     :root {
       --board-cols: 8;
@@ -42,8 +42,13 @@
       gap: 12px;
       align-items: center;
     }
-    header h1 { font-size: 1.6rem; margin: 0; }
-    .controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    header h1 {
+      font-size: 1.6rem;
+      margin: 0;
+    }
+    .controls {
+      display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+    }
     .controls .group {
       display: flex; gap: 6px; align-items: center; padding: 6px 8px; background: #fff; border: 1px solid #eee; border-radius: 10px;
     }
@@ -59,7 +64,11 @@
       cursor: pointer;
       font-weight: 600;
     }
-    button.primary { background: var(--accent); color: #fff; border-color: transparent; }
+    button.primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: transparent;
+    }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
 
     /* Board */
@@ -80,7 +89,6 @@
       border-radius: 10px;
       padding: 6px;
       display: grid;
-      grid-template-rows: auto 1fr;
       place-items: center;
       font-size: 12px;
       position: relative;
@@ -96,12 +104,6 @@
       position: absolute;
       top: 4px; left: 6px;
       font-size: 10px; color: #999;
-    }
-    .cell .icon {
-      font-size: 18px; line-height: 1; margin-top: 2px;
-    }
-    .cell .label {
-      font-size: 11px; color: #333;
     }
 
     /* Player token */
@@ -132,7 +134,9 @@
       display: flex; justify-content: space-between; gap: 8px;
       padding: 8px 10px; background: #f5f7fa; border-radius: 10px;
     }
-    .players { display: grid; gap: 8px; }
+    .players {
+      display: grid; gap: 8px;
+    }
     .player-row {
       display: grid; grid-template-columns: 1.6fr 0.8fr 1fr 0.8fr;
       gap: 8px; align-items: center;
@@ -162,36 +166,12 @@
     }
     .log p { margin: 0 0 6px; }
     .footer { font-size: 12px; color: #777; }
-
-    /* Result modal */
-    .modal-backdrop {
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,0.4);
-      display: none;
-      align-items: center; justify-content: center;
-      z-index: 1000;
-    }
-    .modal {
-      background: #fff; border-radius: 12px; padding: 16px; width: min(90vw, 520px);
-      box-shadow: 0 12px 30px rgba(0,0,0,0.2);
-    }
-    .modal h2 { margin: 0 0 8px; font-size: 1.4rem; }
-    .ranking {
-      display: grid; gap: 8px; margin-top: 8px;
-    }
-    .rank-row {
-      display: grid; grid-template-columns: 40px 1fr 120px;
-      gap: 8px; align-items: center;
-      padding: 8px 10px; background: #f7fafc; border: 1px solid #eee; border-radius: 10px;
-    }
-    .rank-row .place { font-weight: 800; text-align: center; }
-    .modal .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>人生ゲーム（アイコン＋勝敗ルール）</h1>
+      <h1>人生ゲーム（複数プレイヤー＋アニメーション）</h1>
       <div class="controls">
         <div class="group">
           <label for="players-count">人数</label>
@@ -216,45 +196,34 @@
     <aside class="sidebar">
       <div class="stat"><span>ターン</span><strong id="stat-turn">0</strong></div>
       <div class="stat"><span>手番</span><strong id="stat-current">-</strong></div>
+
       <div class="players" id="players-panel"></div>
+
       <div class="log" id="log"></div>
-      <div class="footer">ゴール順位＋最終残高で勝敗を決定します。</div>
+      <div class="footer">サイコロは1〜6。各マス到達時にイベントが発生。全員がゴールするとゲーム終了。</div>
     </aside>
   </div>
 
-  <!-- Result Modal -->
-  <div class="modal-backdrop" id="modal-backdrop">
-    <div class="modal">
-      <h2>結果発表</h2>
-      <div class="ranking" id="ranking"></div>
-      <div class="actions">
-        <button id="btn-close">閉じる</button>
-        <button id="btn-restart" class="primary">再戦（設定は維持）</button>
-      </div>
-    </div>
-  </div>
-
   <script>
+    // --- 盤面とイベントデータ --------------------------------------------------
     const BOARD_COLS = 8;
     const BOARD_ROWS = 5;
     const TOTAL_CELLS = BOARD_COLS * BOARD_ROWS;
 
-    const ICONS = { start:"🚀", goal:"🏁", event:"🎲", bonus:"🎁", penalty:"⚠️", none:"⬜️" };
-
     const cells = Array.from({ length: TOTAL_CELLS }, (_, i) => ({
-      index: i, type: "none", label: "", icon: ICONS.none
+      index: i, type: "none", label: ""
     }));
-    cells[0] = { index: 0, type: "start", label: "スタート", icon: ICONS.start };
-    cells[TOTAL_CELLS - 1] = { index: TOTAL_CELLS - 1, type: "goal", label: "ゴール", icon: ICONS.goal };
+    cells[0] = { index: 0, type: "start", label: "スタート" };
+    cells[TOTAL_CELLS - 1] = { index: TOTAL_CELLS - 1, type: "goal", label: "ゴール" };
 
-    const eventIndices = [3,6,9,12,15,18,23,27,31,33];
-    eventIndices.forEach(i => { cells[i].type = "event"; cells[i].label = "イベント"; cells[i].icon = ICONS.event; });
+    const eventIndices = [3, 6, 9, 12, 15, 18, 23, 27, 31, 33];
+    eventIndices.forEach(i => { cells[i].type = "event"; cells[i].label = "イベント"; });
 
-    const bonusIndices = [4,10,16,22,30];
-    bonusIndices.forEach(i => { cells[i].type = "bonus"; cells[i].label = "ボーナス"; cells[i].icon = ICONS.bonus; });
+    const bonusIndices = [4, 10, 16, 22, 30];
+    bonusIndices.forEach(i => { cells[i].type = "bonus"; cells[i].label = "ボーナス"; });
 
-    const penaltyIndices = [8,14,20,26,34];
-    penaltyIndices.forEach(i => { cells[i].type = "penalty"; cells[i].label = "ペナルティ"; cells[i].icon = ICONS.penalty; });
+    const penaltyIndices = [8, 14, 20, 26, 34];
+    penaltyIndices.forEach(i => { cells[i].type = "penalty"; cells[i].label = "ペナルティ"; });
 
     const eventTable = [
       { text: "就職おめでとう！初任給で+¥30,000", money: +30000 },
@@ -271,55 +240,17 @@
 
     const PLAYER_COLORS = ["#ff6b6b","#4c9aff","#00c853","#ff8f00"];
 
-    // 勝敗計算
-    function computeRanking(players) {
-      const finished = players.filter(p => p.finished);
-      const unfinished = players.filter(p => !p.finished);
-
-      finished.sort((a, b) => {
-        if (a.finishOrder !== b.finishOrder) return a.finishOrder - b.finishOrder;
-        return b.money - a.money;
-      });
-
-      unfinished.sort((a, b) => {
-        if (a.position !== b.position) return b.position - a.position;
-        return b.money - a.money;
-      });
-
-      const combined = finished.concat(unfinished);
-      const ranking = [];
-      let currentPlace = 1;
-      for (let i = 0; i < combined.length; i++) {
-        const p = combined[i];
-        let place = currentPlace;
-        if (i > 0) {
-          const prev = combined[i-1];
-          const sameCategory = (p.finished === prev.finished);
-          const sameKey = p.finished
-            ? (p.finishOrder === prev.finishOrder && p.money === prev.money)
-            : (p.position === prev.position && p.money === prev.money);
-          if (!sameCategory || !sameKey) {
-            place = i + 1;
-            currentPlace = place;
-          }
-        }
-        ranking.push({ place, name: p.name, money: p.money, finished: p.finished, position: p.position });
-      }
-      return ranking;
-    }
-
-    // 状態
+    // --- 状態 -----------------------------------------------------------------
     const state = {
       started: false,
       turn: 0,
       currentPlayerIndex: 0,
       players: [],
       finishedCount: 0,
-      animating: false,
-      nextFinishOrder: 1,
+      animating: false, // 移動中は入力ロック
     };
 
-    // DOM
+    // --- DOMユーティリティ ----------------------------------------------------
     const $ = s => document.querySelector(s);
     const boardEl = $("#board");
     const logEl = $("#log");
@@ -331,28 +262,24 @@
     const btnReset = $("#btn-reset");
     const playersCountSel = $("#players-count");
     const initialMoneyInput = $("#initial-money");
-    const modalBackdrop = $("#modal-backdrop");
-    const rankingEl = $("#ranking");
-    const btnClose = $("#btn-close");
-    const btnRestart = $("#btn-restart");
 
     function yen(n) { return "¥" + n.toLocaleString("ja-JP"); }
+
     function appendLog(text) {
       const p = document.createElement("p");
       p.textContent = text;
       logEl.appendChild(p);
       logEl.scrollTop = logEl.scrollHeight;
     }
+
     function indexToGrid(index) {
       const row = Math.floor(index / BOARD_COLS);
       let col = index % BOARD_COLS;
-      if (row % 2 === 1) col = BOARD_COLS - 1 - col;
+      if (row % 2 === 1) col = BOARD_COLS - 1 - col; // 蛇行
       return { row, col };
     }
 
-    function tokenId(i) { return `token-${i}`; }
-    function moneyId(i) { return `money-${i}`; }
-
+    // --- 盤面描画 -------------------------------------------------------------
     function renderBoard() {
       boardEl.style.setProperty("--board-cols", BOARD_COLS);
       boardEl.style.setProperty("--board-rows", BOARD_ROWS);
@@ -367,13 +294,7 @@
         idx.textContent = String(cell.index);
         div.appendChild(idx);
 
-        const icon = document.createElement("div");
-        icon.className = "icon";
-        icon.textContent = cell.icon || "";
-        div.appendChild(icon);
-
         const label = document.createElement("div");
-        label.className = "label";
         label.textContent = cell.label || "";
         div.appendChild(label);
 
@@ -384,6 +305,7 @@
         boardEl.appendChild(div);
       });
 
+      // トークン描画
       state.players.forEach((pl, i) => {
         const token = document.createElement("div");
         token.className = "token";
@@ -396,6 +318,8 @@
       });
       highlightActiveToken();
     }
+
+    function tokenId(i) { return `token-${i}`; }
 
     function placeToken(playerIndex, cellIndex) {
       const targetCell = boardEl.querySelector(`.cell[data-index="${cellIndex}"]`);
@@ -417,6 +341,7 @@
       });
     }
 
+    // --- サイドバー（プレイヤー） ---------------------------------------------
     function renderPlayersPanel() {
       playersPanelEl.innerHTML = "";
       state.players.forEach((pl, i) => {
@@ -427,7 +352,7 @@
         badge.className = "badge"; badge.style.background = pl.color;
         name.appendChild(badge);
         const nameText = document.createElement("span");
-        nameText.textContent = pl.name + (pl.finished ? `（ゴール${pl.finishOrder ? `#${pl.finishOrder}` : ""}）` : "");
+        nameText.textContent = pl.name + (pl.finished ? "（ゴール）" : "");
         name.appendChild(nameText);
 
         const pos = document.createElement("div");
@@ -448,6 +373,7 @@
         playersPanelEl.appendChild(row);
       });
     }
+    function moneyId(i) { return `money-${i}`; }
 
     function flashMoney(playerIndex, delta) {
       const el = $("#"+moneyId(playerIndex));
@@ -456,6 +382,8 @@
       el.classList.add(cls);
       setTimeout(() => el.classList.remove(cls), 400);
     }
+
+    // --- イベント処理 ---------------------------------------------------------
     function resolveCell(playerIndex, index) {
       const pl = state.players[playerIndex];
       const cell = cells[index];
@@ -467,13 +395,10 @@
           break;
         case "goal":
           appendLog(`${pl.name}: ゴール！お疲れさま！`);
-          if (!pl.finished) {
-            pl.finished = true;
-            pl.finishOrder = state.nextFinishOrder++;
-            state.finishedCount += 1;
-            const token = document.getElementById(tokenId(playerIndex));
-            if (token) token.classList.add("finished");
-          }
+          pl.finished = true;
+          state.finishedCount += 1;
+          const token = $("#"+tokenId(playerIndex));
+          if (token) token.classList.add("finished");
           break;
         case "bonus": {
           const amount = [5000, 8000, 10000, 15000, 20000][Math.floor(Math.random() * 5)];
@@ -500,12 +425,14 @@
           }
           break;
         }
-        default: break;
+        default:
+          break;
       }
       renderPlayersPanel();
     }
 
-    const sleep = ms => new Promise(res => setTimeout(res, ms));
+    // --- アニメーション付き移動 ----------------------------------------------
+    function sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
 
     async function animateMove(playerIndex, steps) {
       const pl = state.players[playerIndex];
@@ -516,18 +443,25 @@
 
       for (let s = 0; s < steps; s++) {
         let nextPos = pl.position + 1;
-        if (nextPos >= TOTAL_CELLS - 1) nextPos = TOTAL_CELLS - 1;
+        if (nextPos >= TOTAL_CELLS - 1) { // ゴールを超えない
+          nextPos = TOTAL_CELLS - 1;
+        }
         pl.position = nextPos;
         placeToken(playerIndex, pl.position);
         await sleep(180);
 
-        if (s === steps - 1) resolveCell(playerIndex, pl.position);
-        if (pl.position === TOTAL_CELLS - 1) break;
+        // 最終到達時にイベント解決（好みで毎マスでもOK）
+        if (s === steps - 1) {
+          resolveCell(playerIndex, pl.position);
+        }
+
+        if (pl.position === TOTAL_CELLS - 1) break; // ゴール到達
       }
 
       state.animating = false;
     }
 
+    // --- ターン進行 -----------------------------------------------------------
     function nextPlayerTurn() {
       const total = state.players.length;
       let i = state.currentPlayerIndex;
@@ -548,46 +482,9 @@
       return state.finishedCount === state.players.length;
     }
 
-    function showResultModal() {
-      const ranking = computeRanking(state.players);
-      rankingEl.innerHTML = "";
-      appendLog("結果発表：");
-      ranking.forEach(r => {
-        const row = document.createElement("div");
-        row.className = "rank-row";
-        const place = document.createElement("div");
-        place.className = "place";
-        place.textContent = r.place + "位";
-        const name = document.createElement("div");
-        name.textContent = r.name + (r.finished ? "" : `（未ゴール/位置${r.position}）`);
-        const money = document.createElement("div");
-        money.textContent = yen(r.money);
-
-        row.appendChild(place);
-        row.appendChild(name);
-        row.appendChild(money);
-        rankingEl.appendChild(row);
-
-        appendLog(`${r.place}位: ${r.name}（${r.finished ? "ゴール" : "未ゴール"} / 残高: ${yen(r.money)}）`);
-      });
-      modalBackdrop.style.display = "flex";
-    }
-
-    btnClose.addEventListener("click", () => {
-      modalBackdrop.style.display = "none";
-    });
-    btnRestart.addEventListener("click", () => {
-      modalBackdrop.style.display = "none";
-      resetGame(false);
-      startGame();
-    });
-
+    // --- 入力ハンドラ ---------------------------------------------------------
     btnStart.addEventListener("click", () => {
       if (state.started) return;
-      startGame();
-    });
-
-    function startGame() {
       const count = parseInt(playersCountSel.value, 10);
       const initial = parseInt(initialMoneyInput.value, 10) || 0;
 
@@ -598,13 +495,11 @@
         money: initial,
         finished: false,
         skipTurn: false,
-        finishOrder: null,
       }));
       state.started = true;
       state.turn = 1;
       state.currentPlayerIndex = 0;
       state.finishedCount = 0;
-      state.nextFinishOrder = 1;
 
       appendLog(`ゲーム開始！初期資金: ${yen(initial)} | プレイヤー数: ${count}`);
       renderBoard();
@@ -612,10 +507,11 @@
       statTurnEl.textContent = String(state.turn);
       statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
       btnRoll.disabled = false;
-    }
+    });
 
     btnRoll.addEventListener("click", async () => {
-      if (!state.started || state.animating) return;
+      if (!state.started) return;
+      if (state.animating) return;
 
       const pl = state.players[state.currentPlayerIndex];
       if (!pl || pl.finished) { nextPlayerTurn(); return; }
@@ -629,21 +525,23 @@
         return;
       }
 
+      // サイコロ
       const dice = Math.floor(Math.random() * 6) + 1;
       appendLog(`${pl.name}: サイコロ → ${dice}`);
 
+      // 実際に進めるステップ数（ゴール直前で調整）
       const remaining = (TOTAL_CELLS - 1) - pl.position;
       const steps = Math.min(dice, remaining);
 
       await animateMove(state.currentPlayerIndex, steps);
 
+      // ゴール後や通常ターン終了の処理
       state.turn += 1;
       statTurnEl.textContent = String(state.turn);
 
       if (isGameFinished()) {
         appendLog("全員ゴール！ゲーム終了！");
         btnRoll.disabled = true;
-        showResultModal();
         return;
       }
 
@@ -652,29 +550,25 @@
     });
 
     btnReset.addEventListener("click", () => {
-      resetGame(true);
-    });
-
-    function resetGame(addLog) {
       state.started = false;
       state.turn = 0;
       state.currentPlayerIndex = 0;
       state.players = [];
       state.finishedCount = 0;
       state.animating = false;
-      state.nextFinishOrder = 1;
       btnRoll.disabled = true;
-      if (addLog) appendLog("リセットしました");
       logEl.innerHTML = "";
       statTurnEl.textContent = "0";
       statCurrentEl.textContent = "-";
-      renderBoard();
+      renderBoard(); // 盤面のみ再描画（トークンなし）
       playersPanelEl.innerHTML = "";
-   
-    // 初期盤面の描画（ゲーム未開始時）
+      appendLog("リセットしました");
+    });
+
+    // 初期盤面（ゲーム開始前）
     renderBoard();
 
-    // レイアウト変化時はトークン位置を再計算
+    // レイアウト変化時はトークン位置再計算
     window.addEventListener("resize", () => {
       state.players.forEach((pl, i) => placeToken(i, pl.position));
     });
