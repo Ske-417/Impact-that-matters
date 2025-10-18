@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>人生ゲーム 改良版</title>
+  <title>人生ゲーム（複数プレイヤー＋アニメーション）改良版</title>
   <style>
     :root{
       --board-cols:8; --board-rows:5; --cell-size:68px;
@@ -12,7 +12,11 @@
     }
     *{box-sizing:border-box}
     html,body{height:100%}
-    body{margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,"Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic","Meiryo",sans-serif; color:var(--text); background:var(--bg); display:flex; flex-direction:column; align-items:center}
+    body{
+      margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,"Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic","Meiryo",sans-serif;
+      color:var(--text); background:var(--bg);
+      display:flex; flex-direction:column; align-items:center
+    }
 
     /* ===== App Bar / Toolbar ===== */
     .appbar{position:sticky; top:0; z-index:10; width:100%; display:flex; justify-content:center; background:linear-gradient(180deg, rgba(255,250,240,.95), rgba(255,250,240,.85)); backdrop-filter:saturate(1.2) blur(2px); border-bottom:1px solid #eee}
@@ -111,7 +115,6 @@
     </aside>
   </div>
 
-  <!-- Event Modal -->
   <dialog class="modal" id="modal">
     <div class="card">
       <h3 id="modal-title">イベント</h3>
@@ -121,7 +124,6 @@
     </div>
   </dialog>
 
-  <!-- Result Modal -->
   <dialog class="modal" id="result">
     <div class="card">
       <h3>結果発表</h3>
@@ -131,7 +133,7 @@
   </dialog>
 
   <script>
-  // ====== DOM refs ======
+  // ====== ユーティリティ ======
   const $ = s => document.querySelector(s);
   const boardEl = $("#board"), logEl = $("#log"), diceEl = $("#dice");
   const statTurnEl = $("#stat-turn"), statCurrentEl = $("#stat-current");
@@ -143,26 +145,30 @@
   const modal = $("#modal"), modalTitle = $("#modal-title"), modalText = $("#modal-text"), modalSub = $("#modal-sub"), modalClose = $("#modal-close");
   const resultDlg = $("#result"), resultBody = $("#result-body"), resultClose = $("#result-close");
 
-  // ====== Consts ======
   const BOARD_COLS = 8, BOARD_ROWS = 5, TOTAL_CELLS = BOARD_COLS * BOARD_ROWS;
   const PLAYER_COLORS = ["#ff6b6b", "#4c9aff", "#00c853", "#ff8f00", "#9c27b0", "#00acc1"];
 
-  // RNG (seedable)
-  function createRNG(seed){ if(!seed) return Math.random; let h=2166136261>>>0; for(let i=0;i<seed.length;i++){ h^=seed.charCodeAt(i); h=Math.imul(h,16777619);} return ()=>{ h+=0x6D2B79F5; let t=Math.imul(h^h>>>15,1|h); t^=t+Math.imul(t^t>>>7,61|t); return ((t^t>>>14)>>>0)/4294967296; }; }
+  // 乱数（シード対応）
+  function createRNG(seed){
+    if(!seed) return Math.random;
+    let h = 2166136261 >>> 0;
+    for (let i=0;i<seed.length;i++){ h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return () => { h += 0x6D2B79F5; let t = Math.imul(h ^ h>>>15, 1 | h); t ^= t + Math.imul(t ^ t>>>7, 61 | t); return ((t ^ t>>>14) >>> 0) / 4294967296; };
+  }
   const randPick = (rng, arr)=> arr[Math.floor(rng()*arr.length)];
-  const yen = n => "¥"+n.toLocaleString("ja-JP");
+  const yen = n => "¥" + n.toLocaleString("ja-JP");
   const sleep = ms => new Promise(res=>setTimeout(res, ms));
 
-  // Board cells
+  // 盤面データ
   const cells = Array.from({length:TOTAL_CELLS},(_,i)=>({index:i,type:"none",label:""}));
   cells[0] = {index:0,type:"start",label:"スタート"};
   cells[TOTAL_CELLS-1] = {index:TOTAL_CELLS-1,type:"goal",label:"ゴール"};
-  const mark=(idxs,type,label)=> idxs.forEach(i=>{cells[i].type=type; cells[i].label=label});
-  mark([3,6,9,12,15,18,23,27,31,33],"event","イベント");
-  mark([4,10,16,22,30],"bonus","ボーナス");
-  mark([8,14,20,26,34],"penalty","ペナルティ");
+  const mark = (idxs, type, label)=> idxs.forEach(i=>{cells[i].type=type; cells[i].label=label});
+  mark([3,6,9,12,15,18,23,27,31,33], "event", "イベント");
+  mark([4,10,16,22,30], "bonus", "ボーナス");
+  mark([8,14,20,26,34], "penalty", "ペナルティ");
 
-  const eventTable=[
+  const eventTable = [
     { text:"就職おめでとう！初任給で+¥30,000", money:+30000 },
     { text:"家賃の更新で-¥20,000", money:-20000 },
     { text:"副業がバズって+¥50,000", money:+50000 },
@@ -175,78 +181,233 @@
     { text:"交通違反で-¥12,000", money:-12000 },
   ];
 
-  // State
-  const state={ started:false, turn:0, currentPlayerIndex:0, players:[], finishedCount:0, animating:false, rng:Math.random, seed:"", speed:180, overshoot:"clamp" };
+  // 状態
+  const state = {
+    started:false, turn:0, currentPlayerIndex:0, players:[], finishedCount:0, animating:false,
+    rng: Math.random, seed:"", speed:180, overshoot:"clamp"
+  };
 
-  // Helpers
-  function indexToGrid(index){ const row=Math.floor(index/BOARD_COLS); let col=index%BOARD_COLS; if(row%2===1) col=BOARD_COLS-1-col; return {row,col}; }
-  function tokenId(i){ return `token-${i}` }
+  // インデックス→蛇行グリッド座標
+  function indexToGrid(index){
+    const row = Math.floor(index/BOARD_COLS);
+    let col = index % BOARD_COLS;
+    if(row % 2 === 1) col = BOARD_COLS-1-col;
+    return {row, col};
+  }
 
-  // Render board
+  // 盤面描画
   function renderBoard(){
     boardEl.style.setProperty("--board-cols", BOARD_COLS);
     boardEl.style.setProperty("--board-rows", BOARD_ROWS);
-    boardEl.innerHTML="";
+    boardEl.innerHTML = "";
     cells.forEach(cell=>{
-      const div=document.createElement("div"); div.className="cell "+(cell.type!="none"?cell.type:""); div.dataset.index=String(cell.index);
-      const idx=document.createElement("div"); idx.className="idx"; idx.textContent=String(cell.index); div.appendChild(idx);
-      const label=document.createElement("div"); label.textContent=cell.label||""; div.appendChild(label);
-      const {row,col}=indexToGrid(cell.index); div.style.gridRowStart=row+1; div.style.gridColumnStart=col+1; boardEl.appendChild(div);
+      const div = document.createElement("div");
+      div.className = "cell "+(cell.type!="none"?cell.type:"");
+      div.dataset.index = String(cell.index);
+      const idx = document.createElement("div"); idx.className = "idx"; idx.textContent = String(cell.index); div.appendChild(idx);
+      const label = document.createElement("div"); label.textContent = cell.label||""; div.appendChild(label);
+      const {row,col} = indexToGrid(cell.index); div.style.gridRowStart = row+1; div.style.gridColumnStart = col+1;
+      boardEl.appendChild(div);
     });
-    state.players.forEach((pl,i)=>{ const t=document.createElement("div"); t.className="token"; t.id=tokenId(i); t.textContent=String(i+1); t.style.background=pl.color; if(pl.finished) t.classList.add("finished"); boardEl.appendChild(t); });
+    // トークン
+    state.players.forEach((pl,i)=>{
+      const token=document.createElement("div"); token.className="token"; token.id=tokenId(i); token.textContent=String(i+1); token.style.background=pl.color; if(pl.finished) token.classList.add("finished"); boardEl.appendChild(token);
+    });
     placeAllTokens(); highlightActiveToken();
   }
 
+  function tokenId(i){ return `token-${i}` }
+
+  // 同一マスの重なり回避：扇形に並べる
   function placeAllTokens(){
-    const groups=new Map(); state.players.forEach((pl,i)=>{ if(!groups.has(pl.position)) groups.set(pl.position, []); groups.get(pl.position).push(i); });
-    groups.forEach((idxs,pos)=>{
-      const targetCell=boardEl.querySelector(`.cell[data-index="${pos}"]`); if(!targetCell) return;
-      const rectBoard=boardEl.getBoundingClientRect(); const rc=targetCell.getBoundingClientRect();
-      const cx=rc.left-rectBoard.left+rc.width/2, cy=rc.top-rectBoard.top+rc.height/2; const r=Math.min(rc.width,rc.height)/3.2; const n=idxs.length; const base=-90;
-      idxs.forEach((pi,k)=>{ const angle=base+(n===1?0:(k-(n-1)/2)*30); const rad=angle*Math.PI/180; const x=cx+r*Math.cos(rad)-14, y=cy+r*Math.sin(rad)-14; const t=$("#"+tokenId(pi)); if(t) t.style.transform=`translate(${x}px, ${y}px)`; });
+    const groups = new Map();
+    state.players.forEach((pl,i)=>{
+      if(!groups.has(pl.position)) groups.set(pl.position, []);
+      groups.get(pl.position).push(i);
+    });
+    groups.forEach((idxs, pos)=>{
+      const targetCell = boardEl.querySelector(`.cell[data-index="${pos}"]`);
+      if(!targetCell) return;
+      const rectBoard = boardEl.getBoundingClientRect();
+      const rc = targetCell.getBoundingClientRect();
+      const cx = rc.left - rectBoard.left + rc.width/2; const cy = rc.top - rectBoard.top + rc.height/2;
+      const r = Math.min(rc.width, rc.height) / 3.2;
+      const n = idxs.length; const baseAngle = -90; // 上向き中心
+      idxs.forEach((pi, k)=>{
+        const angle = baseAngle + (n===1?0: (k-(n-1)/2) * 30);
+        const rad = angle * Math.PI / 180;
+        const x = cx + r * Math.cos(rad) - 14; const y = cy + r * Math.sin(rad) - 14;
+        const t = $("#"+tokenId(pi)); if(t) t.style.transform = `translate(${x}px, ${y}px)`;
+      });
     });
   }
-  function highlightActiveToken(){ state.players.forEach((_,i)=>{ const t=$("#"+tokenId(i)); if(!t) return; if(i===state.currentPlayerIndex) t.classList.add("active"); else t.classList.remove("active"); }); }
 
+  function highlightActiveToken(){
+    state.players.forEach((_,i)=>{
+      const t=$("#"+tokenId(i)); if(!t) return; if(i===state.currentPlayerIndex) t.classList.add("active"); else t.classList.remove("active");
+    });
+  }
+
+  // サイドバー
   function moneyId(i){return `money-${i}`}
-  function renderPlayersPanel(){ playersPanelEl.innerHTML=""; state.players.forEach((pl,i)=>{ const row=document.createElement("div"); row.className="player-row"+(i===state.currentPlayerIndex?" active":""); const name=document.createElement("div"); const badge=document.createElement("span"); badge.className="badge"; badge.style.background=pl.color; name.appendChild(badge); const nameText=document.createElement("span"); nameText.textContent=pl.name+(pl.finished?"（ゴール）":""); name.appendChild(nameText); const pos=document.createElement("div"); pos.textContent="位置: "+pl.position; const money=document.createElement("div"); money.className="money"; money.id=moneyId(i); money.textContent=yen(pl.money); const status=document.createElement("div"); status.textContent=pl.skipTurn?"次ターン休み":""; row.appendChild(name); row.appendChild(pos); row.appendChild(money); row.appendChild(status); playersPanelEl.appendChild(row); }); }
+  function renderPlayersPanel(){
+    playersPanelEl.innerHTML="";
+    state.players.forEach((pl,i)=>{
+      const row=document.createElement("div"); row.className="player-row"+(i===state.currentPlayerIndex?" active":"");
+      const name=document.createElement("div");
+      const badge=document.createElement("span"); badge.className="badge"; badge.style.background=pl.color; name.appendChild(badge);
+      const nameText=document.createElement("span"); nameText.textContent = pl.name + (pl.finished?"（ゴール）":""); name.appendChild(nameText);
+      const pos=document.createElement("div"); pos.textContent = "位置: "+pl.position;
+      const money=document.createElement("div"); money.className="money"; money.id=moneyId(i); money.textContent=yen(pl.money);
+      const status=document.createElement("div"); status.textContent = pl.skipTurn?"次ターン休み":"";
+      row.appendChild(name); row.appendChild(pos); row.appendChild(money); row.appendChild(status);
+      playersPanelEl.appendChild(row);
+    });
+  }
   function flashMoney(i,delta){ const el=$("#"+moneyId(i)); if(!el) return; const cls=delta>=0?"flash-plus":"flash-minus"; el.classList.add(cls); setTimeout(()=>el.classList.remove(cls), 400) }
 
-  function pushLog(text,kind){ const p=document.createElement("p"); p.textContent=text; if(kind) p.classList.add(kind); logEl.appendChild(p); logEl.scrollTop=logEl.scrollHeight; }
-  function showCard(title,text,sub){ modalTitle.textContent=title; modalText.textContent=text; modalSub.textContent=sub||""; modal.showModal(); }
-  modalClose.addEventListener("click",()=> modal.close());
+  // ログ
+  function pushLog(text, kind){ const p=document.createElement("p"); p.textContent=text; if(kind) p.classList.add(kind); logEl.appendChild(p); logEl.scrollTop = logEl.scrollHeight; }
 
-  function resolveCell(playerIndex,index){ const pl=state.players[playerIndex]; const cell=cells[index]; if(!cell||!pl) return; switch(cell.type){ case "start": pushLog(`${pl.name}: スタート！","ok"); break; case "goal": pl.finished=true; state.finishedCount+=1; $("#"+tokenId(playerIndex))?.classList.add("finished"); pushLog(`${pl.name}: ゴール！お疲れ！`); showCard("ゴール", `${pl.name} がゴール！`, `現在残高: ${yen(pl.money)}`); break; case "bonus":{ const amount=randPick(state.rng,[5000,8000,10000,15000,20000]); pl.money+=amount; flashMoney(playerIndex,amount); pushLog(`${pl.name}: ボーナス！${yen(amount)}獲得（残高: ${yen(pl.money)}）`,"ok"); break;} case "penalty":{ const amount=randPick(state.rng,[5000,8000,10000,15000,20000]); pl.money-=amount; flashMoney(playerIndex,-amount); pushLog(`${pl.name}: ペナルティ…${yen(amount)}失う（残高: ${yen(pl.money)}）`,"bad"); break;} case "event":{ const ev=randPick(state.rng,eventTable); pl.money+=ev.money; flashMoney(playerIndex,ev.money); pushLog(`${pl.name}: ${ev.text}（残高: ${yen(pl.money)}）`, ev.money>=0?"ok":"bad"); if(state.rng()<0.10){ pl.skipTurn=true; pushLog(`${pl.name}: 次のターンはお休み（スキップ）`); } showCard("イベント", ev.text, `${pl.name} / 残高: ${yen(pl.money)}`); break;} default: break; } renderPlayersPanel(); }
+  // モーダル
+  function showCard(title, text, sub){ modalTitle.textContent=title; modalText.textContent=text; modalSub.textContent=sub||""; modal.showModal(); }
+  modalClose.addEventListener("click", ()=> modal.close());
 
-  function rollDice(){ const n=Math.floor(state.rng()*6)+1; diceEl.textContent=n; diceEl.classList.add("spin"); setTimeout(()=>diceEl.classList.remove("spin"),620); return n; }
+  // セル効果
+  function resolveCell(playerIndex, index){
+    const pl = state.players[playerIndex]; const cell = cells[index]; if(!cell||!pl) return;
+    switch(cell.type){
+      case "start": pushLog(`${pl.name}: スタート！`, "ok"); break;
+      case "goal":
+        pl.finished = true; state.finishedCount += 1; $("#"+tokenId(playerIndex))?.classList.add("finished");
+        pushLog(`${pl.name}: ゴール！お疲れ！`);
+        showCard("ゴール", `${pl.name} がゴール！`, `現在残高: ${yen(pl.money)}`);
+        break;
+      case "bonus":{
+        const amount = randPick(state.rng, [5000,8000,10000,15000,20000]); pl.money += amount; flashMoney(playerIndex, amount);
+        pushLog(`${pl.name}: ボーナス！${yen(amount)}獲得（残高: ${yen(pl.money)}）`, "ok"); break;
+      }
+      case "penalty":{
+        const amount = randPick(state.rng, [5000,8000,10000,15000,20000]); pl.money -= amount; flashMoney(playerIndex, -amount);
+        pushLog(`${pl.name}: ペナルティ…${yen(amount)}失う（残高: ${yen(pl.money)}）`, "bad"); break;
+      }
+      case "event":{
+        const ev = randPick(state.rng, eventTable); pl.money += ev.money; flashMoney(playerIndex, ev.money);
+        pushLog(`${pl.name}: ${ev.text}（残高: ${yen(pl.money)}）`, ev.money>=0?"ok":"bad");
+        if(state.rng() < 0.10){ pl.skipTurn = true; pushLog(`${pl.name}: 次のターンはお休み（スキップ）`); }
+        showCard("イベント", ev.text, `${pl.name} / 残高: ${yen(pl.money)}`);
+        break;
+      }
+    }
+    renderPlayersPanel();
+  }
 
-  async function animateMove(playerIndex,steps){ const pl=state.players[playerIndex]; if(!pl||pl.finished) return; state.animating=true; btnRoll.disabled=true; const delay=Number(speedInput.value||state.speed); let pos=pl.position; let remain=steps; while(remain>0){ let next=pos+1; if(next>=TOTAL_CELLS-1){ if(state.overshoot==="clamp"){ next=TOTAL_CELLS-1; pos=next; pl.position=pos; placeAllTokens(); await sleep(delay); break; } else { const extra=remain-1-((TOTAL_CELLS-1)-pos-1); pos=TOTAL_CELLS-1; pl.position=pos; placeAllTokens(); await sleep(delay); for(let b=0;b<extra;b++){ pos-=1; pl.position=pos; placeAllTokens(); await sleep(delay); } remain=0; break; } } pos=next; pl.position=pos; placeAllTokens(); await sleep(delay); remain--; } resolveCell(playerIndex,pl.position); state.animating=false; }
+  // ダイス
+  function rollDice(){ const n = Math.floor(state.rng()*6)+1; diceEl.textContent = n; diceEl.classList.add("spin"); setTimeout(()=>diceEl.classList.remove("spin"), 620); return n; }
 
-  function nextPlayerTurn(){ const total=state.players.length; let i=state.currentPlayerIndex; for(let c=0;c<total;c++){ i=(i+1)%total; const p=state.players[i]; if(!p.finished){ state.currentPlayerIndex=i; break; } } highlightActiveToken(); renderPlayersPanel(); statCurrentEl.textContent=state.players[state.currentPlayerIndex].name; }
-  const isGameFinished=()=> state.finishedCount===state.players.length;
+  // トークン移動
+  async function animateMove(playerIndex, steps){
+    const pl = state.players[playerIndex]; if(!pl || pl.finished) return;
+    state.animating = true; btnRoll.disabled = true; const delay = Number(speedInput.value || state.speed);
 
-  function openResult(){ const rows=state.players.map((p,i)=>({i,name:p.name,money:p.money})).sort((a,b)=>b.money-a.money); let html=`<table><thead><tr><th>順位</th><th>プレイヤー</th><th>所持金</th><th>差額</th></tr></thead><tbody>`; const top=rows[0]?.money??0; rows.forEach((r,idx)=>{ const diff=r.money-top; html+=`<tr><td>${idx+1}</td><td>${r.name}</td><td>${yen(r.money)}</td><td>${diff===0?"-":yen(diff)}</td></tr>`; }); html+=`</tbody></table>`; resultBody.innerHTML=html; resultDlg.showModal(); }
-  resultClose.addEventListener("click",()=> resultDlg.close());
+    let pos = pl.position; let remain = steps;
+    while(remain>0){
+      let next = pos + 1;
+      if(next >= TOTAL_CELLS-1){
+        if(state.overshoot === "clamp"){ next = TOTAL_CELLS-1; pos = next; pl.position = pos; placeAllTokens(); await sleep(delay); break; }
+        else { // bounce
+          const extra = remain - 1 - ((TOTAL_CELLS-1) - pos - 1);
+          // 進み切って反射
+          pos = TOTAL_CELLS-1; pl.position = pos; placeAllTokens(); await sleep(delay);
+          for(let b=0; b<extra; b++){ pos -= 1; pl.position = pos; placeAllTokens(); await sleep(delay); }
+          remain = 0; break;
+        }
+      }
+      pos = next; pl.position = pos; placeAllTokens(); await sleep(delay); remain--;
+    }
+    resolveCell(playerIndex, pl.position);
+    state.animating = false;
+  }
 
-  const SAVE_KEY="life-game-save-v3";
-  function snapshot(){ return JSON.stringify({ started:state.started, turn:state.turn, currentPlayerIndex:state.currentPlayerIndex, finishedCount:state.finishedCount, players:state.players, seed:state.seed, overshoot:state.overshoot, speed:Number(speedInput.value||state.speed) }); }
-  function restore(json){ try{ const d=JSON.parse(json); state.started=d.started; state.turn=d.turn; state.currentPlayerIndex=d.currentPlayerIndex; state.finishedCount=d.finishedCount; state.players=d.players; state.seed=d.seed||""; state.overshoot=d.overshoot||"clamp"; state.rng=createRNG(state.seed||""); speedInput.value=String(d.speed||180); overshootSel.value=state.overshoot; rngSeedInput.value=state.seed; renderBoard(); renderPlayersPanel(); statTurnEl.textContent=String(state.turn); statCurrentEl.textContent=state.players[state.currentPlayerIndex]?.name||"-"; pushLog("保存データを読み込みました。","ok"); }catch(e){ alert("読み込みに失敗しました"); }}
+  function nextPlayerTurn(){
+    const total = state.players.length; let i = state.currentPlayerIndex;
+    for(let c=0;c<total;c++){ i=(i+1)%total; const p=state.players[i]; if(!p.finished){ state.currentPlayerIndex=i; break; } }
+    highlightActiveToken(); renderPlayersPanel(); statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
+  }
+  const isGameFinished = ()=> state.finishedCount === state.players.length;
 
-  btnSave.addEventListener("click",()=>{ localStorage.setItem(SAVE_KEY, snapshot()); pushLog("保存しました","ok"); });
-  btnLoad.addEventListener("click",()=>{ const s=localStorage.getItem(SAVE_KEY); if(!s) return alert("保存がありません"); restore(s); });
-  btnExport.addEventListener("click",()=>{ const blob=new Blob([snapshot()],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="life-game-save.json"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); });
-  btnImport.addEventListener("click",()=> fileImport.click());
-  fileImport.addEventListener("change", async e=>{ const f=e.target.files?.[0]; if(!f) return; const txt=await f.text(); restore(txt); fileImport.value=""; });
+  // 結果表示
+  function openResult(){
+    const rows = state.players.map((p,i)=>({i, name:p.name, money:p.money})).sort((a,b)=> b.money-a.money);
+    let html = `<table><thead><tr><th>順位</th><th>プレイヤー</th><th>所持金</th><th>差額</th></tr></thead><tbody>`;
+    const top = rows[0]?.money ?? 0;
+    rows.forEach((r,idx)=>{ const diff = r.money - top; html += `<tr><td>${idx+1}</td><td>${r.name}</td><td>${yen(r.money)}</td><td>${diff===0?"-":yen(diff)}</td></tr>`; });
+    html += `</tbody></table>`;
+    resultBody.innerHTML = html; resultDlg.showModal();
+  }
+  resultClose.addEventListener("click", ()=> resultDlg.close());
 
-  // Start/Reset/Roll
-  btnStart.addEventListener("click",()=>{ if(state.started) return; const count=parseInt(playersCountSel.value,10); const initial=parseInt(initialMoneyInput.value,10)||0; const seed=(rngSeedInput.value||"").trim(); state.seed=seed; state.rng=createRNG(seed); state.players=Array.from({length:count},(_,i)=>({ name:`プレイヤー${i+1}`, color:PLAYER_COLORS[i%PLAYER_COLORS.length], position:0, money:initial, finished:false, skipTurn:false })); state.started=true; state.turn=1; state.currentPlayerIndex=0; state.finishedCount=0; state.overshoot=overshootSel.value; state.speed=Number(speedInput.value||180); pushLog(`ゲーム開始！初期資金: ${yen(initial)} | プレイヤー数: ${count} ${seed?`| シード:${seed}`:""}`,"ok"); renderBoard(); renderPlayersPanel(); statTurnEl.textContent=String(state.turn); statCurrentEl.textContent=state.players[state.currentPlayerIndex].name; btnRoll.disabled=false; diceEl.textContent='-'; });
+  // 保存/読込/IO
+  const SAVE_KEY = "life-game-save-v3";
+  function snapshot(){ return JSON.stringify({
+    started:state.started, turn:state.turn, currentPlayerIndex:state.currentPlayerIndex, finishedCount:state.finishedCount,
+    players:state.players, seed:state.seed, overshoot:state.overshoot, speed:Number(speedInput.value||state.speed)
+  }); }
+  function restore(json){ try{
+    const d = JSON.parse(json);
+    state.started = d.started; state.turn = d.turn; state.currentPlayerIndex = d.currentPlayerIndex; state.finishedCount = d.finishedCount;
+    state.players = d.players; state.seed = d.seed||""; state.overshoot = d.overshoot||"clamp"; state.rng = createRNG(state.seed||"");
+    speedInput.value = String(d.speed||180); overshootSel.value = state.overshoot; rngSeedInput.value = state.seed;
+    renderBoard(); renderPlayersPanel(); statTurnEl.textContent = String(state.turn); statCurrentEl.textContent = state.players[state.currentPlayerIndex]?.name || "-";
+    pushLog("保存データを読み込みました。", "ok");
+  }catch(e){ alert("読み込みに失敗しました"); }}
 
-  btnReset.addEventListener("click",()=>{ Object.assign(state,{started:false,turn:0,currentPlayerIndex:0,players:[],finishedCount:0,animating:false}); btnRoll.disabled=true; logEl.innerHTML=""; statTurnEl.textContent="0"; statCurrentEl.textContent="-"; diceEl.textContent='-'; renderBoard(); playersPanelEl.innerHTML=""; pushLog("リセットしました"); });
+  btnSave.addEventListener("click", ()=>{ localStorage.setItem(SAVE_KEY, snapshot()); pushLog("保存しました", "ok"); });
+  btnLoad.addEventListener("click", ()=>{ const s=localStorage.getItem(SAVE_KEY); if(!s) return alert("保存がありません"); restore(s); });
+  btnExport.addEventListener("click", ()=>{
+    const blob = new Blob([snapshot()], {type:"application/json"});
+    const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href=url; a.download="life-game-save.json"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  });
+  btnImport.addEventListener("click", ()=> fileImport.click());
+  fileImport.addEventListener("change", async e=>{ const f=e.target.files?.[0]; if(!f) return; const txt = await f.text(); restore(txt); fileImport.value=""; });
 
-  btnRoll.addEventListener("click", async ()=>{ if(!state.started||state.animating) return; const pl=state.players[state.currentPlayerIndex]; if(!pl||pl.finished){ nextPlayerTurn(); return; } if(pl.skipTurn){ pushLog(`${pl.name}: ターンをスキップします`); pl.skipTurn=false; state.turn+=1; statTurnEl.textContent=String(state.turn); nextPlayerTurn(); return; } const dice=rollDice(); pushLog(`${pl.name}: サイコロ → ${dice}`); const remaining=(TOTAL_CELLS-1)-pl.position; const steps=state.overshoot==="clamp"? Math.min(dice,remaining): dice; await animateMove(state.currentPlayerIndex,steps); state.turn+=1; statTurnEl.textContent=String(state.turn); if(state.finishedCount===state.players.length){ pushLog("全員ゴール！ゲーム終了！"); btnRoll.disabled=true; openResult(); return; } nextPlayerTurn(); btnRoll.disabled=false; });
+  // ボタン/開始
+  btnStart.addEventListener("click", ()=>{
+    if(state.started) return;
+    const count = parseInt(playersCountSel.value,10); const initial = parseInt(initialMoneyInput.value,10)||0;
+    const seed = (rngSeedInput.value||"").trim(); state.seed = seed; state.rng = createRNG(seed);
+    state.players = Array.from({length:count},(_,i)=>({ name:`プレイヤー${i+1}`, color:PLAYER_COLORS[i % PLAYER_COLORS.length], position:0, money:initial, finished:false, skipTurn:false }));
+    state.started=true; state.turn=1; state.currentPlayerIndex=0; state.finishedCount=0; state.overshoot = overshootSel.value; state.speed = Number(speedInput.value||180);
+    pushLog(`ゲーム開始！初期資金: ${yen(initial)} | プレイヤー数: ${count} ${seed?`| シード:${seed}`:""}`, "ok");
+    renderBoard(); renderPlayersPanel(); statTurnEl.textContent=String(state.turn); statCurrentEl.textContent=state.players[state.currentPlayerIndex].name; btnRoll.disabled=false; diceEl.textContent='-';
+  });
 
-  window.addEventListener("keydown", e=>{ if(e.code==="Space"||e.key==="Enter"){ e.preventDefault(); btnRoll.click(); } if(e.key.toLowerCase()==='r'&&!state.animating){ btnReset.click(); } });
+  btnReset.addEventListener("click", ()=>{
+    Object.assign(state, {started:false, turn:0, currentPlayerIndex:0, players:[], finishedCount:0, animating:false});
+    btnRoll.disabled=true; logEl.innerHTML=""; statTurnEl.textContent="0"; statCurrentEl.textContent="-"; diceEl.textContent='-';
+    renderBoard(); playersPanelEl.innerHTML=""; pushLog("リセットしました");
+  });
 
+  btnRoll.addEventListener("click", async ()=>{
+    if(!state.started || state.animating) return;
+    const pl = state.players[state.currentPlayerIndex]; if(!pl || pl.finished){ nextPlayerTurn(); return; }
+    if(pl.skipTurn){ pushLog(`${pl.name}: ターンをスキップします`); pl.skipTurn=false; state.turn+=1; statTurnEl.textContent=String(state.turn); nextPlayerTurn(); return; }
+    const dice = rollDice(); pushLog(`${pl.name}: サイコロ → ${dice}`);
+    // 残り
+    const remaining = (TOTAL_CELLS-1) - pl.position; const steps = state.overshoot==="clamp"? Math.min(dice, remaining): dice;
+    await animateMove(state.currentPlayerIndex, steps);
+    state.turn += 1; statTurnEl.textContent = String(state.turn);
+    if(isGameFinished()){ pushLog("全員ゴール！ゲーム終了！"); btnRoll.disabled=true; openResult(); return; }
+    nextPlayerTurn(); btnRoll.disabled=false;
+  });
+
+  // キーボード: Space/Enterでサイコロ、Rでリセット
+  window.addEventListener("keydown", e=>{
+    if(e.code==="Space" || e.key==="Enter"){ e.preventDefault(); btnRoll.click(); }
+    if(e.key.toLowerCase()==='r' && !state.animating){ btnReset.click(); }
+  });
+
+  // 初期描画＆リサイズ時の再配置
   renderBoard();
   window.addEventListener("resize", ()=> placeAllTokens());
   </script>
