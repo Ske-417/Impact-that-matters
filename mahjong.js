@@ -219,8 +219,9 @@ class MahjongGame {
         return;
       }
 
-      // CPU discards a random tile
-      const discardIndex = Math.floor(Math.random() * cpu.hand.length);
+      // CPU discards intelligently
+      // Strategy: discard isolated tiles or tiles far from sequences
+      const discardIndex = this.cpuSelectDiscardTile(cpu);
       const discarded = cpu.hand.splice(discardIndex, 1)[0];
       cpu.discarded.push(discarded);
       
@@ -290,38 +291,128 @@ class MahjongGame {
   }
 
   canFormWinningCombination(groups) {
+    // Improved winning validation - checks for valid mahjong hand
+    // A winning hand needs: 4 melds (3 tiles each) + 1 pair (2 tiles)
+    // Melds can be: triplets/quads (same tile) OR sequences (consecutive tiles)
+    
     const values = Object.values(groups);
+    const totalTiles = values.reduce((sum, count) => sum + count, 0);
     
     // Must have at least one pair
     const hasPair = values.some(count => count >= 2);
     if (!hasPair) return false;
     
-    // Must have sets (3 or 4 of a kind, or sequences)
-    const hasSets = values.some(count => count >= 3);
+    // Check for valid combinations
+    // Simplified check: must have at least one triplet/quad or multiple pairs
+    const triplets = values.filter(count => count >= 3).length;
+    const pairs = values.filter(count => count >= 2).length;
     
-    return hasSets;
+    // Basic validation: sufficient tiles for a complete hand
+    return (triplets >= 1 && pairs >= 1) || (pairs >= 4);
+  }
+
+  // Helper to check if tiles can form a sequence
+  canFormSequence(hand, type) {
+    const tiles = hand.filter(t => t.type === type);
+    if (tiles.length < 3) return false;
+    
+    // Get numeric values for sequence checking
+    const values = tiles.map(t => {
+      const typeArray = this.tileTypes[type];
+      return typeArray.indexOf(t.value);
+    }).sort((a, b) => a - b);
+    
+    // Check for consecutive sequences
+    for (let i = 0; i <= values.length - 3; i++) {
+      if (values[i+1] === values[i] + 1 && values[i+2] === values[i] + 2) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // CPU AI: Select which tile to discard
+  cpuSelectDiscardTile(cpu) {
+    const hand = cpu.hand;
+    
+    // Count tiles by type
+    const typeCounts = {};
+    hand.forEach(tile => {
+      typeCounts[tile.type] = (typeCounts[tile.type] || 0) + 1;
+    });
+    
+    // Strategy 1: Discard honor tiles (字牌) if not forming pairs
+    for (let i = 0; i < hand.length; i++) {
+      if (hand[i].type === 'honors') {
+        const sameCount = hand.filter(t => t.value === hand[i].value).length;
+        if (sameCount === 1) return i; // Discard isolated honor tile
+      }
+    }
+    
+    // Strategy 2: Discard tiles from minority suits
+    const minSuit = Object.keys(typeCounts).reduce((a, b) => 
+      typeCounts[a] < typeCounts[b] ? a : b
+    );
+    for (let i = 0; i < hand.length; i++) {
+      if (hand[i].type === minSuit) return i;
+    }
+    
+    // Fallback: random discard
+    return Math.floor(Math.random() * hand.length);
   }
 
   calculateScore(hand) {
     const groups = this.groupTiles(hand);
+    let han = 1; // Base han
     let score = 1000; // Base score
     
-    // Add points for pairs
-    Object.values(groups).forEach(count => {
-      if (count === 2) score += 100;
-      if (count === 3) score += 300;
-      if (count === 4) score += 600;
-    });
+    // Check for yaku (winning patterns)
     
-    // Check for same suit
+    // All same suit (清一色 - Chiniisou) - 6 han
     const types = new Set(hand.map(t => t.type));
-    if (types.size === 1) {
-      score += 3000; // Bonus for same suit (simplified chiniisou)
-    } else if (types.size === 2 && types.has('honors')) {
-      score += 2000; // Bonus for honitsu
+    if (types.size === 1 && !types.has('honors')) {
+      han += 6;
+      score += 6000;
+    }
+    // Mixed suit with honors (混一色 - Honitsu) - 3 han
+    else if (types.size === 2 && types.has('honors')) {
+      han += 3;
+      score += 3000;
     }
     
-    return score;
+    // All triplets (対々和 - Toitoihou) - 2 han
+    const allTriplets = Object.values(groups).every(count => count === 0 || count >= 3);
+    if (allTriplets) {
+      han += 2;
+      score += 2000;
+    }
+    
+    // Multiple pairs bonus
+    const pairs = Object.values(groups).filter(count => count === 2).length;
+    if (pairs >= 2) {
+      score += pairs * 100;
+    }
+    
+    // Triplets/Quads bonus
+    Object.values(groups).forEach(count => {
+      if (count === 3) score += 300;
+      if (count === 4) {
+        score += 600;
+        han += 1;
+      }
+    });
+    
+    // Honor tiles bonus
+    hand.forEach(tile => {
+      if (tile.type === 'honors' && groups[tile.value] >= 3) {
+        score += 500;
+        han += 1;
+      }
+    });
+    
+    // Calculate final score based on han
+    const basePoints = Math.floor(score * Math.pow(2, han - 1));
+    return Math.min(basePoints, 32000); // Cap at mangan
   }
 
   declareRon() {
