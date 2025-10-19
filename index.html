@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>人生ゲーム ver-14</title>
+  <title>人生ゲーム ver-15</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <style>
     :root{
@@ -150,7 +150,7 @@
   <!-- App Bar -->
   <div class="appbar">
     <div class="toolbar" role="group" aria-label="ゲーム設定">
-      <div class="title" id="app-title">人生ゲーム ver-14</div>
+      <div class="title" id="app-title">人生ゲーム ver-15</div>
 
       <div class="group"><label for="players-count">人数</label><select id="players-count"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option></select></div>
       <div class="group"><label for="initial-money">初期資金</label><input id="initial-money" type="number" value="50000" min="0" step="1000" /></div>
@@ -335,14 +335,9 @@
 
   <script>
   // ===========================
-  // 人生ゲーム — コンサル体験拡張 ver-14
-  // 完全版（省略なし） — ペルソナ管理モーダル内ボタンの不具合修正を反映、verを更新しました
-  // 変更点:
-  // - ペルソナモーダル内の全ボタンに type="button" を明示
-  // - dialog と .card の z-index を調整
-  // - モーダル内部クリックでイベント伝播を止める処理を強化
-  // - 盤面は横幅 overflow に対応（横スクロール）してはみ出しを防止
-  // - 実績の誤付与バグ（early_goal）がないことを確認済み
+  // 人生ゲーム — コンサル体験拡張 ver-15
+  // 完全版（省略なし） — promotePersonaButtons の capture stopPropagation を削除して
+  // persona 管理モーダル内ボタンが正しく動作するように修正しました。
   // ===========================
   (function(){
     const $ = s => document.querySelector(s);
@@ -1383,8 +1378,8 @@
         if(!b.getAttribute("type")) b.setAttribute("type","button");
         b.style.position = "relative";
         b.style.zIndex = 1225;
-        // safety: stop propagation on click to avoid dialog/backdrop interfering
-        b.addEventListener("click", (ev) => { ev.stopPropagation(); }, { capture: true });
+        // NOTE: Removed capture-phase stopPropagation that previously prevented delegated handlers from running.
+        // Do NOT stop propagation here — rely on personaTbody delegation for actions.
       });
     }
 
