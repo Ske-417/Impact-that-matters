@@ -39,7 +39,7 @@
     }
     *{box-sizing:border-box}
     html,body{height:100%; margin:0}
-    /* User requested: all text bold */
+    /* All text bold per request */
     body{
       display:flex; flex-direction:column; align-items:stretch;
       font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,"Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic","Meiryo",sans-serif;
@@ -57,7 +57,7 @@
       pointer-events:auto;
       box-shadow: 0 4px 18px rgba(0,0,0,0.03);
     }
-    /* slightly smaller toolbar per request */
+    /* slightly smaller toolbar */
     .toolbar{width:100%; padding:6px 10px; display:flex; flex-wrap:wrap; align-items:center; gap:10px}
     .title{font-weight:900; font-size:15px; color:var(--black); letter-spacing:.02em; white-space:nowrap; margin-right:auto}
 
@@ -74,7 +74,7 @@
       box-shadow: none;
       font-weight:900;
     }
-    /* simplified, flat primary button (no heavy gradient) */
+    /* flat primary button */
     button.primary{
       background: var(--green);
       color: var(--white);
@@ -90,7 +90,17 @@
 
     /* player name inputs */
     .player-names { display:flex; gap:8px; align-items:center; }
-    .player-names input { width:140px; padding:8px 10px; border-radius:10px; border:1px solid var(--gray); background:var(--white); color:var(--black); font-weight:900; }
+    .player-names input {
+      width:140px; padding:8px 10px; border-radius:10px; border:1px solid var(--gray);
+      background:var(--white); color:var(--black); font-weight:900;
+      transition: box-shadow .12s ease, border-color .12s ease;
+    }
+    /* focus state: border becomes green and subtle ring */
+    .player-names input:focus{
+      outline: none;
+      border-color: var(--green);
+      box-shadow: 0 0 0 6px rgba(134,187,39,0.08);
+    }
 
     /* ===== Layout ===== */
     .wrap{width:100%; padding:16px; display:grid; grid-template-columns:3fr 1.1fr; gap:12px; flex:1; align-items:start}
@@ -158,7 +168,6 @@
     .log p{margin:0 0 8px}
     .log p.ok{color:var(--green)}
     .log p.bad{color:var(--black)}
-    .footer{font-size:12px; color:var(--black); font-weight:900}
 
     /* nice little flash for attribute changes */
     .flash-attr { animation: flashAttr 520ms ease; }
@@ -184,7 +193,7 @@
   <!-- App Bar -->
   <div class="appbar">
     <div class="toolbar" role="group" aria-label="ゲーム設定">
-      <!-- Title changed to requested text; only leading capital M is green -->
+      <!-- Title with only leading M green -->
       <div class="title" id="app-title"><span style="color:var(--green); font-weight:900;">M</span>ake an impact that matters</div>
 
       <div class="group"><label for="players-count">人数</label>
@@ -193,7 +202,7 @@
         </select>
       </div>
 
-      <div class="group"><label for="initial-money">初期(未使用)</label><input id="initial-money" type="number" value="50000" min="0" step="1000" /></div>
+      <!-- initial money removed per request -->
 
       <!-- Player name inputs -->
       <div class="group player-names" id="player-names"></div>
@@ -223,7 +232,7 @@
       <div class="stat"><span>手番</span><strong id="stat-current">-</strong></div>
       <div class="players" id="players-panel"></div>
       <div class="log" id="log" aria-live="polite" aria-atomic="false"></div>
-      <div class="footer">Space/Enterでサイコロ。全員がゴールすると結果発表。</div>
+      <!-- footer text removed per request -->
     </aside>
   </div>
 
@@ -279,7 +288,7 @@
     const statTurnEl = $("#stat-turn"), statCurrentEl = $("#stat-current");
     const playersPanelEl = $("#players-panel");
     const btnStart = $("#btn-start"), btnRoll = $("#btn-roll"), btnReset = $("#btn-reset");
-    const playersCountSel = $("#players-count"), initialMoneyInput = $("#initial-money");
+    const playersCountSel = $("#players-count");
     const playerNamesEl = $("#player-names");
     const btnZoomIn = $("#btn-zoom-in"), btnZoomOut = $("#btn-zoom-out");
     const tooltip = $("#tooltip");
@@ -288,7 +297,6 @@
     const resultDlg = $("#result"), resultBody = $("#result-body");
 
     const BOARD_COLS = 10, BOARD_ROWS = 6, TOTAL_CELLS = BOARD_COLS * BOARD_ROWS;
-    // token colors restricted to allowed palette (green, light green, gray, black)
     const PLAYER_COLORS = ["#86BB27", "#DFF3C6", "#C4C4C4", "#000000", "#86BB27"];
     const BRANCH_CHANCE = 0.36;
 
@@ -329,7 +337,7 @@
       rng: Math.random, speed:180, overshoot:"clamp", playerSettings: []
     };
 
-    // player name inputs
+    // Initialize player name inputs based on players-count
     function renderPlayerNameInputs(){
       const count = Math.max(1, parseInt(playersCountSel.value || "2"));
       playerNamesEl.innerHTML = "";
@@ -347,7 +355,8 @@
 
     function getPlayerNames(){
       const inputs = playerNamesEl.querySelectorAll("input");
-      return Array.from(inputs).map((inp, i) => inp.value.trim() || `プレイヤー${i+1}`);
+      const names = Array.from(inputs).map(inp => inp.value.trim() || inp.placeholder);
+      return names;
     }
 
     // helpers
@@ -356,17 +365,7 @@
     function tokenId(i){ return `token-${i}` }
     function yen(n){ return "¥" + Number(n).toLocaleString("ja-JP"); }
 
-    function flashAttr(playerIndex, attrName){
-      try{
-        const idKey = attrName === 'responsibility' ? 'responsibility' : attrName;
-        const el = document.getElementById(`${idKey}-${playerIndex}`);
-        if(!el) return;
-        el.classList.add('flash-attr');
-        setTimeout(()=> el.classList.remove('flash-attr'), 520);
-      }catch(e){}
-    }
-
-    // board setup
+    // Board setup: use 'コスト' label for penalty cells
     const cells = Array.from({length:TOTAL_CELLS},(_,i)=>({index:i,type:"none",label:""}));
     cells[0] = {index:0,type:"start",label:"スタート"};
     cells[TOTAL_CELLS-1] = {index:TOTAL_CELLS-1,type:"goal",label:"ゴール"};
@@ -376,7 +375,7 @@
         else if(i % 13 === 0) { cells[i].type = "workshop"; cells[i].label = "ワークショップ"; }
         else if(i % 6 === 0) { cells[i].type = "event"; cells[i].label = "案件/イベント"; }
         else if(i % 5 === 0) { cells[i].type = "bonus"; cells[i].label = "案件成功"; }
-        else if(i % 7 === 0) { cells[i].type = "penalty"; cells[i].label = "コスト発生"; }
+        else if(i % 7 === 0) { cells[i].type = "penalty"; cells[i].label = "コスト"; } // changed here
         else { cells[i].type = "none"; cells[i].label = ""; }
       }
     })();
@@ -402,7 +401,7 @@
         label.textContent = isEventish ? "イベント" : (cell.label||"");
         div.appendChild(label);
         const {row,col} = indexToGrid(cell.index); div.style.gridRowStart = row+1; div.style.gridColumnStart = col+1;
-        // hover handlers still attached but tooltip functions are no-op
+        // hover handlers still attached but tooltip functions are no-op now
         div.addEventListener("mouseenter", e=> showCellTooltip(cell, e));
         div.addEventListener("mousemove", e=> moveTooltip(e));
         div.addEventListener("mouseleave", hideTooltip);
@@ -580,7 +579,7 @@
       });
     }
 
-    // resolveCell
+    // resolveCell (unchanged behavior)
     async function resolveCell(playerIndex, index){
       const pl = state.players[playerIndex]; const cell = cells[index]; if(!cell||!pl) return;
       switch(cell.type){
@@ -619,7 +618,7 @@
               flashAttr(playerIndex, k);
             }
           });
-          pushLog(`${pl.name}: ペナルティイベント（属性変動）`, "bad");
+          pushLog(`${pl.name}: コスト（属性変動）`, "bad");
           break;
         }
 
@@ -689,7 +688,8 @@
       renderPlayersPanel();
     }
 
-    // dice and movement
+    // dice and movement and other controls unchanged...
+
     function rollDice(){ const n = Math.floor(state.rng()*6)+1; if(diceEl) diceEl.textContent = n; if(diceEl) diceEl.classList.add("spin"); setTimeout(()=>{ if(diceEl) diceEl.classList.remove("spin"); }, 620); return n; }
     async function animateMove(playerIndex, steps){
       const pl = state.players[playerIndex]; if(!pl || pl.finished) return;
@@ -728,7 +728,6 @@
         }
         remaining--;
       }
-      // Wait until cell resolution completes (modals included)
       await resolveCell(playerIndex, pl.position);
       state.animating = false; updateRollState();
     }
@@ -754,7 +753,6 @@
     }
     const isGameFinished = ()=> state.finishedCount === state.players.length;
 
-    // show result
     function showResult(){
       if(!resultDlg) return;
       const rows = state.players.map((p,i)=>({i, name:p.name, score: Math.round(estimateScore(p))})).sort((a,b)=> b.score-a.score);
@@ -762,7 +760,6 @@
       try{ resultDlg.showModal(); }catch(e){}
     }
 
-    // control
     function startGame(){
       if(state.started) return;
       const count = Math.max(1, parseInt(playersCountSel?.value || "2"));
@@ -869,18 +866,6 @@
     renderPlayersPanel();
     updateRollState();
     window.dispatchEvent(new CustomEvent('app-ready'));
-
-    // helpers exposed
-    function estimateScore(p){
-      return ( (p.learning||0) * 0.35 + (p.rating||0) * 0.35 + (p.responsibility||0) * 0.2 + (p.mental||0) * 0.1 );
-    }
-    function getRankAndSalary(p){
-      const score = estimateScore(p);
-      const rank = RANKS.find(r => score >= r.min && score <= r.max) || RANKS[0];
-      const modifier = 1 + Math.min(0.5, (p.responsibility||0) / 200) + Math.min(0.3, (p.rating||0) / 400);
-      const estimated = Math.round(rank.base * modifier / 1000) * 1000;
-      return { rank: rank.key, baseSalary: rank.base, estimatedSalary: estimated, score: Math.round(score) };
-    }
   })();
   </script>
 </body>
