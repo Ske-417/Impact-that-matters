@@ -30,14 +30,10 @@
       backdrop-filter:saturate(0.9); border-bottom:1px solid rgba(0,0,0,0.02);
       pointer-events:auto;
     }
-    .toolbar{width:100%; padding:8px 10px; display:flex; align-items:center; gap:8px}
-    /* left/right split: keep first column (left) unchanged, make right column only zoom */
-    .toolbar-left{display:flex; gap:8px; align-items:center}
-    .toolbar-right{margin-left:auto; display:flex; gap:8px; align-items:center}
-    .title{font-weight:800; font-size:16px; color:#111; letter-spacing:.02em; white-space:nowrap; margin-right:0}
+    .toolbar{width:100%; padding:8px 10px; display:flex; flex-wrap:wrap; align-items:center; gap:8px}
+    .title{font-weight:800; font-size:16px; color:#111; letter-spacing:.02em; white-space:nowrap; margin-right:auto}
 
     .group{display:flex; align-items:center; gap:6px; padding:6px 8px; background:#fff; border:1px solid #e6e8eb; border-radius:10px}
-    .hidden-control{display:none !important; visibility:hidden !important}
     label{font-size:12px; color:#555}
     select,input[type="number"],input[type="text"],input[type="range"],textarea,select{padding:6px 8px; border-radius:8px; border:1px solid #ddd}
     input[type="range"]{width:120px}
@@ -81,7 +77,7 @@
     .cell .idx{position:absolute; top:4px; left:6px; font-size:10px; color:#999}
 
     /* ===== Tokens ===== */
-    .token{width:28px; height:28px; border-radius:50%; border:2px solid #333; display:grid; place-items:center; color:#fff; font-size:12px; font-weight:700; box-shadow:0 4px 10px rgba(0,0,0,.15)}
+    .token{width:28px; height:28px; border-radius:50%; border:2px solid #333; display:grid; place-items:center; color:#fff; font-size:12px; font-weight:700; box-shadow:0 4px 10px rgba(0,0,0,.15); transition:transform .18s ease}
     .token.finished{opacity:.6; border-color:#777}
     .token.active{outline:3px solid rgba(76,154,255,.5)}
 
@@ -154,69 +150,21 @@
   <!-- App Bar -->
   <div class="appbar">
     <div class="toolbar" role="group" aria-label="ゲーム設定">
-      <div class="toolbar-left">
-        <div class="title" id="app-title">人生ゲーム ver-15</div>
+      <div class="title" id="app-title">人生ゲーム ver-15</div>
 
-        <!-- FIRST COLUMN (kept as-is) -->
-        <div class="group"><label for="players-count">人数</label>
-          <select id="players-count">
-            <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option>
-          </select>
-        </div>
+      <div class="group"><label for="players-count">人数</label><select id="players-count"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option></select></div>
+      <div class="group"><label for="initial-money">初期資金</label><input id="initial-money" type="number" value="50000" min="0" step="1000" /></div>
 
-        <div class="group"><label for="initial-money">初期資金</label><input id="initial-money" type="number" value="50000" min="0" step="1000" /></div>
+      <div class="group"><label for="rng-seed">シード</label><input id="rng-seed" type="text" placeholder="任意(空=ランダム)" /></div>
+      <div class="group"><label for="speed">速度</label><input id="speed" type="range" min="80" max="400" value="180" /></div>
 
-        <div class="group"><label for="rng-seed">シード</label><input id="rng-seed" type="text" placeholder="任意(空=ランダム)" /></div>
-        <div class="group"><label for="speed">速度</label><input id="speed" type="range" min="80" max="400" value="180" /></div>
+      <div class="group"><label for="overshoot">ゴール超過</label><select id="overshoot"><option value="clamp" selected>止まる</option><option value="bounce">反射</option></select></div>
+      <div class="dice" id="dice" aria-live="polite" aria-atomic="true">-</div>
 
-        <div class="group"><label for="overshoot">ゴール超過</label><select id="overshoot"><option value="clamp" selected>止まる</option><option value="bounce">反射</option></select></div>
-        <div class="dice" id="dice" aria-live="polite" aria-atomic="true">-</div>
+      <button id="btn-start" class="primary" type="button">開始</button>
+      <button id="btn-roll" disabled type="button">サイコロ</button>
+      <button id="btn-reset" type="button">リセット</button>
 
-        <button id="btn-start" class="primary" type="button">開始</button>
-        <button id="btn-roll" disabled type="button">サイコロ</button>
-        <button id="btn-reset" type="button">リセット</button>
-
-        <div class="group">
-          <label>保存スロット</label>
-          <select id="save-slot" class="slot-select">
-            <option value="1">Slot 1</option>
-            <option value="2">Slot 2</option>
-            <option value="3">Slot 3</option>
-          </select>
-          <button id="btn-save-slot" class="tiny" type="button">保存</button>
-          <button id="btn-load-slot" class="tiny" type="button">読込</button>
-          <button id="btn-delete-slot" class="tiny" type="button">削除</button>
-        </div>
-
-        <button id="btn-save" title="ローカルに保存" type="button">保存（手動）</button>
-        <button id="btn-load" title="保存から読込" type="button">読込</button>
-        <button id="btn-export" title="JSONエクスポート" type="button">Export</button>
-        <input id="file-import" type="file" accept="application/json" hidden />
-        <button id="btn-import" title="JSONインポート" type="button">Import</button>
-
-        <button id="btn-settings" title="プレイヤー設定" type="button">設定</button>
-        <button id="btn-import-personas" title="ペルソナJSONを読み込む" type="button">ペルソナ読み込み</button>
-        <button id="btn-manage-personas" title="ペルソナ管理" type="button">ペルソナ管理</button>
-      </div>
-
-      <!-- SECOND COLUMN: only zoom controls visible here -->
-      <div class="toolbar-right" aria-label="view-controls">
-        <div class="group">
-          <button id="btn-zoom-in" title="ズームイン" type="button">ズーム＋</button>
-          <button id="btn-zoom-out" title="ズームアウト" type="button">ズーム−</button>
-          <!-- Fit button removed visually per request -->
-          <button id="btn-fit" class="hidden-control" title="画面に合わせる" type="button">フィット</button>
-        </div>
-
-        <!-- history/shortcuts/achievements controls are hidden (kept in DOM to avoid breaking existing JS that references them) -->
-        <div class="group hidden-control">
-          <button id="btn-history" title="イベント履歴" type="button">履歴</button>
-          <button id="btn-shortcuts" title="ショートカット" type="button">操作ヘルプ</button>
-          <button id="btn-achievements" title="実績" type="button">実績</button>
-        </div>
-      </div>
-
-      <!-- hidden file input for personas (kept as in original) -->
       <input id="file-personas" type="file" accept="application/json" hidden />
     </div>
   </div>
@@ -237,7 +185,7 @@
   <!-- Tooltip -->
   <div id="tooltip" role="tooltip" aria-hidden="true"></div>
 
-  <!-- Modals (kept as in original; they remain available) -->
+  <!-- History Modal -->
   <dialog class="modal" id="history-modal" aria-labelledby="history-title">
     <div class="card">
       <h3 id="history-title">イベント履歴</h3>
@@ -249,6 +197,7 @@
     </div>
   </dialog>
 
+  <!-- Shortcuts Modal -->
   <dialog class="modal" id="shortcuts-modal" aria-labelledby="shortcuts-title">
     <div class="card">
       <h3 id="shortcuts-title">操作ショートカット</h3>
@@ -264,6 +213,7 @@
     </div>
   </dialog>
 
+  <!-- Settings Modal -->
   <dialog class="modal" id="settings-modal" aria-labelledby="settings-title">
     <div class="card">
       <h3 id="settings-title">プレイヤー設定</h3>
@@ -276,6 +226,7 @@
     </div>
   </dialog>
 
+  <!-- Persona Manager Modal -->
   <dialog class="modal" id="persona-modal" aria-labelledby="persona-title">
     <div class="card">
       <h3 id="persona-title">ペルソナ管理</h3>
@@ -293,6 +244,7 @@
     </div>
   </dialog>
 
+  <!-- Branch Editor Modal (rich) -->
   <dialog class="modal" id="branch-editor-modal" aria-labelledby="branch-editor-title">
     <div class="card">
       <h3 id="branch-editor-title">分岐イベントエディタ</h3>
@@ -314,6 +266,7 @@
     </div>
   </dialog>
 
+  <!-- Generic Event Modal -->
   <dialog class="modal" id="modal" aria-labelledby="modal-title">
     <div class="card">
       <h3 id="modal-title">イベント</h3>
@@ -325,6 +278,7 @@
     </div>
   </dialog>
 
+  <!-- Result Modal -->
   <dialog class="modal" id="result" aria-labelledby="result-title">
     <div class="card">
       <h3 id="result-title">結果発表</h3>
@@ -333,6 +287,7 @@
     </div>
   </dialog>
 
+  <!-- Achievements Modal -->
   <dialog class="modal" id="achievements-modal" aria-labelledby="achievements-title">
     <div class="card">
       <h3 id="achievements-title">実績</h3>
@@ -346,11 +301,9 @@
 
   <script>
   // ===========================
-  // 編集版: 上部ツールバーの「第二列（右側）」は
-  // 「ズームイン／ズームアウト」のみ表示するようにしました。
-  // 第一列（左側）のコントロールは元のまま残しています。
-  // 右側で視覚的に消したボタンは DOM に残し hidden-control を付けてあります
-  // （既存のスクリプトが要素参照をしている場合の安全措置）。
+  // 人生ゲーム — コンサル体験拡張 ver-15
+  // 完全版（省略なし） — promotePersonaButtons の capture stopPropagation を削除して
+  // persona 管理モーダル内ボタンが正しく動作するように修正しました。
   // ===========================
   (function(){
     const $ = s => document.querySelector(s);
@@ -377,51 +330,63 @@
     const resultDlg = $("#result"), resultBody = $("#result-body"), resultClose = $("#result-close");
     const btnAchievements = $("#btn-achievements"), achModal = $("#achievements-modal"), achListEl = $("#ach-list"), achClose = $("#ach-close"), achReset = $("#ach-reset");
 
-    // The rest of the original script logic remains unchanged from upstream.
-    // For safety, where event listeners are attached to elements that may be hidden,
-    // we first check if the element exists before adding listeners. This keeps functionality
-    // intact for the controls we've left visible and keeps hidden ones available if needed.
-
-    // --- Minimal supportive helpers (these mirror the original impl) ---
+    // Board size & constants
     const BOARD_COLS = 10, BOARD_ROWS = 6, TOTAL_CELLS = BOARD_COLS * BOARD_ROWS;
     const PLAYER_COLORS = ["#ff6b6b", "#4c9aff", "#00c853", "#ff8f00", "#9c27b0", "#00acc1"];
-    function yen(n){ return "¥" + Number(n).toLocaleString("ja-JP"); }
-    function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
-    function getCellSize(){ const val = getComputedStyle(document.documentElement).getPropertyValue('--cell-size') || '68px'; return parseInt(val); }
-    function setCellSize(px){ document.documentElement.style.setProperty('--cell-size', px + 'px'); document.documentElement.style.setProperty('--board-max-width', `calc(${px}px * var(--board-cols) + 32px)`); placeAllTokens(); }
+    const BRANCH_CHANCE = 0.36;
 
-    // Zoom functions kept as in original (used by zoom buttons)
-    function zoomIn(){ const s = getCellSize(); setCellSize(s + parseInt(getComputedStyle(document.documentElement).getPropertyValue('--zoom-step'))); }
-    function zoomOut(){ const s = getCellSize(); setCellSize(Math.max(44, s - parseInt(getComputedStyle(document.documentElement).getPropertyValue('--zoom-step')))); }
-    function fitBoard(){
-      const toolbarRect = document.querySelector('.appbar').getBoundingClientRect();
-      const viewportH = window.innerHeight;
-      const availableH = viewportH - toolbarRect.height - 48;
-      const maxCellH = Math.floor((availableH - 16) / BOARD_ROWS);
-      const current = getCellSize();
-      const newSize = Math.max(44, Math.min(current, maxCellH));
-      setCellSize(newSize);
+    // Personas (default)
+    const DEFAULT_PERSONAS = [
+      { id:"junior", displayName:"ジュニアコンサル", color:"#ff6b6b", events:[ { text:"資料作成効率化で+¥8,000", money:8000, rep:1, csat:1 }, { text:"ミスで修正費-¥6,000", money:-6000, rep:-1, csat:-1 } ], branchEvents:[ { text:"クライアント訪問の提案", choices:[ { label:"積極提案", probGood:0.45, success:{money:20000,move:1,rep:1,csat:2,text:"提案が刺さった"}, failure:{money:-2000,move:0,rep:-1,csat:-1,text:"準備負担"} }, { label:"様子見", probGood:0.85, success:{money:5000,move:0,rep:0,csat:1,text:"調整で小成功"}, failure:{money:0,move:0,rep:0,csat:0,text:"変化なし"} } ] } ] },
+      { id:"senior", displayName:"シニアコンサル", color:"#4c9aff", events:[ { text:"交渉で追加案件+¥30,000", money:30000, rep:2, csat:2 }, { text:"要求過多で残業-¥8,000", money:-8000, rep:-1, csat:-1 } ], branchEvents:[ { text:"大口案件を提案", choices:[ { label:"リスク高提案", probGood:0.55, success:{money:80000,move:2,rep:2,csat:3,text:"大型案件獲得！"}, failure:{money:-20000,move:0,rep:-2,csat:-2,text:"見込み外れ"} }, { label:"慎重提案", probGood:0.75, success:{money:30000,move:1,rep:1,csat:2,text:"中規模案件獲得"}, failure:{money:-5000,move:0,rep:-1,csat:-1,text:"採用されず"} } ] } ] },
+      { id:"manager", displayName:"マネージャー", color:"#00c853", events:[ { text:"改善で効率化+¥25,000", money:25000, rep:2, csat:2 }, { text:"クレーム対応で-¥12,000", money:-12000, rep:-2, csat:-3 } ], branchEvents:[ { text:"再構築提案", choices:[ { label:"大胆再設計", probGood:0.5, success:{money:100000,move:2,rep:3,csat:4,text:"大成功！高評価"}, failure:{money:-40000,move:0,rep:-3,csat:-4,text:"失敗し大損"} }, { label:"段階的提案", probGood:0.8, success:{money:20000,move:0,rep:1,csat:1,text:"小改善が受け入れ"}, failure:{money:-5000,move:0,rep:-1,csat:-1,text:"反応薄し"} } ] } ] },
+      { id:"partner", displayName:"パートナー", color:"#ff8f00", events:[ { text:"トップ営業で大型契約+¥150,000", money:150000, rep:5, csat:5 }, { text:"投資ミスで-¥60,000", money:-60000, rep:-4, csat:-4 } ], branchEvents:[ { text:"経営層提案", choices:[ { label:"大胆投資", probGood:0.4, success:{money:200000,move:3,rep:5,csat:6,text:"一発で大受注！"}, failure:{money:-80000,move:0,rep:-4,csat:-5,text:"大損"} }, { label:"保守提案", probGood:0.8, success:{money:50000,move:1,rep:2,csat:2,text:"堅実に受注"}, failure:{money:-5000,move:0,rep:-1,csat:-1,text:"見送り"} } ] } ] },
+      { id:"freelance", displayName:"フリーコンサル", color:"#9c27b0", events:[ { text:"短期案件を受注+¥40,000", money:40000, rep:2, csat:2 }, { text:"契約トラブルで-¥15,000", money:-15000, rep:-2, csat:-2 } ], branchEvents:[ { text:"スタートアップ提案", choices:[ { label:"エクイティ含む", probGood:0.35, success:{money:100000,move:2,rep:3,csat:4,text:"高報酬案件獲得"}, failure:{money:-20000,move:0,rep:-2,csat:-3,text:"キャンセル"} }, { label:"通常契約", probGood:0.7, success:{money:30000,move:1,rep:1,csat:1,text:"受注成功"}, failure:{money:-5000,move:0,rep:-1,csat:-1,text:"落選"} } ] } ] },
+      { id:"analyst", displayName:"アナリスト", color:"#00acc1", events:[ { text:"分析で価値示し+¥12,000", money:12000, rep:1, csat:1 }, { text:"データ不備で-¥4,000", money:-4000, rep:-1, csat:-1 } ], branchEvents:[ { text:"詳細分析提案", choices:[ { label:"深掘り提案", probGood:0.6, success:{money:30000,move:1,rep:2,csat:2,text:"分析が評価された"}, failure:{money:-8000,move:0,rep:-1,csat:-1,text:"届かず"} } ] } ] }
+    ];
+
+    let personasStore = [], PERSONAS = [], personaEventMap = {}, personaBranchMap = {};
+
+    function deepClone(o){ return JSON.parse(JSON.stringify(o)); }
+    function syncStoresFromPersonasList(list){
+      personasStore = list.map(p => ({
+        id: p.id || (p.displayName || "p").toLowerCase().replace(/\s+/g,"_")+Math.floor(Math.random()*1000),
+        displayName: p.displayName || "未設定",
+        color: p.color || PLAYER_COLORS[0],
+        events: Array.isArray(p.events) ? p.events.map(ev => ({ text: ev.text||"", money: Number(ev.money)||0, rep: Number(ev.rep)||0, csat: Number(ev.csat)||0 })) : [],
+        branchEvents: Array.isArray(p.branchEvents) ? p.branchEvents.map(be => deepClone(be)) : []
+      }));
+      PERSONAS = personasStore.map(p => p.displayName);
+      personaEventMap = {};
+      personaBranchMap = {};
+      personasStore.forEach(p => {
+        personaEventMap[p.displayName] = p.events.slice();
+        if(p.branchEvents && p.branchEvents.length) personaBranchMap[p.displayName] = p.branchEvents.slice();
+      });
     }
+    (function initPersonas(){
+      try{
+        const s = localStorage.getItem("imported-personas");
+        if(s){
+          const data = JSON.parse(s);
+          if(data && Array.isArray(data.personas)) { syncStoresFromPersonasList(data.personas); return; }
+        }
+      }catch(e){}
+      syncStoresFromPersonasList(DEFAULT_PERSONAS);
+    })();
 
-    // Attach zoom handlers safely
-    if(btnZoomIn) btnZoomIn.addEventListener('click', ()=> zoomIn());
-    if(btnZoomOut) btnZoomOut.addEventListener('click', ()=> zoomOut());
-    if(btnFit) { try { btnFit.addEventListener && btnFit.addEventListener('click', fitBoard); } catch(e){} }
+    // RNG (seedable)
+    function createRNG(seed){
+      if(!seed) return Math.random;
+      let h = 2166136261 >>> 0;
+      for (let i=0;i<seed.length;i++){ h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }
+      return () => { h += 0x6D2B79F5; let t = Math.imul(h ^ h>>>15, 1 | h); t ^= t + Math.imul(t ^ t>>>7, 61 | t); return ((t ^ t>>>14) >>> 0) / 4294967296; };
+    }
+    const randPick = (rng, arr)=> arr[Math.floor(rng()*arr.length)];
+    const yen = n => "¥" + Number(n).toLocaleString("ja-JP");
+    const sleep = ms => new Promise(res=>setTimeout(res, ms));
 
-    // Keyboard shortcuts (zoom + fit) - preserved
-    window.addEventListener('keydown', function (ev) {
-      if ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey) {
-        if (ev.key === '+' || ev.key === '=') { ev.preventDefault(); zoomIn(); }
-        if (ev.key === '-') { ev.preventDefault(); zoomOut(); }
-      }
-      if (!ev.ctrlKey && !ev.metaKey) {
-        if (ev.key === 'z' && !ev.shiftKey) { ev.preventDefault(); zoomIn(); }
-        if (ev.key === 'z' && ev.shiftKey) { ev.preventDefault(); zoomOut(); }
-        if (ev.key === 'f' || ev.key === 'F') { ev.preventDefault(); fitBoard(); }
-      }
-    });
-
-    // Basic board rendering (keeps original behavior)
+    // board cells
     const cells = Array.from({length:TOTAL_CELLS},(_,i)=>({index:i,type:"none",label:""}));
     cells[0] = {index:0,type:"start",label:"スタート"};
     cells[TOTAL_CELLS-1] = {index:TOTAL_CELLS-1,type:"goal",label:"ゴール"};
@@ -436,10 +401,124 @@
       }
     })();
 
-    const state = { players: [
-      { name: "A", color: PLAYER_COLORS[0], position: 0, money: 50000 },
-      { name: "B", color: PLAYER_COLORS[1], position: 0, money: 50000 }
-    ]};
+    // consulting-themed events
+    const eventTable = [
+      { text:"短期支援入り +¥20,000", money:+20000, rep:+1, csat:+1 },
+      { text:"見積り漏れで-¥15,000", money:-15000, rep:-1, csat:-2 },
+      { text:"紹介で新規案件+¥40,000", money:+40000, rep:+2, csat:+2 },
+      { text:"資料誤記で修正費-¥5,000", money:-5000, rep:-1, csat:-1 },
+      { text:"アップセル成功で+¥30,000", money:+30000, rep:+2, csat:+2 },
+      { text:"請求遅延で-¥10,000", money:-10000, rep:0, csat:-1 },
+      { text:"分析成果評価+¥12,000", money:+12000, rep:+1, csat:+1 },
+      { text:"外注コスト増で-¥20,000", money:-20000, rep:-1, csat:-1 },
+      { text:"プロトタイプが好評+¥50,000", money:+50000, rep:+3, csat:+3 },
+      { text:"内部調整で停滞（変化なし）", money:0, rep:0, csat:0 }
+    ];
+
+    // state
+    let state = {
+      started:false, turn:0, currentPlayerIndex:0, players:[], finishedCount:0, animating:false,
+      rng: Math.random, seed:"", speed:180, overshoot:"clamp",
+      playerSettings: []
+    };
+
+    function ensurePlayerSettings(count = 4){
+      if(!state.playerSettings || !Array.isArray(state.playerSettings)) state.playerSettings = [];
+      for(let i=0;i<count;i++){
+        if(!state.playerSettings[i]) {
+          state.playerSettings[i] = { persona: PERSONAS[i] || `プレイヤー${i+1}`, color: PLAYER_COLORS[i % PLAYER_COLORS.length] };
+        }
+      }
+      state.playerSettings.length = count;
+    }
+
+    // Achievements definitions
+    const ACHIEVEMENTS = [
+      { id: "early_goal", name:"スピードゴール", desc:"短期でゴール（ターン <= 12）", type:"goal_turn", threshold:12 },
+      { id: "billings_100k", name:"請求100K超え", desc:"累計請求額が¥100,000を超えたことがある", type:"max_money", threshold:100000 },
+      { id: "close_deal", name:"受注王", desc:"分岐で受注（成功）を2回達成", type:"branch_success", threshold:2 },
+      { id: "client_champion", name:"顧客満足チャンピオン", desc:"顧客満足度が80以上になったことがある", type:"csat", threshold:80 },
+      { id: "big_deal", name:"大型案件獲得", desc:"1度に¥150,000以上の増加を得る", type:"single_gain", threshold:150000 },
+      { id: "consulting_star", name:"コンサルの星", desc:"ゲーム終了時に1位", type:"end_rank", threshold:1 },
+    ];
+
+    function awardAchievement(playerIndex, achId){
+      const p = state.players[playerIndex];
+      if(!p) return;
+      p.achievements = p.achievements || [];
+      if(p.achievements.find(a=>a.id===achId)) return;
+      const achDef = ACHIEVEMENTS.find(a=>a.id===achId);
+      if(!achDef) return;
+      const rec = { id:achDef.id, name:achDef.name, desc:achDef.desc, awardedAt: (new Date()).toISOString() };
+      p.achievements.push(rec);
+      pushLog(`${p.name} が実績を獲得: ${achDef.name}`, "ok");
+      showCard("実績獲得！", achDef.name, achDef.desc);
+      renderPlayersPanel();
+      updateAchievementsModal();
+    }
+
+    // Only award early_goal if player actually finished
+    function evaluatePlayerAchievements(i){
+      const p = state.players[i];
+      if(!p) return;
+      if(p.finished && typeof p.turnsToGoal === "number" && p.turnsToGoal <= 12) awardAchievement(i, "early_goal");
+      if((p.maxMoneyReached||0) >= 100000) awardAchievement(i, "billings_100k");
+      if((p.branchSuccessCount||0) >= 2) awardAchievement(i, "close_deal");
+      if((p.highestSingleGain||0) >= 150000) awardAchievement(i, "big_deal");
+      if((p.clientSatisfaction||0) >= 80) awardAchievement(i, "client_champion");
+    }
+
+    function evaluateEndAchievements(){
+      const rows = state.players.map((p,i)=>({i, name:p.name, money:p.money})).sort((a,b)=> b.money-a.money);
+      if(rows[0]) awardAchievement(rows[0].i, "consulting_star");
+    }
+
+    // Achievements modal update
+    function updateAchievementsModal(){
+      achListEl.innerHTML = "";
+      ACHIEVEMENTS.forEach(a=>{
+        const div = document.createElement("div"); div.className = "ach-row";
+        const left = document.createElement("div"); left.innerHTML = `<strong>${a.name}</strong><div class="muted small">${a.desc}</div>`;
+        const right = document.createElement("div");
+        const makers = state.players.map((p, idx)=> ({ p, idx })).filter(o=> (o.p.achievements || []).find(x=>x.id===a.id));
+        if(makers.length>0){
+          right.innerHTML = makers.map(m=>`${m.p.name}`).join(", ");
+        } else {
+          right.innerHTML = `<span class="ach-locked">未獲得</span>`;
+        }
+        div.appendChild(left); div.appendChild(right);
+        achListEl.appendChild(div);
+      });
+    }
+    achClose.addEventListener("click", ()=> achModal.close());
+    achReset.addEventListener("click", ()=> {
+      if(!confirm("全実績をリセットしますか？（プレイヤーデータは残ります）")) return;
+      state.players.forEach(p => { p.achievements = []; p.bonusCount = 0; p.branchSuccessCount = 0; p.maxMoneyReached = p.money; p.highestSingleGain = 0; p.turnsToGoal = null; p.penaltyCount = 0; p.clientSatisfaction = p.clientSatisfaction || 50; });
+      pushLog("実績をリセットしました");
+      updateAchievementsModal();
+    });
+
+    // Rendering helpers
+    function getCellSize(){
+      const val = getComputedStyle(document.documentElement).getPropertyValue('--cell-size') || '68px';
+      return parseInt(val);
+    }
+    function setCellSize(px){
+      document.documentElement.style.setProperty('--cell-size', px + 'px');
+      document.documentElement.style.setProperty('--board-max-width', `calc(${px}px * var(--board-cols) + 32px)`);
+      placeAllTokens();
+    }
+    function zoomIn(){ const s = getCellSize(); setCellSize(s + parseInt(getComputedStyle(document.documentElement).getPropertyValue('--zoom-step'))); }
+    function zoomOut(){ const s = getCellSize(); setCellSize(Math.max(44, s - parseInt(getComputedStyle(document.documentElement).getPropertyValue('--zoom-step')))); }
+    function fitBoard(){
+      const toolbarRect = document.querySelector('.appbar').getBoundingClientRect();
+      const viewportH = window.innerHeight;
+      const availableH = viewportH - toolbarRect.height - 48;
+      const maxCellH = Math.floor((availableH - 16) / BOARD_ROWS);
+      const current = getCellSize();
+      const newSize = Math.max(44, Math.min(current, maxCellH));
+      setCellSize(newSize);
+    }
 
     function indexToGrid(index){
       const row = Math.floor(index/BOARD_COLS);
@@ -447,8 +526,8 @@
       if(row % 2 === 1) col = BOARD_COLS-1-col;
       return {row, col};
     }
+
     function renderBoard(){
-      if(!boardEl) return;
       boardEl.innerHTML = "";
       cells.forEach(cell=>{
         const div = document.createElement("div");
@@ -457,20 +536,25 @@
         const idx = document.createElement("div"); idx.className = "idx"; idx.textContent = String(cell.index); div.appendChild(idx);
         const label = document.createElement("div"); label.textContent = cell.label||""; div.appendChild(label);
         const {row,col} = indexToGrid(cell.index); div.style.gridRowStart = row+1; div.style.gridColumnStart = col+1;
+        div.addEventListener("mouseenter", e=> showCellTooltip(cell, e));
+        div.addEventListener("mousemove", e=> moveTooltip(e));
+        div.addEventListener("mouseleave", hideTooltip);
         boardEl.appendChild(div);
       });
+      // tokens
       state.players.forEach((pl,i)=>{
-        const t = document.createElement("div");
-        t.className = "token";
-        t.id = `token-${i}`;
-        t.textContent = String(i+1);
-        t.style.background = pl.color;
-        t.style.position = "absolute";
-        t.style.left = "-9999px"; t.style.top = "-9999px";
-        boardEl.appendChild(t);
+        const token=document.createElement("div"); token.className="token"; token.id=tokenId(i); token.textContent=String(i+1); token.style.background=pl.color; if(pl.finished) token.classList.add("finished");
+        token.style.position = "absolute"; token.style.left = "0px"; token.style.top = "0px";
+        token.addEventListener("mouseenter", e=> showPlayerTooltip(pl, e));
+        token.addEventListener("mousemove", e=> moveTooltip(e));
+        token.addEventListener("mouseleave", hideTooltip);
+        boardEl.appendChild(token);
       });
-      placeAllTokens();
+      placeAllTokens(); highlightActiveToken();
     }
+
+    function tokenId(i){ return `token-${i}` }
+
     function placeAllTokens(){
       const groups = new Map();
       state.players.forEach((pl,i)=>{
@@ -489,55 +573,817 @@
           const angle = baseAngle + (n===1?0: (k-(n-1)/2) * 30);
           const rad = angle * Math.PI / 180;
           const x = cx + r * Math.cos(rad) - 14; const y = cy + r * Math.sin(rad) - 14;
-          const t = document.getElementById(`token-${pi}`); if(t) t.style.transform = `translate(${x}px, ${y}px)`;
+          const t = $("#"+tokenId(pi)); if(t) t.style.transform = `translate(${x}px, ${y}px)`;
         });
       });
       state.players.forEach((pl,i)=>{
-        const t = document.getElementById(`token-${i}`); if(!t) return;
+        const t = $("#"+tokenId(i)); if(!t) return;
         if(typeof pl.position !== "number") t.style.transform = "translate(-9999px,-9999px)";
       });
     }
 
+    function highlightActiveToken(){
+      state.players.forEach((_,i)=>{
+        const t=$("#"+tokenId(i)); if(!t) return; if(i===state.currentPlayerIndex) t.classList.add("active"); else t.classList.remove("active");
+      });
+    }
+
+    function moneyId(i){return `money-${i}`}
     function renderPlayersPanel(){
-      if(!playersPanelEl) return;
       playersPanelEl.innerHTML="";
       state.players.forEach((pl,i)=>{
-        const row=document.createElement("div"); row.className="player-row";
+        const row=document.createElement("div"); row.className="player-row"+(i===state.currentPlayerIndex?" active":"");
         const left=document.createElement("div");
         left.style.display = "flex"; left.style.alignItems = "center";
         const badge=document.createElement("span"); badge.className="badge"; badge.style.background=pl.color; left.appendChild(badge);
         const nameText=document.createElement("span"); nameText.textContent = pl.name + (pl.finished?"（ゴール）":""); left.appendChild(nameText);
-        const ach = document.createElement("div"); ach.style.marginLeft="8px"; ach.innerHTML = `<span class="ach-badge">${(pl.achievements||[]).length || 0}</span>`;
+        const ach = document.createElement("div"); ach.style.marginLeft="8px"; ach.innerHTML = `<span class="ach-badge">${(pl.achievements||[]).length}</span>`;
         left.appendChild(ach);
         const pos=document.createElement("div"); pos.textContent = "位置: "+pl.position;
-        const money=document.createElement("div"); money.className="money"; money.textContent=yen(pl.money);
+        const money=document.createElement("div"); money.className="money"; money.id=moneyId(i); money.textContent=yen(pl.money);
         const rep=document.createElement("div"); rep.className="rep"; rep.textContent = `評判: ${pl.reputation || 0}`;
         const csat=document.createElement("div"); csat.className="csat"; csat.textContent = `顧客満足: ${pl.clientSatisfaction || 50}`;
         row.appendChild(left); row.appendChild(pos); row.appendChild(money); row.appendChild(rep); row.appendChild(csat);
         playersPanelEl.appendChild(row);
       });
     }
+    function flashMoney(i,delta){ const el=$("#"+moneyId(i)); if(!el) return; const cls=delta>=0?"flash-plus":"flash-minus"; el.classList.add(cls); setTimeout(()=>el.classList.remove(cls), 400) }
 
-    // Basic log/history handlers (safe attach)
-    function pushLog(text, kind){ if(!logEl) return; const p=document.createElement("p"); p.textContent=text; if(kind) p.classList.add(kind); logEl.appendChild(p); logEl.scrollTop = logEl.scrollHeight; }
-    if(historyClose) historyClose.addEventListener("click", ()=> { try{ historyModal.close(); }catch(e){} });
-    if(historyClear) historyClear.addEventListener("click", ()=> { if(!confirm("履歴をクリアしますか？")) return; if(logEl) logEl.innerHTML=""; if(historyBody) historyBody.innerHTML=""; pushLog("履歴をクリアしました"); });
+    // history & log
+    function pushLog(text, kind){ const p=document.createElement("p"); p.textContent=text; if(kind) p.classList.add(kind); logEl.appendChild(p); logEl.scrollTop = logEl.scrollHeight; }
+    function showHistory(){
+      historyBody.innerHTML = "";
+      const items = Array.from(logEl.querySelectorAll("p")).slice(-200);
+      if(items.length===0) historyBody.textContent = "履歴がありません";
+      items.reverse().forEach(p => { const d = document.createElement("div"); d.textContent = p.textContent; d.className = p.className; historyBody.appendChild(d); });
+      historyModal.showModal();
+    }
+    historyClose.addEventListener("click", ()=> historyModal.close());
+    historyClear.addEventListener("click", ()=> { if(!confirm("履歴をクリアしますか？")) return; logEl.innerHTML=""; historyBody.innerHTML=""; pushLog("履歴をクリアしました"); });
 
-    // Initial render
-    renderBoard();
-    renderPlayersPanel();
+    // Tooltip
+    function showCellTooltip(cell, e){
+      const info = [];
+      info.push(`マス #${cell.index}`);
+      if(cell.type) info.push(`タイプ: ${cell.type}`);
+      if(cell.label) info.push(`${cell.label}`);
+      const recent = Array.from(logEl.querySelectorAll("p")).slice(-20).reverse().find(p => p.textContent.includes(String(cell.index)));
+      if(recent) info.push(`最近: ${recent.textContent}`);
+      tooltip.innerHTML = info.join("<br>");
+      tooltip.style.display = "block";
+      moveTooltip(e);
+    }
+    function showPlayerTooltip(pl, e){
+      const info = [];
+      info.push(`${pl.name}`);
+      info.push(`所持金: ${yen(pl.money)}`);
+      info.push(`評判: ${pl.reputation || 0}`);
+      info.push(`顧客満足: ${pl.clientSatisfaction || 50}`);
+      info.push(`位置: ${pl.position}`);
+      if(pl.finished) info.push("ゴール済み");
+      tooltip.innerHTML = info.join("<br>");
+      tooltip.style.display = "block";
+      moveTooltip(e);
+    }
+    function moveTooltip(e){
+      const pad = 12;
+      tooltip.style.left = (e.clientX + pad) + "px";
+      tooltip.style.top = Math.min(window.innerHeight - 80, e.clientY + pad) + "px";
+    }
+    function hideTooltip(){ tooltip.style.display = "none"; }
 
-    // Keep simple board click demo (so UI minimal usage is possible)
-    if(boardEl) boardEl.addEventListener('click', ()=>{
-      const p = state.players[0];
-      p.position = Math.min(TOTAL_CELLS-1, (p.position || 0) + 1);
-      placeAllTokens();
-      pushLog(`${p.name} が 1 マス進みました (${p.position})`);
-      if(p.position === TOTAL_CELLS-1) pushLog(`${p.name} がゴールしました！`, "ok");
+    // ===== Modal helpers =====
+    function showCard(title, text, sub){
+      genericTitle.textContent = title;
+      if(typeof text === "string" && /<\/?[a-z][\s\S]*>/i.test(text)){
+        genericText.innerHTML = text;
+      } else {
+        genericText.textContent = text;
+      }
+      genericSub.textContent = sub || "";
+      genericActions.innerHTML = "";
+      const ok = document.createElement("button"); ok.className = "primary"; ok.textContent = "OK"; ok.type = "button";
+      ok.addEventListener("click", ()=> genericModal.close());
+      genericActions.appendChild(ok);
+      genericModal.showModal();
+    }
+
+    // Branch modal adjusted for consulting: success probability influenced by reputation
+    function showBranchModal(branchEv, playerIndex){
+      genericTitle.textContent = "案件分岐 (提案)";
+      genericText.textContent = branchEv.text;
+      genericSub.textContent = `あなた: ${state.players[playerIndex].name}`;
+      genericActions.innerHTML = "";
+      branchEv.choices.forEach(choice=>{
+        const b = document.createElement("button"); b.type = "button"; b.textContent = choice.label;
+        b.addEventListener("click", async ()=>{
+          const baseProb = (typeof choice.probGood === "number") ? choice.probGood : 1.0;
+          const pl = state.players[playerIndex];
+          // reputation modifies probability (clamped)
+          const repBonus = Math.max(-0.3, Math.min(0.3, (pl.reputation || 0) / 200)); // reputation 0..100 maps to -0.3..+0.3
+          const prob = Math.max(0.05, Math.min(0.95, baseProb + repBonus));
+          const success = state.rng() < prob;
+          const res = success ? (choice.success||{}) : (choice.failure||{});
+          // apply money and reputation
+          if(typeof res.money === "number" && res.money !== 0){
+            const delta = res.money;
+            pl.money += delta;
+            if(delta > (pl.highestSingleGain || 0)) pl.highestSingleGain = delta;
+            if(pl.money > (pl.maxMoneyReached || 0)) pl.maxMoneyReached = pl.money;
+            flashMoney(playerIndex, res.money);
+          }
+          if(typeof res.rep === "number") pl.reputation = Math.max(0, Math.min(100, (pl.reputation || 50) + res.rep));
+          if(typeof res.csat === "number") pl.clientSatisfaction = Math.max(0, Math.min(100, (pl.clientSatisfaction || 50) + res.csat));
+          // success increases branchSuccessCount
+          if(success) pl.branchSuccessCount = (pl.branchSuccessCount || 0) + 1;
+          const text = success ? (res.text || `${choice.label} → 受注成功`) : (res.text || `${choice.label} → 失注`);
+          pushLog(`${pl.name}: ${text} ${res.money ? `(${res.money>0?'+':''}${yen(res.money)})` : ""}`, success ? "ok" : "bad");
+          // moves
+          if(typeof res.move === "number" && res.move !== 0){
+            if(res.move > 0) await animateMove(playerIndex, res.move);
+            else { pl.position = Math.max(0, pl.position + res.move); placeAllTokens(); resolveCell(playerIndex, pl.position); }
+          } else {
+            renderPlayersPanel();
+          }
+          evaluatePlayerAchievements(playerIndex);
+          genericModal.close();
+        });
+        genericActions.appendChild(b);
+      });
+      const cancel = document.createElement("button"); cancel.type = "button"; cancel.textContent = "やめる"; cancel.addEventListener("click", ()=> genericModal.close());
+      genericActions.appendChild(cancel);
+      genericModal.showModal();
+    }
+
+    // dialog state updates
+    function updateRollState(){
+      btnRoll.disabled = !state.started || state.animating;
+    }
+    document.querySelectorAll('dialog.modal').forEach(d => {
+      d.addEventListener('close', updateRollState);
+      d.addEventListener('cancel', updateRollState);
+      d.addEventListener('click', (e) => {
+        // prevent clicks on backdrop from interacting with underlying elements
+        if(e.target === d) e.stopPropagation();
+      });
     });
 
-    // Expose app-ready event for external integrations
-    window.dispatchEvent(new CustomEvent('app-ready'));
+    // resolveCell (consulting behaviors)
+    function resolveCell(playerIndex, index){
+      const pl = state.players[playerIndex]; const cell = cells[index]; if(!cell||!pl) return;
+      switch(cell.type){
+        case "start": pushLog(`${pl.name}: プロジェクト開始地点へ`, "ok"); break;
+        case "goal":
+          if(!pl.finished){
+            pl.finished = true; state.finishedCount += 1; $("#"+tokenId(playerIndex))?.classList.add("finished");
+            pl.turnsToGoal = state.turn;
+            pushLog(`${pl.name}: プロジェクト完了（ゴール）！`);
+            showCard("ゴール（プロジェクト完了）", `${pl.name} がゴール！`, `現在残高: ${yen(pl.money)} / 評判: ${pl.reputation || 0}`);
+            evaluatePlayerAchievements(playerIndex);
+            if(isGameFinished()){
+              evaluateEndAchievements();
+              showResult();
+            }
+          }
+          break;
+        case "bonus":{
+          const amount = randPick(state.rng, [15000,20000,30000,50000]); pl.money += amount; flashMoney(playerIndex, amount);
+          pl.bonusCount = (pl.bonusCount || 0) + 1;
+          pl.reputation = (pl.reputation || 0) + 1;
+          if(pl.money > (pl.maxMoneyReached||0)) pl.maxMoneyReached = pl.money;
+          if(amount > (pl.highestSingleGain||0)) pl.highestSingleGain = amount;
+          pushLog(`${pl.name}: 案件成功！${yen(amount)}獲得（残高: ${yen(pl.money)}）`, "ok");
+          evaluatePlayerAchievements(playerIndex);
+          break;
+        }
+        case "penalty":{
+          const amount = randPick(state.rng, [8000,12000,18000,25000]); pl.money -= amount; flashMoney(playerIndex, -amount);
+          pl.penaltyCount = (pl.penaltyCount||0) + 1;
+          pl.reputation = Math.max(0, (pl.reputation||0) - 1);
+          pushLog(`${pl.name}: コスト発生…${yen(amount)}失う（残高: ${yen(pl.money)}）`, "bad");
+          break;
+        }
+        case "client":{
+          // client meeting: chance influenced by reputation
+          const base = 0.55;
+          const repBonus = ((pl.reputation||50) - 50) / 200;
+          const prob = Math.max(0.05, Math.min(0.95, base + repBonus));
+          const success = state.rng() < prob;
+          if(success){
+            const pay = randPick(state.rng, [20000,30000,45000]);
+            pl.money += pay; pl.clientSatisfaction = Math.min(100, (pl.clientSatisfaction||50) + randPick(state.rng, [3,5,8]));
+            pl.reputation = Math.min(100, (pl.reputation||50) + 2);
+            flashMoney(playerIndex, pay);
+            pushLog(`${pl.name}: クライアント面談成功！${yen(pay)} 獲得（CSAT↑）`, "ok");
+          } else {
+            const loss = randPick(state.rng, [5000,10000]);
+            pl.money -= loss; pl.clientSatisfaction = Math.max(0, (pl.clientSatisfaction||50) - randPick(state.rng, [2,4]));
+            pl.reputation = Math.max(0, (pl.reputation||50) - 1);
+            flashMoney(playerIndex, -loss);
+            pushLog(`${pl.name}: 面談が振るわず…${yen(loss)}のコスト（CSAT↓）`, "bad");
+          }
+          evaluatePlayerAchievements(playerIndex);
+          break;
+        }
+        case "workshop":{
+          // skill/workshop: increases reputation and small money or small cost
+          const gain = randPick(state.rng, [0,5000,10000]);
+          pl.money += gain; flashMoney(playerIndex, gain);
+          pl.reputation = Math.min(100, (pl.reputation||50) + randPick(state.rng, [1,2,3]));
+          pl.clientSatisfaction = Math.min(100, (pl.clientSatisfaction||50) + 1);
+          pushLog(`${pl.name}: ワークショップでスキル向上（評判↑ / ${gain?`報酬 ${yen(gain)}`:"報酬なし"}）`, "ok");
+          evaluatePlayerAchievements(playerIndex);
+          break;
+        }
+        case "event":{
+          // Branch possibility
+          if(state.rng() < BRANCH_CHANCE){
+            const pb = personaBranchMap[pl.name];
+            if(pb && pb.length>0){ const be = randPick(state.rng, pb); showBranchModal(be, playerIndex); return; }
+            const defaultBranch = { text: "クライアントへの提案機会", choices: [
+              { label:"攻めの提案", probGood:0.5, success:{money:40000,move:1,rep:+2,csat:+3,text:"提案受注！"}, failure:{money:-10000,move:0,rep:-1,csat:-2,text:"提案失敗"} },
+              { label:"守りの提案", probGood:0.8, success:{money:15000,move:0,rep:+1,csat:+1,text:"小さな案件を獲得"}, failure:{money:0,move:0,rep:0,csat:0,text:"何もしない"} }
+            ]};
+            showBranchModal(defaultBranch, playerIndex); return;
+          }
+          // persona-specific event or generic event
+          const personaEvents = personaEventMap[pl.name];
+          if(personaEvents && personaEvents.length>0 && state.rng() < 0.7){
+            const ev = randPick(state.rng, personaEvents);
+            pl.money += ev.money; flashMoney(playerIndex, ev.money);
+            if(typeof ev.rep === "number") pl.reputation = (pl.reputation || 0) + ev.rep;
+            if(typeof ev.csat === "number") pl.clientSatisfaction = (pl.clientSatisfaction || 50) + ev.csat;
+            if(ev.money > (pl.highestSingleGain||0)) pl.highestSingleGain = ev.money;
+            if(pl.money > (pl.maxMoneyReached||0)) pl.maxMoneyReached = pl.money;
+            pushLog(`${pl.name}: ${ev.text}（残高: ${yen(pl.money)} / 評判: ${pl.reputation || 0} / CSAT: ${pl.clientSatisfaction || 50}）`, ev.money>=0?"ok":"bad");
+            if(state.rng() < 0.10){ pl.skipTurn = true; pushLog(`${pl.name}: 次のターンはお休み（リフレッシュ）`); }
+            showCard("案件イベント", ev.text, `${pl.name} / 残高: ${yen(pl.money)} / 評判: ${pl.reputation || 0} / CSAT: ${pl.clientSatisfaction || 50}`);
+            evaluatePlayerAchievements(playerIndex);
+            renderPlayersPanel();
+            return;
+          }
+          const ev2 = randPick(state.rng, eventTable);
+          pl.money += ev2.money; flashMoney(playerIndex, ev2.money || 0);
+          if(typeof ev2.rep === "number") pl.reputation = (pl.reputation || 0) + ev2.rep;
+          if(typeof ev2.csat === "number") pl.clientSatisfaction = (pl.clientSatisfaction || 50) + ev2.csat;
+          if(ev2.money > (pl.highestSingleGain||0)) pl.highestSingleGain = ev2.money;
+          if(pl.money > (pl.maxMoneyReached||0)) pl.maxMoneyReached = pl.money;
+          pushLog(`${pl.name}: ${ev2.text}（残高: ${yen(pl.money)} / 評判: ${pl.reputation || 0} / CSAT: ${pl.clientSatisfaction || 50}）`, ev2.money>=0?"ok":"bad");
+          if(state.rng() < 0.10){ pl.skipTurn = true; pushLog(`${pl.name}: 次のターンはお休み（リフレッシュ）`); }
+          showCard("案件イベント", ev2.text, `${pl.name} / 残高: ${yen(pl.money)} / 評判: ${pl.reputation || 0} / CSAT: ${pl.clientSatisfaction || 50}`);
+          evaluatePlayerAchievements(playerIndex);
+          break;
+        }
+      }
+      renderPlayersPanel();
+    }
+
+    // dice and movement
+    function rollDice(){ const n = Math.floor(state.rng()*6)+1; diceEl.textContent = n; diceEl.classList.add("spin"); setTimeout(()=>diceEl.classList.remove("spin"), 620); return n; }
+    async function animateMove(playerIndex, steps){
+      const pl = state.players[playerIndex]; if(!pl || pl.finished) return;
+      state.animating = true; updateRollState();
+      const delay = Number(speedInput.value || state.speed);
+      let pos = pl.position;
+      let dir = 1;
+      let remaining = steps;
+      while(remaining > 0){
+        let next = pos + dir;
+        if(next >= TOTAL_CELLS){
+          if(state.overshoot === "clamp"){
+            pos = TOTAL_CELLS-1;
+            pl.position = pos;
+            placeAllTokens();
+            await sleep(delay);
+            break;
+          } else {
+            pos = TOTAL_CELLS-1;
+            pl.position = pos;
+            placeAllTokens();
+            await sleep(delay);
+            dir = -1;
+          }
+        } else if(next < 0){
+          pos = 0;
+          pl.position = pos;
+          placeAllTokens();
+          await sleep(delay);
+          break;
+        } else {
+          pos = next;
+          pl.position = pos;
+          placeAllTokens();
+          await sleep(delay);
+        }
+        remaining--;
+      }
+      resolveCell(playerIndex, pl.position);
+      state.animating = false; updateRollState();
+    }
+
+    function nextPlayerTurn(){
+      const total = state.players.length; let i = state.currentPlayerIndex;
+      for(let c=0;c<total;c++){ i=(i+1)%total; const p=state.players[i]; if(!p.finished){ state.currentPlayerIndex=i; break; } }
+      // consume skip if present
+      if(state.players[state.currentPlayerIndex] && state.players[state.currentPlayerIndex].skipTurn){
+        const skipped = state.players[state.currentPlayerIndex];
+        skipped.skipTurn = false;
+        pushLog(`${skipped.name} は休みのためスキップ解除`);
+        for(let c=0;c<total;c++){ state.currentPlayerIndex=(state.currentPlayerIndex+1)%total; if(!state.players[state.currentPlayerIndex].finished && !state.players[state.currentPlayerIndex].skipTurn) break; }
+      }
+      if(isGameFinished()){
+        statCurrentEl.textContent = "-";
+        return;
+      }
+      if(state.players[state.currentPlayerIndex] && state.players[state.currentPlayerIndex].finished){
+        for(let c=0;c<total;c++){ state.currentPlayerIndex=(state.currentPlayerIndex+1)%total; if(!state.players[state.currentPlayerIndex].finished) break; }
+      }
+      highlightActiveToken(); renderPlayersPanel(); statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
+    }
+    const isGameFinished = ()=> state.finishedCount === state.players.length;
+
+    // Save / Load slots
+    const SAVE_SLOT_PREFIX = "life-game-slot-";
+    function snapshot(){ return JSON.stringify({
+      started:state.started, turn:state.turn, currentPlayerIndex:state.currentPlayerIndex, finishedCount:state.finishedCount,
+      players:state.players, seed:state.seed, overshoot:state.overshoot, speed:Number(speedInput.value||state.speed),
+      playerSettings: state.playerSettings, personas: personasStore
+    }); }
+    function restore(json){
+      try{
+        const d = JSON.parse(json);
+        state.started = !!d.started; state.turn = d.turn||0; state.currentPlayerIndex = d.currentPlayerIndex||0; state.finishedCount = d.finishedCount||0;
+        state.players = d.players || []; state.seed = d.seed||""; state.overshoot = d.overshoot||"clamp"; state.rng = createRNG(state.seed||"");
+        speedInput.value = String(d.speed||180); overshootSel.value = state.overshoot; rngSeedInput.value = state.seed || "";
+        state.playerSettings = d.playerSettings || [];
+        if(Array.isArray(d.personas)) { syncStoresFromPersonasList(d.personas); try { localStorage.setItem("imported-personas", JSON.stringify({ personas: personasStore })); } catch(e){} }
+        renderBoard(); renderPlayersPanel(); statTurnEl.textContent = String(state.turn); statCurrentEl.textContent = state.players[state.currentPlayerIndex]?.name || "-";
+        pushLog("保存データを読み込みました。", "ok");
+      }catch(e){ alert("読み込みに失敗しました"); console.error(e); }
+    }
+
+    btnSave.addEventListener("click", ()=>{ try { localStorage.setItem("life-game-save", snapshot()); pushLog("保存しました", "ok"); } catch(e){ alert("保存に失敗しました"); } });
+    btnLoad.addEventListener("click", ()=>{ const s=localStorage.getItem("life-game-save"); if(!s) return alert("保存がありません"); restore(s); });
+    btnExport.addEventListener("click", ()=>{
+      const blob = new Blob([snapshot()], {type:"application/json"});
+      const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href=url; a.download="life-game-save.json"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    });
+
+    btnSaveSlot.addEventListener("click", ()=> {
+      const slot = saveSlotSel.value;
+      try { localStorage.setItem(SAVE_SLOT_PREFIX + slot, snapshot()); pushLog(`スロット ${slot} に保存しました`); }
+      catch(e){ alert("保存に失敗しました"); }
+    });
+    btnLoadSlot.addEventListener("click", ()=> {
+      const slot = saveSlotSel.value;
+      const s = localStorage.getItem(SAVE_SLOT_PREFIX + slot);
+      if(!s) return alert("スロットに保存がありません");
+      restore(s);
+    });
+    btnDeleteSlot.addEventListener("click", ()=> {
+      const slot = saveSlotSel.value;
+      if(!confirm(`スロット ${slot} を削除しますか？`)) return;
+      localStorage.removeItem(SAVE_SLOT_PREFIX + slot);
+      pushLog(`スロット ${slot} を削除しました`);
+    });
+
+    // Import/Export save file
+    $("#btn-import").addEventListener("click", ()=> fileImport.click());
+    fileImport.addEventListener("change", async (e) => {
+      const f = e.target.files?.[0];
+      if(!f) return;
+      try{
+        const txt = await f.text();
+        restore(txt);
+      }catch(err){
+        console.error(err);
+        alert("読み込みに失敗しました（JSONの形式を確認してください）");
+      } finally {
+        fileImport.value = "";
+      }
+    });
+
+    // Persona JSON import
+    $("#btn-import-personas").addEventListener("click", ()=> filePersonas.click());
+    filePersonas.addEventListener("change", async (e) => {
+      const f = e.target.files?.[0];
+      if(!f) return;
+      try{
+        const txt = await f.text();
+        const json = JSON.parse(txt);
+        if(!json || (!Array.isArray(json.personas) && !Array.isArray(json))) throw new Error("personas 配列がありません");
+        const incoming = Array.isArray(json.personas) ? json.personas : json;
+        const merged = personasStore.concat(incoming);
+        syncStoresFromPersonasList(merged);
+        try { localStorage.setItem("imported-personas", JSON.stringify({ personas: personasStore })); } catch(e){}
+        buildSettingsForm();
+        pushLog("ペルソナを読み込みました: " + incoming.map(x=>x.displayName).join(", "), "ok");
+      }catch(err){
+        console.error(err);
+        alert("読み込みに失敗しました（JSONの形式を確認してください）");
+      } finally {
+        filePersonas.value = "";
+      }
+    });
+
+    // Persona manager & editors
+    function renderPersonaTable(){
+      personaTbody.innerHTML = "";
+      personasStore.forEach((p, idx) => {
+        const tr = document.createElement("tr");
+        const tdIndex = document.createElement("td"); tdIndex.textContent = String(idx+1);
+        const tdName = document.createElement("td"); tdName.textContent = p.displayName;
+        const tdColor = document.createElement("td"); tdColor.innerHTML = `<div style="display:flex;align-items:center;gap:8px"><div style="width:20px;height:20px;background:${p.color};border-radius:4px;border:1px solid #ccc"></div><span>${p.color}</span></div>`;
+        const tdEvents = document.createElement("td");
+        tdEvents.innerHTML = `<button class="tiny" data-idx="${idx}" data-action="edit-events" type="button">編集 (${p.events.length})</button>`;
+        const tdBranches = document.createElement("td");
+        tdBranches.innerHTML = `<button class="tiny" data-idx="${idx}" data-action="edit-branches" type="button">編集 (${p.branchEvents?.length||0})</button>`;
+        const tdActions = document.createElement("td");
+        tdActions.innerHTML = `<button class="tiny" data-idx="${idx}" data-action="edit" type="button">編集</button> <button class="tiny" data-idx="${idx}" data-action="delete" type="button">削除</button>`;
+        tr.appendChild(tdIndex); tr.appendChild(tdName); tr.appendChild(tdColor); tr.appendChild(tdEvents); tr.appendChild(tdBranches); tr.appendChild(tdActions);
+        personaTbody.appendChild(tr);
+      });
+      // safety: ensure buttons are on top and receive events
+      promotePersonaButtons();
+    }
+
+    personaAddBtn.addEventListener("click", (e)=> {
+      e.stopPropagation();
+      const d = { id: "p"+Date.now(), displayName: "新ペルソナ", color: PLAYER_COLORS[personasStore.length % PLAYER_COLORS.length], events: [], branchEvents: [] };
+      personasStore.push(d);
+      syncStoresFromPersonasList(personasStore);
+      renderPersonaTable();
+    });
+
+    personaCloseBtn.addEventListener("click", (e)=> { e.stopPropagation(); personaModal.close(); });
+
+    personaSaveBtn.addEventListener("click", (e)=> {
+      e.stopPropagation();
+      try { localStorage.setItem("imported-personas", JSON.stringify({ personas: personasStore })); pushLog("ペルソナを保存しました", "ok"); } catch(e){ alert("保存に失敗しました"); }
+    });
+
+    personaExportBtn.addEventListener("click", (e)=> {
+      e.stopPropagation();
+      const blob = new Blob([JSON.stringify({personas: personasStore}, null, 2)], {type:"application/json"});
+      const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href=url; a.download="personas.json"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    });
+
+    personaTbody.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const btn = e.target.closest("button");
+      if(!btn) return;
+      const idx = Number(btn.dataset.idx);
+      const action = btn.dataset.action;
+      if(action === "delete"){
+        if(!confirm(`ペルソナ "${personasStore[idx].displayName}" を削除しますか？`)) return;
+        personasStore.splice(idx,1); syncStoresFromPersonasList(personasStore); renderPersonaTable();
+      } else if(action === "edit"){
+        const p = personasStore[idx];
+        const name = prompt("表示名を入力してください", p.displayName);
+        if(name !== null){ p.displayName = name.trim() || p.displayName; }
+        const color = prompt("カラーコードを入力してください（例: #ff6b6b）", p.color);
+        if(color !== null){ p.color = color.trim() || p.color; }
+        syncStoresFromPersonasList(personasStore); renderPersonaTable();
+      } else if(action === "edit-events"){
+        openPersonaEventEditor(idx);
+      } else if(action === "edit-branches"){
+        openBranchEditorForPersona(idx);
+      }
+    });
+
+    function openPersonaEventEditor(idx){
+      const p = personasStore[idx];
+      if(!p) return;
+      const list = p.events.map((ev,i)=> `${i+1}. ${ev.text} (${ev.money}, rep:${ev.rep||0}, csat:${ev.csat||0})`).join("\n");
+      const inp = prompt(`イベント一覧（行単位で "本文 | 金額 | 評判変化 | 顧客満足変化"）\n現在:\n${list}\n\n入力して上書き（空でキャンセル）`, p.events.map(ev=>`${ev.text} | ${ev.money} | ${ev.rep||0} | ${ev.csat||0}`).join("\n"));
+      if(inp === null) return;
+      const lines = inp.split("\n").map(s=>s.trim()).filter(Boolean);
+      const newEvents = lines.map(line=>{
+        const parts = line.split("|").map(x=>x.trim());
+        return { text: parts[0] || "", money: Number(parts[1] || 0), rep: Number(parts[2] || 0), csat: Number(parts[3] || 0) };
+      });
+      p.events = newEvents;
+      syncStoresFromPersonasList(personasStore);
+      renderPersonaTable();
+    }
+
+    // Branch editor (full)
+    let editingBranchTarget = null;
+    function openBranchEditor(branch, onSave){
+      branchTextInput.value = branch.text || "";
+      choicesListEl.innerHTML = "";
+      (branch.choices || []).forEach((ch, i) => {
+        addChoiceRow(ch.label || `選択肢${i+1}`, ch.probGood || 1.0, ch.success || {}, ch.failure || {});
+      });
+      branchEditorModal.showModal();
+
+      function getBranchFromUI(){
+        const choices = [];
+        choicesListEl.querySelectorAll(".choice-row").forEach(row=>{
+          const label = row.querySelector(".choice-label").value;
+          const prob = parseFloat(row.querySelector(".choice-prob").value) || 0;
+          const sText = row.querySelector(".choice-success-text").value;
+          const sMoney = Number(row.querySelector(".choice-success-money").value) || 0;
+          const sMove = Number(row.querySelector(".choice-success-move").value) || 0;
+          const sRep = Number(row.querySelector(".choice-success-rep")?.value || 0);
+          const sCsat = Number(row.querySelector(".choice-success-csat")?.value || 0);
+          const fText = row.querySelector(".choice-failure-text").value;
+          const fMoney = Number(row.querySelector(".choice-failure-money").value) || 0;
+          const fMove = Number(row.querySelector(".choice-failure-move").value) || 0;
+          const fRep = Number(row.querySelector(".choice-failure-rep")?.value || 0);
+          const fCsat = Number(row.querySelector(".choice-failure-csat")?.value || 0);
+          choices.push({
+            label,
+            probGood: prob,
+            success: { text: sText, money: sMoney, move: sMove, rep: sRep, csat: sCsat },
+            failure: { text: fText, money: fMoney, move: fMove, rep: fRep, csat: fCsat }
+          });
+        });
+        return { text: branchTextInput.value || "", choices };
+      }
+
+      function cleanup(){
+        branchEditorModal.close();
+        branchAddChoiceBtn.removeEventListener("click", onAddChoice);
+        branchSaveBtn.removeEventListener("click", onSaveClick);
+        branchCancelBtn.removeEventListener("click", onCancel);
+        branchPreviewBtn.removeEventListener("click", onPreview);
+      }
+      function onAddChoice(){ addChoiceRow("新しい選択肢", 0.6, {}, {}); }
+      function onSaveClick(){
+        const b = getBranchFromUI();
+        if(typeof onSave === "function") onSave(b);
+        cleanup();
+      }
+      function onCancel(){ cleanup(); }
+      function onPreview(){
+        const b = getBranchFromUI();
+        const tempRng = createRNG(String(Math.random()));
+        const ch = b.choices.length ? b.choices[Math.floor(tempRng()*b.choices.length)] : null;
+        if(!ch) return alert("選択肢がありません");
+        const success = tempRng() < (ch.probGood || 1);
+        alert(`選択: ${ch.label}\n判定: ${success ? "成功" : "失敗"}\n結果: ${success ? JSON.stringify(ch.success) : JSON.stringify(ch.failure)}`);
+      }
+
+      branchAddChoiceBtn.addEventListener("click", onAddChoice);
+      branchSaveBtn.addEventListener("click", onSaveClick);
+      branchCancelBtn.addEventListener("click", onCancel);
+      branchPreviewBtn.addEventListener("click", onPreview);
+    }
+
+    function addChoiceRow(label, prob, success, failure){
+      const div = document.createElement("div"); div.className = "choice-row";
+      div.style.display = "grid"; div.style.gridTemplateColumns = "1fr auto";
+      const left = document.createElement("div");
+      left.style.display = "grid"; left.style.gridTemplateColumns = "1fr 80px"; left.style.gap = "6px";
+      const lbl = document.createElement("input"); lbl.type = "text"; lbl.className = "choice-label"; lbl.value = label || "";
+      const probInput = document.createElement("input"); probInput.type = "number"; probInput.min="0"; probInput.max="1"; probInput.step="0.01"; probInput.className = "choice-prob"; probInput.value = (typeof prob === "number"?prob:1);
+      left.appendChild(lbl); left.appendChild(probInput);
+
+      const block = document.createElement("div"); block.style.display="grid"; block.style.gridTemplateRows="repeat(2,auto)"; block.style.gap="4px";
+      const row1 = document.createElement("div"); row1.style.display="flex"; row1.style.gap="6px";
+      const sText = document.createElement("input"); sText.type="text"; sText.placeholder="成功テキスト"; sText.className="choice-success-text"; sText.value = (success && success.text) || "";
+      const sMoney = document.createElement("input"); sMoney.type="number"; sMoney.className="choice-success-money"; sMoney.value = (success && success.money) || 0;
+      const sMove = document.createElement("input"); sMove.type="number"; sMove.className="choice-success-move"; sMove.value = (success && success.move) || 0;
+      const sRep = document.createElement("input"); sRep.type="number"; sRep.className="choice-success-rep"; sRep.value = (success && success.rep) || 0;
+      const sCsat = document.createElement("input"); sCsat.type="number"; sCsat.className="choice-success-csat"; sCsat.value = (success && success.csat) || 0;
+      row1.appendChild(sText); row1.appendChild(sMoney); row1.appendChild(sMove); row1.appendChild(sRep); row1.appendChild(sCsat);
+
+      const row2 = document.createElement("div"); row2.style.display="flex"; row2.style.gap="6px";
+      const fText = document.createElement("input"); fText.type="text"; fText.placeholder="失敗テキスト"; fText.className="choice-failure-text"; fText.value = (failure && failure.text) || "";
+      const fMoney = document.createElement("input"); fMoney.type="number"; fMoney.className="choice-failure-money"; fMoney.value = (failure && failure.money) || 0;
+      const fMove = document.createElement("input"); fMove.type="number"; fMove.className="choice-failure-move"; fMove.value = (failure && failure.move) || 0;
+      const fRep = document.createElement("input"); fRep.type="number"; fRep.className="choice-failure-rep"; fRep.value = (failure && failure.rep) || 0;
+      const fCsat = document.createElement("input"); fCsat.type="number"; fCsat.className="choice-failure-csat"; fCsat.value = (failure && failure.csat) || 0;
+      row2.appendChild(fText); row2.appendChild(fMoney); row2.appendChild(fMove); row2.appendChild(fRep); row2.appendChild(fCsat);
+
+      block.appendChild(row1); block.appendChild(row2);
+
+      const controls = document.createElement("div");
+      const del = document.createElement("button"); del.type = "button"; del.textContent = "削除"; del.className = "tiny";
+      del.addEventListener("click", ()=> { div.remove(); });
+      controls.appendChild(del);
+
+      div.appendChild(left);
+      div.appendChild(block);
+      div.appendChild(controls);
+      choicesListEl.appendChild(div);
+    }
+
+    function openBranchEditorForPersona(personaIdx){
+      const p = personasStore[personaIdx];
+      if(!p) return;
+      const list = (p.branchEvents || []).map((be,i)=> `${i+1}. ${be.text}`).join("\n");
+      const sel = prompt(`分岐イベント一覧（番号を入力して編集、"new"で新規）:\n${list}\n`, "");
+      if(sel === null) return;
+      if(sel.toLowerCase() === "new"){
+        const newBranch = { text: "新しい案件提案", choices: [ { label:"提案", probGood:0.6, success:{text:"成功",money:10000,move:1,rep:1,csat:1}, failure:{text:"失敗",money:-5000,move:0,rep:-1,csat:-1} } ] };
+        openBranchEditor(newBranch, (b)=> { p.branchEvents = p.branchEvents || []; p.branchEvents.push(b); syncStoresFromPersonasList(personasStore); renderPersonaTable(); });
+      } else {
+        const n = Number(sel) - 1;
+        if(isFinite(n) && p.branchEvents[n]){
+          openBranchEditor(deepClone(p.branchEvents[n]), (b)=> { p.branchEvents[n] = b; syncStoresFromPersonasList(personasStore); renderPersonaTable(); });
+        } else alert("無効な入力です");
+      }
+    }
+
+    // Settings modal
+    function buildSettingsForm(){
+      const count = parseInt(playersCountSel.value,10) || 4;
+      ensurePlayerSettings(count);
+      settingsListEl.innerHTML = "";
+      for(let i=0;i<count;i++){
+        const s = state.playerSettings[i] || { persona: PERSONAS[i] || `プレイヤー${i+1}`, color:PLAYER_COLORS[i % PLAYER_COLORS.length] };
+        const row = document.createElement("div"); row.className = "settings-row";
+        const idx = document.createElement("div"); idx.textContent = `${i+1}`; idx.style.width = "24px"; idx.style.textAlign = "center"; idx.style.fontWeight = "700";
+        const personaSelect = document.createElement("select");
+        PERSONAS.forEach(p => { const opt = document.createElement("option"); opt.value = p; opt.textContent = p; personaSelect.appendChild(opt); });
+        personaSelect.value = s.persona || PERSONAS[i] || `プレイヤー${i+1}`;
+        const colorInput = document.createElement("input"); colorInput.type = "color"; colorInput.value = s.color || PLAYER_COLORS[i % PLAYER_COLORS.length];
+        row.appendChild(idx); row.appendChild(personaSelect); row.appendChild(colorInput);
+        settingsListEl.appendChild(row);
+      }
+    }
+    settingsBtn.addEventListener("click", ()=> { buildSettingsForm(); settingsModal.showModal(); });
+    settingsCancelBtn.addEventListener("click", ()=> settingsModal.close());
+    settingsSaveBtn.addEventListener("click", ()=>{
+      const rows = settingsListEl.querySelectorAll(".settings-row");
+      rows.forEach((row, idx)=>{
+        const personaSelect = row.querySelector('select');
+        const colorInput = row.querySelector('input[type="color"]');
+        const persona = personaSelect?.value || PERSONAS[idx] || `プレイヤー${idx+1}`;
+        const color = colorInput?.value || PLAYER_COLORS[idx % PLAYER_COLORS.length];
+        state.playerSettings[idx] = { persona, color };
+      });
+      if(state.started && state.players && state.players.length > 0){
+        for(let i=0;i<state.players.length;i++){
+          const s = state.playerSettings[i];
+          if(!s) continue;
+          state.players[i].name = s.persona;
+          state.players[i].color = s.color;
+        }
+        renderBoard();
+        renderPlayersPanel();
+        pushLog("プレイヤー設定を更新しました。", "ok");
+      } else {
+        pushLog("プレイヤー設定を保存しました。", "ok");
+      }
+      settingsModal.close();
+    });
+
+    // Start / Reset / Roll
+    btnStart.addEventListener("click", ()=>{
+      if(state.started) return;
+      const count = parseInt(playersCountSel.value,10); const initial = parseInt(initialMoneyInput.value,10)||0;
+      const seed = (rngSeedInput.value||"").trim(); state.seed = seed; state.rng = createRNG(seed);
+      ensurePlayerSettings(count);
+      state.players = Array.from({length:count},(_,i)=>{
+        const s = state.playerSettings[i] || { persona: PERSONAS[i] || `プレイヤー${i+1}`, color: PLAYER_COLORS[i % PLAYER_COLORS.length] };
+        return { name: s.persona, color: s.color, position:0, money:initial, finished:false, skipTurn:false,
+          achievements:[], bonusCount:0, branchSuccessCount:0, maxMoneyReached: initial, highestSingleGain:0, turnsToGoal:null, reputation: 50, penaltyCount:0, clientSatisfaction:50 };
+      });
+      state.started=true; state.turn=1; state.currentPlayerIndex=0; state.finishedCount=0; state.overshoot = overshootSel.value; state.speed = Number(speedInput.value||180);
+      pushLog(`ゲーム開始！初期資金: ${yen(initial)} | プレイヤー数: ${count} ${seed?`| シード:${seed}`:""}`, "ok");
+      renderBoard(); renderPlayersPanel(); statTurnEl.textContent=String(state.turn); statCurrentEl.textContent=state.players[state.currentPlayerIndex].name; btnRoll.disabled=false; diceEl.textContent='-';
+    });
+
+    btnReset.addEventListener("click", ()=>{
+      Object.assign(state, {started:false, turn:0, currentPlayerIndex:0, players:[], finishedCount:0, animating:false});
+      btnRoll.disabled=true; logEl.innerHTML=""; statTurnEl.textContent="0"; statCurrentEl.textContent="-"; diceEl.textContent='-';
+      renderBoard(); playersPanelEl.innerHTML=""; pushLog("リセットしました");
+    });
+
+    btnRoll.addEventListener("click", async ()=>{
+      if(!state.started || state.animating) return;
+      const cur = state.players[state.currentPlayerIndex];
+      if(!cur || cur.finished){
+        nextPlayerTurn(); return;
+      }
+      if(cur.skipTurn){
+        cur.skipTurn = false;
+        pushLog(`${cur.name} は休みのためターンをスキップしました`);
+        nextPlayerTurn();
+        return;
+      }
+      const n = rollDice();
+      pushLog(`${cur.name} が ${n} を出した`);
+      await animateMove(state.currentPlayerIndex, n);
+      if(!isGameFinished()){
+        const prevIndex = state.currentPlayerIndex;
+        state.currentPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
+        for(let i=0;i<state.players.length;i++){
+          const cand = state.players[(prevIndex + 1 + i) % state.players.length];
+          if(!cand.finished && !cand.skipTurn){ state.currentPlayerIndex = (prevIndex + 1 + i) % state.players.length; break; }
+        }
+        if(state.currentPlayerIndex === 0) state.turn++;
+        highlightActiveToken(); renderPlayersPanel(); statTurnEl.textContent = String(state.turn);
+        statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
+      }
+    });
+
+    // Result display
+    function showResult(){
+      const rows = state.players.map((p,i)=>({i, name:p.name, money:p.money, achievements:p.achievements||[], reputation:p.reputation||0, csat:p.clientSatisfaction||50}));
+      rows.sort((a,b)=> b.money - a.money);
+      resultBody.innerHTML = "";
+      const table = document.createElement("div");
+      table.innerHTML = rows.map((r, idx)=> `<div style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px dashed #eee"><div><strong>#${idx+1}</strong> ${r.name} (評判:${r.reputation} / CSAT:${r.csat})</div><div>${yen(r.money)}</div></div>`).join("");
+      resultBody.appendChild(table);
+      const achDiv = document.createElement("div"); achDiv.style.marginTop = "12px"; achDiv.innerHTML = "<h4>実績</h4>";
+      rows.forEach(r=>{
+        const line = document.createElement("div");
+        line.textContent = `${r.name}: ${(r.achievements && r.achievements.length) ? r.achievements.map(a=>a.name).join(", ") : "なし"}`;
+        achDiv.appendChild(line);
+      });
+      resultBody.appendChild(achDiv);
+      resultDlg.showModal();
+    }
+    resultClose.addEventListener("click", ()=> resultDlg.close());
+
+    // Zoom / Fit handlers
+    btnZoomIn.addEventListener("click", zoomIn);
+    btnZoomOut.addEventListener("click", zoomOut);
+    btnFit.addEventListener("click", fitBoard);
+
+    // History & shortcuts
+    btnHistory.addEventListener("click", ()=> showHistory());
+    btnShortcuts.addEventListener("click", ()=> shortcutsModal.showModal());
+    shortcutsClose.addEventListener("click", ()=> shortcutsModal.close());
+
+    // Persona modal open
+    btnManagePersonas.addEventListener("click", ()=> { renderPersonaTable(); personaModal.showModal(); });
+
+    // keyboard shortcuts
+    window.addEventListener("keydown", (e) => {
+      if(e.key === " " || e.key === "Enter"){ e.preventDefault(); btnRoll.click(); }
+      if(e.key === "s" || e.key === "S"){ if(document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "TEXTAREA") { btnSaveSlot.click(); } }
+      if(e.key === "l" || e.key === "L"){ if(document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "TEXTAREA") { btnLoadSlot.click(); } }
+      if(e.key === "h" || e.key === "H"){ if(document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "TEXTAREA") { if(shortcutsModal.open) shortcutsModal.close(); else shortcutsModal.showModal(); } }
+      if(e.key === "z" || e.key === "Z"){
+        if(e.shiftKey) zoomOut(); else zoomIn();
+      }
+      if(e.key === "f" || e.key === "F"){ fitBoard(); }
+    });
+
+    // Achievements button handler (ensure clickable)
+    btnAchievements.addEventListener("click", (e)=> { e.stopPropagation(); updateAchievementsModal(); achModal.showModal(); });
+
+    // Persona modal click handler — prevent click-through and ensure internal buttons receive events
+    personaModal.addEventListener("click", (e) => {
+      const card = personaModal.querySelector('.card');
+      if(!card) return;
+      if(card.contains(e.target)){
+        e.stopPropagation();
+      }
+    });
+
+    // Ensure persona table buttons are promoted (runtime)
+    function promotePersonaButtons(){
+      const buttons = personaTbody.querySelectorAll("button");
+      buttons.forEach(b => {
+        if(!b.getAttribute("type")) b.setAttribute("type","button");
+        b.style.position = "relative";
+        b.style.zIndex = 1225;
+        // NOTE: Removed capture-phase stopPropagation that previously prevented delegated handlers from running.
+        // Do NOT stop propagation here — rely on personaTbody delegation for actions.
+      });
+    }
+
+    // Persona table click handler (defensive)
+    personaTbody.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const btn = e.target.closest("button");
+      if(!btn) return;
+      const idx = Number(btn.dataset.idx);
+      const action = btn.dataset.action;
+      if(action === "delete"){
+        if(!confirm(`ペルソナ "${personasStore[idx].displayName}" を削除しますか？`)) return;
+        personasStore.splice(idx,1); syncStoresFromPersonasList(personasStore); renderPersonaTable();
+      } else if(action === "edit"){
+        const p = personasStore[idx];
+        const name = prompt("表示名を入力してください", p.displayName);
+        if(name !== null){ p.displayName = name.trim() || p.displayName; }
+        const color = prompt("カラーコードを入力してください（例: #ff6b6b）", p.color);
+        if(color !== null){ p.color = color.trim() || p.color; }
+        syncStoresFromPersonasList(personasStore); renderPersonaTable();
+      } else if(action === "edit-events"){
+        openPersonaEventEditor(idx);
+      } else if(action === "edit-branches"){
+        openBranchEditorForPersona(idx);
+      }
+    });
+
+    // initial render & safety
+    renderBoard();
+    buildSettingsForm();
+    updateAchievementsModal();
+    updateRollState();
+    window.__life_game = { state, renderBoard, renderPlayersPanel, personasStore, syncStoresFromPersonasList, promotePersonaButtons };
+
+    // Small helpers used in this file but declared later (ensure no missing references)
+    function tokenId(i){ return `token-${i}` }
+    function indexToGrid(index){ const row = Math.floor(index/BOARD_COLS); let col = index % BOARD_COLS; if(row % 2 === 1) col = BOARD_COLS-1-col; return {row, col}; }
+
   })();
   </script>
 </body>
