@@ -249,6 +249,7 @@
     });
     if(btnHistory) btnHistory.addEventListener("click", showHistory);
 
+    // render inputs
     function renderPlayerNameInputs(){
       const count = Math.max(1, Number(playersCountSel.value) || 2);
       playerNamesEl.innerHTML = "";
@@ -269,6 +270,7 @@
       return Array.from(inputs).map((inp, i) => inp.value.trim() || `プレイヤー${i+1}`);
     }
 
+    // board cells
     const cells = Array.from({length:TOTAL_CELLS},(_,i)=>({index:i,type:"none",label:""}));
     cells[0] = {index:0,type:"start",label:"スタート"};
     cells[TOTAL_CELLS-1] = {index:TOTAL_CELLS-1,type:"goal",label:"ゴール"};
@@ -349,6 +351,43 @@
       });
     }
 
+    // player panel render - function declaration ensures hoisting; also expose for safety
+    function renderPlayersPanel(){
+      if(!playersPanelEl) return;
+      playersPanelEl.innerHTML = "";
+      if(!state.players || state.players.length === 0){
+        const placeholder = document.createElement("div");
+        placeholder.className = "card";
+        placeholder.style.textAlign = "center";
+        placeholder.textContent = "プレイヤーを設定して「開始」を押してください";
+        playersPanelEl.appendChild(placeholder);
+        return;
+      }
+      state.players.forEach((pl,i)=>{
+        const row=document.createElement("div"); row.className="player-row"+(i===state.currentPlayerIndex?" active":"");
+        const left = document.createElement("div"); left.className = "left-col";
+        const badge=document.createElement("span"); badge.className="badge"; badge.style.background=pl.color; left.appendChild(badge);
+        const nameWrap = document.createElement("div"); nameWrap.className = "name-wrap";
+        const name = document.createElement("div"); name.className = "player-name"; name.textContent = pl.name;
+        const { rank, estimatedSalary } = getRankAndSalary(pl);
+        const rankEl = document.createElement("div"); rankEl.className = "rank"; rankEl.textContent = rank;
+        const salEl = document.createElement("div"); salEl.className = "salary"; salEl.textContent = `${yen(estimatedSalary)}`;
+        nameWrap.appendChild(name); nameWrap.appendChild(rankEl); nameWrap.appendChild(salEl);
+        left.appendChild(nameWrap);
+        const right = document.createElement("div"); right.className = "attr-list";
+        const aLearning = document.createElement("div"); aLearning.className="attr"; aLearning.id=`learning-${i}`; aLearning.textContent = `学び: ${pl.learning}`;
+        const aMental = document.createElement("div"); aMental.className="attr"; aMental.id=`mental-${i}`; aMental.textContent = `メンタル: ${pl.mental}`;
+        const aRating = document.createElement("div"); aRating.className="attr"; aRating.id=`rating-${i}`; aRating.textContent = `評価: ${pl.rating}`;
+        const aResp = document.createElement("div"); aResp.className="attr"; aResp.id=`responsibility-${i}`; aResp.textContent = `責任: ${pl.responsibility}`;
+        right.appendChild(aLearning); right.appendChild(aMental); right.appendChild(aRating); right.appendChild(aResp);
+        row.appendChild(left); row.appendChild(right);
+        playersPanelEl.appendChild(row);
+      });
+    }
+    // expose for safety (fixes ReferenceError if called from another scope)
+    window.renderPlayersPanel = renderPlayersPanel;
+
+    // nextPlayerTurn etc.
     function nextPlayerTurn(){
       const total = state.players.length;
       if(total === 0) return;
@@ -378,6 +417,7 @@
 
     function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
+    // robust modals (unchanged)...
     function showCard(title, text, sub, {timeout = 30000} = {}) {
       return new Promise(resolve => {
         if(!genericModal){ resolve(); return; }
@@ -543,90 +583,7 @@
       }catch(e){}
     }
 
-    async function resolveCell(playerIndex, index){
-      const pl = state.players[playerIndex]; const cell = cells[index]; if(!cell||!pl) return;
-      switch(cell.type){
-        case "start":
-          pushLog(`${pl.name}: スタート`, "ok");
-          break;
-        case "goal":
-          if(!pl.finished){
-            pl.finished = true; state.finishedCount += 1; $("#"+tokenId(playerIndex))?.classList.add("finished");
-            pl.turnsToGoal = state.turn;
-            pushLog(`${pl.name}: ゴール！`);
-            const { rank, estimatedSalary } = getRankAndSalary(pl);
-            await showCard("ゴール（プロジェクト完了）", `ランク: ${rank} / 推定年収: ${yen(estimatedSalary)}`, `${pl.name}`);
-            if(isGameFinished()) showResult();
-          }
-          break;
-        case "bonus":{
-          const ev = eventTable[2];
-          ["learning","mental","rating","responsibility"].forEach(k=>{
-            if(typeof ev[k] === "number"){ pl[k] = Math.max(0, Math.round((pl[k]||0) + ev[k])); flashAttr(playerIndex,k); }
-          });
-          pushLog(`${pl.name}: ボーナスイベント（属性上昇）`, "ok");
-          break;
-        }
-        case "penalty":{
-          const ev = eventTable[1];
-          ["learning","mental","rating","responsibility"].forEach(k=>{
-            if(typeof ev[k] === "number"){ pl[k] = Math.max(0, Math.round((pl[k]||0) + ev[k])); flashAttr(playerIndex,k); }
-          });
-          pushLog(`${pl.name}: コスト（属性変動）`, "bad");
-          break;
-        }
-        case "client":{
-          const base = 0.55;
-          const repBonus = ((pl.rating||50) - 50) / 200;
-          const prob = Math.max(0.05, Math.min(0.95, base + repBonus));
-          const success = state.rng() < prob;
-          if(success){
-            pl.learning = Math.max(0, pl.learning+4); pl.mental = Math.max(0, pl.mental+2); pl.rating = Math.max(0, pl.rating+3);
-            flashAttr(playerIndex,"learning"); flashAttr(playerIndex,"mental"); flashAttr(playerIndex,"rating");
-            pushLog(`${pl.name}: クライアント成功`, "ok");
-          } else {
-            pl.mental = Math.max(0, pl.mental-3); pl.rating = Math.max(0, pl.rating-1);
-            flashAttr(playerIndex,"mental"); flashAttr(playerIndex,"rating");
-            pushLog(`${pl.name}: クライアント不調`, "bad");
-          }
-          await showCard("クライアント面談", `学び: ${pl.learning} / メンタル: ${pl.mental}`, `${pl.name}`);
-          break;
-        }
-        case "workshop":{
-          const gain = randPick(state.rng, [1,2,3,5]);
-          pl.learning = Math.max(0, pl.learning+gain); pl.rating = Math.max(0, pl.rating+1);
-          flashAttr(playerIndex,"learning"); flashAttr(playerIndex,"rating");
-          pushLog(`${pl.name}: ワークショップで学び+${gain}`, "ok");
-          await showCard("ワークショップ", `学び +${gain}`, `${pl.name}`);
-          break;
-        }
-        case "event":{
-          if(state.rng() < BRANCH_CHANCE){
-            const defaultBranch = { text: "クライアントへの提案機会", choices:[
-              { label:"攻めの提案", probGood:0.5, success:{learning:+3,mental:+1,rating:+4,responsibility:+2,move:1,text:"提案受注！"}, failure:{learning:+1,mental:-2,rating:-1,responsibility:0,move:0,text:"提案失敗"} },
-              { label:"守りの提案", probGood:0.8, success:{learning:+1,mental:+1,rating:+1,responsibility:+0,move:0,text:"小さな案件獲得"}, failure:{learning:0,mental:0,rating:0,responsibility:0,move:0,text:"何もしない"} }
-            ]};
-            try{
-              const res = await showBranchModal(defaultBranch, playerIndex);
-              if(res && res.res && typeof res.res.move === "number" && res.res.move !== 0){
-                if(res.res.move > 0) { await animateMove(playerIndex, res.res.move); }
-                else { pl.position = Math.max(0, pl.position + res.res.move); placeAllTokens(); await resolveCell(playerIndex, pl.position); }
-              } else { renderPlayersPanel(); }
-            }catch(e){ console.error(e); renderPlayersPanel(); }
-            return;
-          }
-          const ev2 = randPick(state.rng, eventTable);
-          ["learning","mental","rating","responsibility"].forEach(k=>{
-            if(typeof ev2[k] === "number"){ pl[k] = Math.max(0, Math.round((pl[k]||0) + ev2[k])); flashAttr(playerIndex,k); }
-          });
-          pushLog(`${pl.name}: ${ev2.text}（属性変動）`, ev2.learning>=0?"ok":"bad");
-          await showCard("案件イベント", ev2.text, `${pl.name}`);
-          break;
-        }
-      }
-      renderPlayersPanel();
-    }
-
+    // event table + ranks (unchanged)
     const eventTable = [
       { text:"短期支援入り", learning:+6, mental:+2, rating:+3, responsibility:+1 },
       { text:"見積り漏れでトラブル", learning:+2, mental:-6, rating:-1, responsibility:0 },
@@ -691,6 +648,7 @@
       }
     }
 
+    // startGame: defensive and informative on error (fixes earlier ReferenceError)
     function startGame(){
       if(state.started) return;
       try{
@@ -701,22 +659,22 @@
           state.players.push({ name: names[i] || `プレイヤー${i+1}`, color: PLAYER_COLORS[i % PLAYER_COLORS.length], position:0, learning:50, mental:50, rating:50, responsibility:0, achievements:[], finished:false, skipTurn:false });
         }
         state.started = true; state.turn = 1; state.currentPlayerIndex = 0; state.finishedCount = 0; state.rng = Math.random;
-        renderBoard(); renderPlayersPanel(); statTurnEl.textContent = String(state.turn); statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
+        // ensure rendering functions exist before calling
+        try{ renderBoard(); }catch(e){ console.error("renderBoard missing:", e); pushLog("レンダリングに失敗しました: "+(e && e.message?e.message:String(e)),"bad"); }
+        try{ renderPlayersPanel(); }catch(e){ console.error("renderPlayersPanel missing:", e); pushLog("プレイヤー表示に失敗しました: "+(e && e.message?e.message:String(e)),"bad"); }
+        statTurnEl.textContent = String(state.turn);
+        statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
         pushLog("ゲームを開始しました","ok");
         if(btnRoll){ btnRoll.disabled = false; btnRoll.removeAttribute('aria-disabled'); }
         updateRollState();
         if(btnStart) btnStart.disabled = true;
       }catch(e){
-        // More informative error handling: record error detail to history and console, and ensure UI is usable
         console.error("startGame failed:", e);
         const msg = (e && e.message) ? e.message : String(e);
-        // include a short stack if available
         const stack = (e && e.stack) ? ("\n" + e.stack.split("\n").slice(0,5).join("\n")) : "";
         pushLog(`ゲーム開始に失敗しました: ${msg}`, "bad");
-        // also append stack in history (truncated) for debugging
         pushLog(`(debug) start error stack: ${stack}`, "bad");
         state.started = false;
-        // ensure UI not locked
         try{ if(btnStart) btnStart.disabled = false; }catch(err){}
         try{ state.animating = false; updateRollState(); }catch(err){}
       }
@@ -751,10 +709,9 @@
       updateRollState();
     }
 
-    // Attach listeners
+    // attach listeners
     if(btnStart) btnStart.addEventListener("click", ()=> startGame());
     if(btnRoll){
-      // remove existing handlers if any - then attach
       btnRoll.addEventListener("click", ()=> {
         console.debug("btn-roll clicked", {started: state.started, animating: state.animating});
         rollTurn().catch(e=>console.error(e));
@@ -764,7 +721,6 @@
     if(btnZoomIn) btnZoomIn.addEventListener('click', ()=> { document.documentElement.style.fontSize = 'calc(100% + 8px)'; });
     if(btnZoomOut) btnZoomOut.addEventListener('click', ()=> { document.documentElement.style.fontSize = '100%'; });
 
-    // keyboard support
     window.addEventListener('keydown', function (ev) {
       if ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey) {
         if (ev.key === '+' || ev.key === '=') { ev.preventDefault(); document.getElementById('btn-zoom-in')?.click(); }
@@ -784,7 +740,7 @@
     try{ state.history.forEach(it => appendLogToDom(it)); }catch(e){}
     renderBoard(); renderPlayersPanel(); updateRollState(); window.dispatchEvent(new CustomEvent('app-ready'));
 
-    // health guard
+    // final guard: remove stray overlays and ensure buttons enabled appropriately
     (function ensureUIHealthy(){
       try{ document.querySelectorAll('.modal-fallback').forEach(e=>e.remove()); }catch(e){}
       try{
