@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Make an impact that matters</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <style>
     :root{
       --black:#000000; --white:#FFFFFF; --green:#86BB27; --green-light:#DFF3C6; --gray:#C4C4C4;
@@ -12,6 +13,7 @@
       --tile-gap: 16px; /* baseline gap */
       --board-padding: 24px;
       --token-size:30px;
+      --token-move-ms:120ms; /* per-tile move duration */
     }
     *{box-sizing:border-box}
     html,body{height:100%; margin:0}
@@ -35,10 +37,10 @@
     .wrap{width:100%; max-width:1300px; margin:18px auto; display:grid; grid-template-columns:3fr 1fr; gap:12px; align-items:start; padding:0 12px}
     @media (max-width:980px){ .wrap{grid-template-columns:1fr} }
 
-    /* Make board a bit wider/longer to allow a single continuous path without overlap */
+    /* Board */
     .board-wrap{background:var(--white); border:2px solid var(--gray); border-radius:14px; padding:var(--board-padding); position:relative; overflow:hidden; min-height:520px}
     .board{
-      position:relative; width:100%; height:820px; touch-action:none; /* slightly taller for more space */
+      position:relative; width:100%; height:820px; touch-action:none; /* slightly taller */
     }
 
     /* tiles: normal tiles have thin grey border, eventish tiles green border */
@@ -53,7 +55,7 @@
       display:grid; place-items:center;
       font-weight:900; color:var(--black);
       box-shadow: 0 6px 18px rgba(0,0,0,0.03);
-      transition: transform 160ms linear;
+      transition: transform 120ms linear;
       z-index:2;
     }
     .tile.event,
@@ -75,10 +77,11 @@
     .token{
       position:absolute;
       width:var(--token-size); height:var(--token-size); border-radius:50%; display:grid; place-items:center; color:#fff; font-weight:900;
-      border:2px solid #000; transform: translate(-50%,-50%); z-index:20;
+      border:2px solid #000; transform: translate(-50%,-50%);
       box-shadow:0 8px 20px rgba(0,0,0,0.06);
       pointer-events:none;
-      transition: transform 160ms linear;
+      transition: transform var(--token-move-ms) linear;
+      z-index:20;
     }
     .token.finished{ opacity:0.85; border-color:var(--gray) }
 
@@ -141,7 +144,7 @@
     const START_MARKER = $("#start-marker");
 
     const TILE_SIZE = Number(getComputedStyle(document.documentElement).getPropertyValue('--tile-size')) || 68;
-    const NUM_TILES = 60; // user requested, last is goal
+    const NUM_TILES = 60; // last is goal
     const BASE_JITTER = 12;
     const GAP = Number(getComputedStyle(document.documentElement).getPropertyValue('--tile-gap')) || 16;
 
@@ -156,6 +159,7 @@
       history: []
     };
 
+    // player name UI
     function renderPlayerNameInputs(){
       playerNamesWrap.innerHTML = "";
       const count = Math.max(1, Number(playersCountSel.value) || 2);
@@ -174,82 +178,51 @@
       return Array.from(playerNamesWrap.querySelectorAll("input")).map((i,idx)=> i.value.trim() || `プレイヤー${idx+1}`);
     }
 
-    // Build a single connected path using concentric rectangular rings but concatenated with short connectors.
-    // This guarantees no overlap because each ring is inset by at least tileSize+gap.
+    // Build a single connected path using rings + connectors (as before)
     function buildConnectedPath(N, containerW, containerH, tileSize, gap){
       const cx = containerW/2, cy = containerH/2;
       const coords = [];
       const margin = Math.max(tileSize*1.6, 28);
-      // Outer rectangle (we make it a bit wider horizontally to allow a long single path)
       let left = margin, top = margin, right = containerW - margin, bottom = containerH - margin;
-      const ringInset = tileSize + gap + Math.round(tileSize*0.4); // safety inset to ensure rings don't touch
-      // We'll generate rings and append their perimeter points in clockwise order,
-      // and between rings we add a short connector segment so the path is continuous.
+      const ringInset = tileSize + gap + Math.round(tileSize*0.4);
       function perimeterPoints(l,t,r,b, spacing){
-        const w = Math.max(1, r - l);
-        const h = Math.max(1, b - t);
+        const w = Math.max(1, r - l), h = Math.max(1, b - t);
         const perim = 2*(w + h);
         const count = Math.max(4, Math.floor(perim / spacing));
-        const pts = [];
-        // compute count per edge proportionally
         const topCount = Math.max(1, Math.round(count * (w / perim)));
         const rightCount = Math.max(1, Math.round(count * (h / perim)));
         const bottomCount = Math.max(1, Math.round(count * (w / perim)));
         const leftCount = Math.max(1, Math.round(count * (h / perim)));
         let sum = topCount + rightCount + bottomCount + leftCount;
-        // adjust to match count
         let idxAdjust = 0;
         while(sum < count){ if(idxAdjust%4===0) topCount++; else if(idxAdjust%4===1) rightCount++; else if(idxAdjust%4===2) bottomCount++; else leftCount++; idxAdjust++; sum++; }
         while(sum > count){ if(idxAdjust%4===0 && topCount>1) topCount--; else if(idxAdjust%4===1 && rightCount>1) rightCount--; else if(idxAdjust%4===2 && bottomCount>1) bottomCount--; else if(idxAdjust%4===3 && leftCount>1) leftCount--; idxAdjust++; sum--; }
-
-        // top
-        for(let i=0;i<topCount;i++){
-          const x = l + (i+0.5) * (w / topCount);
-          const y = t;
-          pts.push({x,y});
-        }
-        // right
-        for(let i=0;i<rightCount;i++){
-          const x = r;
-          const y = t + (i+0.5) * (h / rightCount);
-          pts.push({x,y});
-        }
-        // bottom (right->left)
-        for(let i=0;i<bottomCount;i++){
-          const x = r - (i+0.5) * (w / bottomCount);
-          const y = b;
-          pts.push({x,y});
-        }
-        // left (bottom->top)
-        for(let i=0;i<leftCount;i++){
-          const x = l;
-          const y = b - (i+0.5) * (h / leftCount);
-          pts.push({x,y});
-        }
+        const pts = [];
+        for(let i=0;i<topCount;i++){ const x = l + (i+0.5) * (w / topCount); pts.push({x,y:t}); }
+        for(let i=0;i<rightCount;i++){ const y = t + (i+0.5) * (h / rightCount); pts.push({x:r,y}); }
+        for(let i=0;i<bottomCount;i++){ const x = r - (i+0.5) * (w / bottomCount); pts.push({x,y:b}); }
+        for(let i=0;i<leftCount;i++){ const y = b - (i+0.5) * (h / leftCount); pts.push({x:l,y}); }
         return pts;
       }
 
-      const desiredSpacing = tileSize + gap;
-      let attempts = 0;
+      // generates rings list (same as before)
       const rings = [];
+      let attempts = 0;
       while(coords.length < N - 1 && right - left > tileSize && bottom - top > tileSize && attempts < 24){
-        const pts = perimeterPoints(left, top, right, bottom, desiredSpacing);
-        // reduce pts if they'd overflow remaining slots (we'll trim later anyway)
+        const pts = perimeterPoints(left, top, right, bottom, tileSize + gap);
         rings.push({pts, l:left, t:top, r:right, b:bottom});
         left += ringInset; top += ringInset; right -= ringInset; bottom -= ringInset;
         attempts++;
       }
 
-      // Concatenate rings into one connected path:
-      // For each ring, choose a start index that's close to previous ring's connector point to make smoother connection.
+      // build continuous path: append rings and connectors
       let prevExit = null;
-      for(let ri = 0; ri < rings.length && coords.length < N - 1; ri++){
+      for(let ri=0; ri<rings.length && coords.length < N - 1; ri++){
         const ring = rings[ri];
         const pts = ring.pts.slice();
-        // determine start index: if prevExit exists, pick closest point to it to minimize connector length; else pick first top-left-ish
         let startIdx = 0;
         if(prevExit){
-          let best = 0, bestD = Infinity;
+          let best=0, bestD=Infinity;
           for(let k=0;k<pts.length;k++){
             const dx = pts[k].x - prevExit.x, dy = pts[k].y - prevExit.y;
             const d = Math.hypot(dx,dy);
@@ -257,9 +230,9 @@
           }
           startIdx = best;
         } else {
-          // prefer top-center approximate start (closest to top center)
-          let best = 0, bestD = Infinity;
-          const topCenter = {x:(ring.l + ring.r)/2, y: ring.t};
+          // start at top center
+          let best=0, bestD=Infinity;
+          const topCenter = {x:(ring.l+ring.r)/2, y:ring.t};
           for(let k=0;k<pts.length;k++){
             const dx = pts[k].x - topCenter.x, dy = pts[k].y - topCenter.y;
             const d = Math.hypot(dx,dy);
@@ -267,21 +240,16 @@
           }
           startIdx = best;
         }
-        // append ring points starting from startIdx, in clockwise order, but ensure we don't create overlap: we keep ring points as-is
         for(let k=0;k<pts.length && coords.length < N - 1;k++){
           const idx = (startIdx + k) % pts.length;
-          // jitter a little but small to avoid collisions
           const jitterX = (Math.random()*2 -1) * (BASE_JITTER * 0.4);
           const jitterY = (Math.random()*2 -1) * (BASE_JITTER * 0.4);
           coords.push({x: pts[idx].x + jitterX, y: pts[idx].y + jitterY, ang: (Math.random()*2-1)*6});
         }
-        // set prevExit to a point on this ring to connect to next ring; pick the last appended
         prevExit = coords[coords.length-1];
-        // add a short connector towards the inner ring's approximate center point to make a visible connection (but keep safe spacing)
         if(ri < rings.length - 1 && coords.length < N - 1){
           const inner = rings[ri+1];
-          const innerCenter = {x: (inner.l + inner.r)/2, y: (inner.t + inner.b)/2};
-          // connector point halfway but nudged slightly toward inner center
+          const innerCenter = {x:(inner.l+inner.r)/2, y:(inner.t+inner.b)/2};
           const connX = prevExit.x + (innerCenter.x - prevExit.x) * 0.25 + (Math.random()*2-1)*(BASE_JITTER*0.6);
           const connY = prevExit.y + (innerCenter.y - prevExit.y) * 0.25 + (Math.random()*2-1)*(BASE_JITTER*0.6);
           coords.push({x: connX, y: connY, ang: (Math.random()*2-1)*6});
@@ -289,29 +257,27 @@
         }
       }
 
-      // If still short on tiles, fill inward spirals (small) toward center sequentially
+      // fill surplus if needed
       if(coords.length < N - 1){
         const remaining = (N - 1) - coords.length;
-        const step = Math.max(8, Math.floor(Math.min(containerW, containerH) / (remaining + 4)));
         for(let i=0;i<remaining;i++){
           const angle = (i/remaining) * Math.PI * 2;
-          const radius = Math.min(containerW, containerH) * 0.12 + (i%3) * (tileSize*0.4);
+          const radius = Math.min(containerW, containerH) * 0.11 + (i%3) * (tileSize*0.4);
           const x = cx + Math.cos(angle) * radius + (Math.random()*2-1)*BASE_JITTER;
           const y = cy + Math.sin(angle) * radius + (Math.random()*2-1)*BASE_JITTER;
           coords.push({x,y,ang:(Math.random()*2-1)*8});
         }
       }
 
-      // final center (goal)
+      // final center
       coords.push({x: cx, y: cy, ang:0});
 
-      // clamp and ensure all coords inside with margin
+      // clamp
       const clampMargin = tileSize;
       for(const c of coords){
         c.x = Math.max(clampMargin, Math.min(containerW - clampMargin, c.x));
         c.y = Math.max(clampMargin, Math.min(containerH - clampMargin, c.y));
       }
-      // if coords exceed N, truncate
       if(coords.length > N) coords.length = N;
       return coords;
     }
@@ -347,31 +313,80 @@
       placeAllTokens();
     }
 
+    // place tokens with auto-offset when multiple tokens share same tile
     function placeAllTokens(){
+      // group players by position
+      const groups = new Map();
       state.players.forEach((pl,i)=>{
-        let t = document.getElementById(`token-${i}`);
-        if(!t){
-          t = document.createElement("div"); t.className = "token"; t.id = `token-${i}`;
-          t.textContent = String(i+1);
-          t.style.background = (["#86BB27","#DFF3C6","#C4C4C4","#000000"][i % 4]) || "#86BB27";
-          board.appendChild(t);
-        }
-        if(typeof pl.position !== "number" || pl.position < 0){
-          const sRect = START_MARKER.getBoundingClientRect();
-          const bRect = board.getBoundingClientRect();
-          const x = (sRect.left - bRect.left) + sRect.width/2;
-          const y = (sRect.top - bRect.top) + sRect.height/2;
-          t.style.transform = `translate(${x}px, ${y}px)`;
+        const pos = (typeof pl.position === "number" && pl.position >= 0) ? pl.position : "__start";
+        if(!groups.has(pos)) groups.set(pos, []);
+        groups.get(pos).push(i);
+      });
+      const bRect = board.getBoundingClientRect();
+      // handle start group
+      if(groups.has("__start")){
+        const startIdxs = groups.get("__start");
+        const sRect = START_MARKER.getBoundingClientRect();
+        const sx = (sRect.left - bRect.left) + sRect.width/2;
+        const sy = (sRect.top - bRect.top) + sRect.height/2;
+        startIdxs.forEach((pi,k)=>{
+          const t = ensureToken(pi);
+          // arrange small offsets so start stack is visible
+          const offX = ((k % 2) - 0.5) * 18;
+          const offY = (Math.floor(k/2) - 0.5) * 18;
+          t.style.transform = `translate(${sx + offX}px, ${sy + offY}px)`;
+        });
+      }
+      // handle tile groups
+      groups.forEach((idxs, pos)=>{
+        if(pos === "__start") return;
+        const center = tileCoords[pos];
+        if(!center) return;
+        const n = idxs.length;
+        // choose arrangement radius depending on n
+        const baseR = Math.max(14, TILE_SIZE * 0.28);
+        if(n === 1){
+          const t = ensureToken(idxs[0]);
+          t.style.transform = `translate(${center.x}px, ${center.y}px)`;
         } else {
-          const idx = pl.position;
-          const c = tileCoords[idx];
-          if(c){
-            t.style.transform = `translate(${c.x}px, ${c.y}px)`;
-          } else {
-            t.style.transform = `translate(${board.clientWidth/2}px, ${board.clientHeight/2}px)`;
+          // arrange in circle(s)
+          const perOuter = 6;
+          const outerCount = Math.min(n, perOuter);
+          const innerCount = Math.max(0, n - perOuter);
+          let used = 0;
+          // outer circle
+          const outerR = baseR;
+          for(let k=0;k<outerCount;k++){
+            const ang = (k / outerCount) * Math.PI * 2 - Math.PI/2;
+            const x = center.x + Math.cos(ang) * outerR;
+            const y = center.y + Math.sin(ang) * outerR;
+            const t = ensureToken(idxs[used++]);
+            t.style.transform = `translate(${x}px, ${y}px)`;
+          }
+          // inner circle if needed
+          if(innerCount > 0){
+            const innerR = baseR * 0.6;
+            for(let k=0;k<innerCount;k++){
+              const ang = (k / innerCount) * Math.PI * 2 - Math.PI/2;
+              const x = center.x + Math.cos(ang) * innerR;
+              const y = center.y + Math.sin(ang) * innerR;
+              const t = ensureToken(idxs[used++]);
+              t.style.transform = `translate(${x}px, ${y}px)`;
+            }
           }
         }
       });
+    }
+
+    function ensureToken(i){
+      let t = document.getElementById(`token-${i}`);
+      if(!t){
+        t = document.createElement("div"); t.className = "token"; t.id = `token-${i}`;
+        t.textContent = String(i+1);
+        t.style.background = (["#86BB27","#DFF3C6","#C4C4C4","#000000"][i % 4]) || "#86BB27";
+        board.appendChild(t);
+      }
+      return t;
     }
 
     function pushLog(text, kind){
@@ -383,29 +398,64 @@
       logEl.scrollTop = logEl.scrollHeight;
     }
 
+    // move token step-by-step for the moving player: per-tile animation using CSS transition and awaiting it
+    function moveTokenStep(playerIndex, pos){
+      return new Promise(resolve=>{
+        const t = ensureToken(playerIndex);
+        const c = (typeof pos === "number" && tileCoords[pos]) ? tileCoords[pos] : null;
+        const bRect = board.getBoundingClientRect();
+        if(!c){
+          // place at start
+          const sRect = START_MARKER.getBoundingClientRect();
+          const x = (sRect.left - bRect.left) + sRect.width/2;
+          const y = (sRect.top - bRect.top) + sRect.height/2;
+          t.style.transform = `translate(${x}px, ${y}px)`;
+          // short timeout to simulate step
+          setTimeout(()=> resolve(), parseInt(getComputedStyle(t).transitionDuration) + 10);
+          return;
+        }
+        // set up one-time transitionend listener
+        let finished = false;
+        function onEnd(e){
+          if(e && e.target !== t) return;
+          if(finished) return;
+          finished = true;
+          t.removeEventListener('transitionend', onEnd);
+          // small extra delay so step is perceptible
+          setTimeout(()=> resolve(), 20);
+        }
+        t.addEventListener('transitionend', onEnd);
+        // if transitionend doesn't fire (older browsers), fallback timeout
+        const fallback = setTimeout(()=> { if(!finished){ finished=true; t.removeEventListener('transitionend', onEnd); resolve(); } }, 400);
+        // move token
+        t.style.transform = `translate(${c.x}px, ${c.y}px)`;
+      });
+    }
+
+    // animateMove uses moveTokenStep to produce per-tile movement
     async function animateMove(playerIndex, steps){
       const pl = state.players[playerIndex]; if(!pl || pl.finished) return;
       state.animating = true; updateRollState();
       try{
         let pos = (typeof pl.position === "number") ? pl.position : -1;
         let remaining = steps;
-        const delay = 150;
         while(remaining > 0){
           const next = pos + 1;
           if(next >= NUM_TILES){
             pos = NUM_TILES - 1;
             pl.position = pos;
-            placeAllTokens();
-            await sleep(delay);
+            // move visually
+            await moveTokenStep(playerIndex, pos);
             break;
           } else {
             pos = next;
             pl.position = pos;
-            placeAllTokens();
-            await sleep(delay);
+            await moveTokenStep(playerIndex, pos);
           }
           remaining--;
         }
+        // after finishing movement, recompute offsets for co-located tokens
+        placeAllTokens();
         await resolveCell(playerIndex, pl.position);
       }catch(e){ console.error(e); }
       finally{ state.animating = false; updateRollState(); }
@@ -591,7 +641,7 @@
 
     attachHandlers();
     layoutTiles();
-    pushLog("UI ready — converted to a single connected path (rings concatenated with connectors) to guarantee no overlap while keeping one continuous route.");
+    pushLog("UI ready — favicon added; token moves now per-tile with short steps; multiple tokens on same tile are auto-offset to avoid exact overlap.");
 
   })();
   </script>
