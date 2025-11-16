@@ -136,6 +136,7 @@
 
     .left-col{display:flex; align-items:center; gap:10px}
     .name-wrap{display:flex; flex-direction:column}
+    .player-name{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:220px; font-weight:700}
     .rank{font-weight:800; color:var(--black)}
     .salary{font-weight:700; color:var(--black); font-size:13px}
 
@@ -450,9 +451,9 @@
         const left = document.createElement("div"); left.className = "left-col";
         const badge=document.createElement("span"); badge.className="badge"; badge.style.background=pl.color; left.appendChild(badge);
         const nameWrap = document.createElement("div"); nameWrap.className = "name-wrap";
-        const name = document.createElement("div"); name.textContent = pl.name; name.style.fontWeight = 700;
-        const { rank, estimatedSalary, score } = getRankAndSalary(pl);
-        const rankEl = document.createElement("div"); rankEl.className = "rank"; rankEl.textContent = `${rank} (S:${score})`;
+        const name = document.createElement("div"); name.className = "player-name"; name.textContent = pl.name;
+        const { rank, estimatedSalary } = getRankAndSalary(pl);
+        const rankEl = document.createElement("div"); rankEl.className = "rank"; rankEl.textContent = rank; // score removed per request
         const salEl = document.createElement("div"); salEl.className = "salary"; salEl.textContent = `${yen(estimatedSalary)}`;
         nameWrap.appendChild(name); nameWrap.appendChild(rankEl); nameWrap.appendChild(salEl);
         left.appendChild(nameWrap);
@@ -577,7 +578,7 @@
             pl.turnsToGoal = state.turn;
             pushLog(`${pl.name}: プロジェクト完了（ゴール）！`);
             const { rank, estimatedSalary, score } = getRankAndSalary(pl);
-            await showCard("ゴール（プロジェクト完了）", `ランク: ${rank} / スコア: ${score} / 推定年収: ${yen(estimatedSalary)}`, `${pl.name}`);
+            await showCard("ゴール（プロジェクト完了）", `ランク: ${rank} / 推定年収: ${yen(estimatedSalary)}`, `${pl.name}`);
             if(isGameFinished()) showResult();
           }
           break;
