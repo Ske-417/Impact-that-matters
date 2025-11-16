@@ -156,8 +156,6 @@
       <div class="group"><label for="players-count">人数</label><select id="players-count"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></div>
       <div class="group"><label for="initial-money">初期資金</label><input id="initial-money" type="number" value="50000" min="0" step="1000" /></div>
 
-      <!-- seed/speed/overshoot inputs removed from UI per request -->
-
       <div class="dice" id="dice" aria-live="polite" aria-atomic="true">-</div>
 
       <button id="btn-start" class="primary" type="button">開始</button>
@@ -301,10 +299,13 @@
 
   <script>
   // ===========================
-  // 修正: 開始ボタンが動作しない不具合を修正しました。
-  // - btn-start, btn-roll, btn-reset に対するイベントハンドラを追加。
-  // - ゲーム開始処理 startGame(), サイコロ振る rollTurn(), リセット resetGame() を実装。
-  // - 速度・シード・保存UIは非表示の方針のまま（機能削除済）。
+  // 修正: イベントマスに止まった後の処理が期待通りに動くよう、モーダル系と resolveCell を Promise ベースにして
+  //       animateMove / rollTurn のフローがモーダルの選択完了（または OK）まで待機するようにしました。
+  // 変更点のポイント:
+  // - showCard / showBranchModal を Promise を返すようにして、選択や閉じる操作で解決される。
+  // - resolveCell を async にして、インタラクティブ処理がある場合は await するようにした。
+  // - animateMove は resolveCell の完了を await するように修正。
+  // これにより、分岐選択やイベント表示が完了するまで次のターンへ進まない挙動に修正されます。
   // ===========================
   (function(){
     const $ = s => document.querySelector(s);
@@ -319,6 +320,7 @@
     const historyModal = $("#history-modal"), historyBody = $("#history-body"), historyClose = $("#history-close"), historyClear = $("#history-clear");
     const genericModal = $("#modal"), genericTitle = $("#modal-title"), genericText = $("#modal-text"), genericSub = $("#modal-sub"), genericActions = $("#modal-actions");
     const achModal = $("#achievements-modal"), achListEl = $("#ach-list"), achClose = $("#ach-close"), achReset = $("#ach-reset");
+    const resultDlg = $("#result"), resultBody = $("#result-body");
 
     // Board size & constants
     const BOARD_COLS = 10, BOARD_ROWS = 6, TOTAL_CELLS = BOARD_COLS * BOARD_ROWS;
@@ -422,27 +424,81 @@
       state.playerSettings.length = count;
     }
 
-    // rendering helpers (same as before)
-    function getCellSize(){
-      const val = getComputedStyle(document.documentElement).getPropertyValue('--cell-size') || '68px';
-      return parseInt(val);
+    // ---------- Modal helpers updated to return Promises ----------
+
+    // showCard: displays a message with OK and resolves when user clicks OK
+    function showCard(title, text, sub){
+      return new Promise(resolve => {
+        if(!genericModal) { resolve(); return; }
+        genericTitle.textContent = title || "";
+        if(typeof text === "string" && /<\/?[a-z][\s\S]*>/i.test(text)){
+          genericText.innerHTML = text;
+        } else {
+          genericText.textContent = text || "";
+        }
+        genericSub.textContent = sub || "";
+        genericActions.innerHTML = "";
+        const ok = document.createElement("button"); ok.className = "primary"; ok.textContent = "OK"; ok.type = "button";
+        const cleanup = () => {
+          ok.removeEventListener("click", onOk);
+          try{ genericModal.close(); }catch(e){}
+        };
+        function onOk(){
+          cleanup();
+          resolve();
+        }
+        ok.addEventListener("click", onOk);
+        genericActions.appendChild(ok);
+        try{ genericModal.showModal(); }catch(e){ /* some browsers may not support */ }
+      });
     }
-    function setCellSize(px){
-      document.documentElement.style.setProperty('--cell-size', px + 'px');
-      document.documentElement.style.setProperty('--board-max-width', `calc(${px}px * var(--board-cols) + 32px)`);
-      placeAllTokens();
+
+    // showBranchModal: shows choices and resolves to the chosen result (or null if cancelled)
+    function showBranchModal(branchEv, playerIndex){
+      return new Promise(resolve => {
+        if(!genericModal) { resolve(null); return; }
+        genericTitle.textContent = "案件分岐 (提案)";
+        genericText.textContent = branchEv.text || "";
+        genericSub.textContent = `あなた: ${state.players[playerIndex].name}`;
+        genericActions.innerHTML = "";
+        const onChoice = async (choice) => {
+          // run the choice logic similarly to previous inline handler
+          const baseProb = (typeof choice.probGood === "number") ? choice.probGood : 1.0;
+          const pl = state.players[playerIndex];
+          const repBonus = Math.max(-0.3, Math.min(0.3, (pl.reputation || 0) / 200));
+          const prob = Math.max(0.05, Math.min(0.95, baseProb + repBonus));
+          const success = state.rng() < prob;
+          const res = success ? (choice.success||{}) : (choice.failure||{});
+          // apply immediate effects (money/reputation/csat)
+          if(typeof res.money === "number" && res.money !== 0){
+            const delta = res.money;
+            pl.money += delta;
+            if(delta > (pl.highestSingleGain || 0)) pl.highestSingleGain = delta;
+            if(pl.money > (pl.maxMoneyReached || 0)) pl.maxMoneyReached = pl.money;
+            flashMoney(playerIndex, res.money);
+          }
+          if(typeof res.rep === "number") pl.reputation = Math.max(0, Math.min(100, (pl.reputation || 50) + res.rep));
+          if(typeof res.csat === "number") pl.clientSatisfaction = Math.max(0, Math.min(100, (pl.clientSatisfaction || 50) + res.csat));
+          if(success) pl.branchSuccessCount = (pl.branchSuccessCount || 0) + 1;
+          const text = success ? (res.text || `${choice.label} → 受注成功`) : (res.text || `${choice.label} → 失注`);
+          pushLog(`${pl.name}: ${text} ${res.money ? `(${res.money>0?'+':''}${yen(res.money)})` : ""}`, success ? "ok" : "bad");
+          // close modal and resolve with the move info so caller can act (e.g., animateMove)
+          try{ genericModal.close(); }catch(e){}
+          resolve({ choice, res, success });
+        };
+        branchEv.choices.forEach(choice=>{
+          const b = document.createElement("button"); b.type = "button"; b.textContent = choice.label;
+          b.addEventListener("click", ()=> onChoice(choice));
+          genericActions.appendChild(b);
+        });
+        const cancel = document.createElement("button"); cancel.type = "button"; cancel.textContent = "やめる";
+        cancel.addEventListener("click", ()=> { try{ genericModal.close(); }catch(e){}; resolve(null); });
+        genericActions.appendChild(cancel);
+        try{ genericModal.showModal(); }catch(e){}
+      });
     }
-    function zoomIn(){ const s = getCellSize(); setCellSize(s + parseInt(getComputedStyle(document.documentElement).getPropertyValue('--zoom-step'))); }
-    function zoomOut(){ const s = getCellSize(); setCellSize(Math.max(44, s - parseInt(getComputedStyle(document.documentElement).getPropertyValue('--zoom-step')))); }
-    function fitBoard(){
-      const toolbarRect = document.querySelector('.appbar').getBoundingClientRect();
-      const viewportH = window.innerHeight;
-      const availableH = viewportH - toolbarRect.height - 48;
-      const maxCellH = Math.floor((availableH - 16) / BOARD_ROWS);
-      const current = getCellSize();
-      const newSize = Math.max(44, Math.min(current, maxCellH));
-      setCellSize(newSize);
-    }
+
+    // ---------- Core game logic (resolveCell returns Promise) ----------
 
     function indexToGrid(index){
       const row = Math.floor(index/BOARD_COLS);
@@ -451,7 +507,6 @@
       return {row, col};
     }
 
-    // rendering board & tokens
     function renderBoard(){
       if(!boardEl) return;
       boardEl.innerHTML = "";
@@ -583,90 +638,20 @@
     }
     function hideTooltip(){ if(tooltip) tooltip.style.display = "none"; }
 
-    // Modal helpers
-    function showCard(title, text, sub){
-      if(!genericModal || !genericTitle) return;
-      genericTitle.textContent = title;
-      if(typeof text === "string" && /<\/?[a-z][\s\S]*>/i.test(text)){
-        genericText.innerHTML = text;
-      } else {
-        genericText.textContent = text;
-      }
-      genericSub.textContent = sub || "";
-      genericActions.innerHTML = "";
-      const ok = document.createElement("button"); ok.className = "primary"; ok.textContent = "OK"; ok.type = "button";
-      ok.addEventListener("click", ()=> { try{ genericModal.close(); }catch(e){} });
-      genericActions.appendChild(ok);
-      if(genericModal && genericModal.showModal) genericModal.showModal();
-    }
-
-    // Branch modal (unchanged usage)
-    function showBranchModal(branchEv, playerIndex){
-      if(!genericModal) return;
-      genericTitle.textContent = "案件分岐 (提案)";
-      genericText.textContent = branchEv.text;
-      genericSub.textContent = `あなた: ${state.players[playerIndex].name}`;
-      genericActions.innerHTML = "";
-      branchEv.choices.forEach(choice=>{
-        const b = document.createElement("button"); b.type = "button"; b.textContent = choice.label;
-        b.addEventListener("click", async ()=>{
-          const baseProb = (typeof choice.probGood === "number") ? choice.probGood : 1.0;
-          const pl = state.players[playerIndex];
-          const repBonus = Math.max(-0.3, Math.min(0.3, (pl.reputation || 0) / 200));
-          const prob = Math.max(0.05, Math.min(0.95, baseProb + repBonus));
-          const success = state.rng() < prob;
-          const res = success ? (choice.success||{}) : (choice.failure||{});
-          if(typeof res.money === "number" && res.money !== 0){
-            const delta = res.money;
-            pl.money += delta;
-            if(delta > (pl.highestSingleGain || 0)) pl.highestSingleGain = delta;
-            if(pl.money > (pl.maxMoneyReached || 0)) pl.maxMoneyReached = pl.money;
-            flashMoney(playerIndex, res.money);
-          }
-          if(typeof res.rep === "number") pl.reputation = Math.max(0, Math.min(100, (pl.reputation || 50) + res.rep));
-          if(typeof res.csat === "number") pl.clientSatisfaction = Math.max(0, Math.min(100, (pl.clientSatisfaction || 50) + res.csat));
-          if(success) pl.branchSuccessCount = (pl.branchSuccessCount || 0) + 1;
-          const text = success ? (res.text || `${choice.label} → 受注成功`) : (res.text || `${choice.label} → 失注`);
-          pushLog(`${pl.name}: ${text} ${res.money ? `(${res.money>0?'+':''}${yen(res.money)})` : ""}`, success ? "ok" : "bad");
-          if(typeof res.move === "number" && res.move !== 0){
-            if(res.move > 0) await animateMove(playerIndex, res.move);
-            else { pl.position = Math.max(0, pl.position + res.move); placeAllTokens(); resolveCell(playerIndex, pl.position); }
-          } else {
-            renderPlayersPanel();
-          }
-          evaluatePlayerAchievements(playerIndex);
-          try{ genericModal.close(); }catch(e){}
-        });
-        genericActions.appendChild(b);
-      });
-      const cancel = document.createElement("button"); cancel.type = "button"; cancel.textContent = "やめる"; cancel.addEventListener("click", ()=> { try{ genericModal.close(); }catch(e){} });
-      genericActions.appendChild(cancel);
-      if(genericModal && genericModal.showModal) genericModal.showModal();
-    }
-
-    // dialog state updates (uses updateRollState)
-    function updateRollState(){
-      if(btnRoll) btnRoll.disabled = !state.started || state.animating;
-    }
-    document.querySelectorAll('dialog.modal').forEach(d => {
-      d.addEventListener('close', updateRollState);
-      d.addEventListener('cancel', updateRollState);
-      d.addEventListener('click', (e) => {
-        if(e.target === d) e.stopPropagation();
-      });
-    });
-
-    // resolveCell, animateMove, nextPlayerTurn etc (same logic as before)
-    function resolveCell(playerIndex, index){
+    // ---------- resolveCell now async and returns after interactive parts finish ----------
+    async function resolveCell(playerIndex, index){
       const pl = state.players[playerIndex]; const cell = cells[index]; if(!cell||!pl) return;
       switch(cell.type){
-        case "start": pushLog(`${pl.name}: プロジェクト開始地点へ`, "ok"); break;
+        case "start":
+          pushLog(`${pl.name}: プロジェクト開始地点へ`, "ok");
+          break;
+
         case "goal":
           if(!pl.finished){
             pl.finished = true; state.finishedCount += 1; $("#"+tokenId(playerIndex))?.classList.add("finished");
             pl.turnsToGoal = state.turn;
             pushLog(`${pl.name}: プロジェクト完了（ゴール）！`);
-            showCard("ゴール（プロジェクト完了）", `${pl.name} がゴール！`, `現在残高: ${yen(pl.money)} / 評判: ${pl.reputation || 0}`);
+            await showCard("ゴール（プロジェクト完了）", `${pl.name} がゴール！`, `現在残高: ${yen(pl.money)} / 評判: ${pl.reputation || 0}`);
             evaluatePlayerAchievements(playerIndex);
             if(isGameFinished()){
               evaluateEndAchievements();
@@ -674,6 +659,7 @@
             }
           }
           break;
+
         case "bonus":{
           const amount = randPick(state.rng, [15000,20000,30000,50000]); pl.money += amount; flashMoney(playerIndex, amount);
           pl.bonusCount = (pl.bonusCount || 0) + 1;
@@ -684,6 +670,7 @@
           evaluatePlayerAchievements(playerIndex);
           break;
         }
+
         case "penalty":{
           const amount = randPick(state.rng, [8000,12000,18000,25000]); pl.money -= amount; flashMoney(playerIndex, -amount);
           pl.penaltyCount = (pl.penaltyCount||0) + 1;
@@ -691,6 +678,7 @@
           pushLog(`${pl.name}: コスト発生…${yen(amount)}失う（残高: ${yen(pl.money)}）`, "bad");
           break;
         }
+
         case "client":{
           const base = 0.55;
           const repBonus = ((pl.reputation||50) - 50) / 200;
@@ -712,6 +700,7 @@
           evaluatePlayerAchievements(playerIndex);
           break;
         }
+
         case "workshop":{
           const gain = randPick(state.rng, [0,5000,10000]);
           pl.money += gain; flashMoney(playerIndex, gain);
@@ -721,16 +710,50 @@
           evaluatePlayerAchievements(playerIndex);
           break;
         }
+
         case "event":{
+          // Branch possibility: if branch modal shown, wait for user's choice and then apply movement effect if any
           if(state.rng() < BRANCH_CHANCE){
             const pb = personaBranchMap[pl.name];
-            if(pb && pb.length>0){ const be = randPick(state.rng, pb); showBranchModal(be, playerIndex); return; }
+            if(pb && pb.length>0){
+              const be = randPick(state.rng, pb);
+              const res = await showBranchModal(be, playerIndex);
+              if(res && res.res && typeof res.res.move === "number" && res.res.move !== 0){
+                if(res.res.move > 0) {
+                  await animateMove(playerIndex, res.res.move);
+                } else {
+                  pl.position = Math.max(0, pl.position + res.res.move);
+                  placeAllTokens();
+                  await resolveCell(playerIndex, pl.position); // resolve chain if moved to another event
+                }
+              } else {
+                // no move: just re-render to reflect money/reputation changes
+                renderPlayersPanel();
+              }
+              evaluatePlayerAchievements(playerIndex);
+              return;
+            }
             const defaultBranch = { text: "クライアントへの提案機会", choices: [
               { label:"攻めの提案", probGood:0.5, success:{money:40000,move:1,rep:+2,csat:+3,text:"提案受注！"}, failure:{money:-10000,move:0,rep:-1,csat:-2,text:"提案失敗"} },
               { label:"守りの提案", probGood:0.8, success:{money:15000,move:0,rep:+1,csat:+1,text:"小さな案件を獲得"}, failure:{money:0,move:0,rep:0,csat:0,text:"何もしない"} }
             ]};
-            showBranchModal(defaultBranch, playerIndex); return;
+            const res2 = await showBranchModal(defaultBranch, playerIndex);
+            if(res2 && res2.res && typeof res2.res.move === "number" && res2.res.move !== 0){
+              if(res2.res.move > 0) {
+                await animateMove(playerIndex, res2.res.move);
+              } else {
+                pl.position = Math.max(0, pl.position + res2.res.move);
+                placeAllTokens();
+                await resolveCell(playerIndex, pl.position);
+              }
+            } else {
+              renderPlayersPanel();
+            }
+            evaluatePlayerAchievements(playerIndex);
+            return;
           }
+
+          // persona-specific event or generic event
           const personaEvents = personaEventMap[pl.name];
           if(personaEvents && personaEvents.length>0 && state.rng() < 0.7){
             const ev = randPick(state.rng, personaEvents);
@@ -741,11 +764,12 @@
             if(pl.money > (pl.maxMoneyReached||0)) pl.maxMoneyReached = pl.money;
             pushLog(`${pl.name}: ${ev.text}（残高: ${yen(pl.money)} / 評判: ${pl.reputation || 0} / CSAT: ${pl.clientSatisfaction || 50}）`, ev.money>=0?"ok":"bad");
             if(state.rng() < 0.10){ pl.skipTurn = true; pushLog(`${pl.name}: 次のターンはお休み（リフレッシュ）`); }
-            showCard("案件イベント", ev.text, `${pl.name} / 残高: ${yen(pl.money)} / 評判: ${pl.reputation || 0} / CSAT: ${pl.clientSatisfaction || 50}`);
+            await showCard("案件イベント", ev.text, `${pl.name} / 残高: ${yen(pl.money)} / 評判: ${pl.reputation || 0} / CSAT: ${pl.clientSatisfaction || 50}`);
             evaluatePlayerAchievements(playerIndex);
             renderPlayersPanel();
             return;
           }
+
           const ev2 = randPick(state.rng, eventTable);
           pl.money += ev2.money; flashMoney(playerIndex, ev2.money || 0);
           if(typeof ev2.rep === "number") pl.reputation = (pl.reputation || 0) + ev2.rep;
@@ -754,11 +778,11 @@
           if(pl.money > (pl.maxMoneyReached||0)) pl.maxMoneyReached = pl.money;
           pushLog(`${pl.name}: ${ev2.text}（残高: ${yen(pl.money)} / 評判: ${pl.reputation || 0} / CSAT: ${pl.clientSatisfaction || 50}）`, ev2.money>=0?"ok":"bad");
           if(state.rng() < 0.10){ pl.skipTurn = true; pushLog(`${pl.name}: 次のターンはお休み（リフレッシュ）`); }
-          showCard("案件イベント", ev2.text, `${pl.name} / 残高: ${yen(pl.money)} / 評判: ${pl.reputation || 0} / CSAT: ${pl.clientSatisfaction || 50}`);
+          await showCard("案件イベント", ev2.text, `${pl.name} / 残高: ${yen(pl.money)} / 評判: ${pl.reputation || 0} / CSAT: ${pl.clientSatisfaction || 50}`);
           evaluatePlayerAchievements(playerIndex);
           break;
-        }
-      }
+        } // end case event
+      } // end switch
       renderPlayersPanel();
     }
 
@@ -801,7 +825,8 @@
         }
         remaining--;
       }
-      resolveCell(playerIndex, pl.position);
+      // Wait for resolveCell to finish (including any modal interactions triggered by landing)
+      await resolveCell(playerIndex, pl.position);
       state.animating = false; updateRollState();
     }
 
@@ -834,7 +859,7 @@
       try{ resultDlg.showModal(); }catch(e){}
     }
 
-    // --- New: game control functions ---
+    // --- Game control functions ---
 
     function startGame(){
       if(state.started) return;
@@ -858,7 +883,6 @@
       state.turn = 1;
       state.currentPlayerIndex = 0;
       state.finishedCount = 0;
-      // RNG fixed to Math.random per request
       state.rng = Math.random;
       renderBoard();
       renderPlayersPanel();
@@ -874,11 +898,9 @@
       if(state.players.length === 0) { pushLog("プレイヤーが設定されていません"); return; }
       const current = state.currentPlayerIndex;
       const val = rollDice();
-      // wait for animateMove to finish
       await animateMove(current, val);
-      // after move, advance turn to next player
+      // after move and any interactive handling, advance turn
       const wasLast = (function(){
-        // if current was the last active player index (naive check)
         const active = state.players.map((p,i)=> ({i, active: !p.finished}));
         const indices = active.filter(a=>a.active).map(a=>a.i);
         if(indices.length === 0) return false;
@@ -910,7 +932,7 @@
       pushLog("ゲームをリセットしました");
     }
 
-    // wire up new handlers safely
+    // wire up handlers
     if(btnStart) btnStart.addEventListener("click", ()=> startGame());
     if(btnRoll) btnRoll.addEventListener("click", ()=> { rollTurn().catch(e=>console.error(e)); });
     if(btnReset) btnReset.addEventListener("click", ()=> resetGame());
@@ -928,7 +950,6 @@
         if (ev.key === 'z' && ev.shiftKey) { ev.preventDefault(); zoomOut(); }
         if (ev.key === 'f' || ev.key === 'F') { ev.preventDefault(); fitBoard(); }
         if (ev.key === ' ' || ev.key === 'Enter') {
-          // Space/Enter: roll if game started
           if(state.started && !state.animating) { ev.preventDefault(); rollTurn().catch(e=>console.error(e)); }
         }
       }
