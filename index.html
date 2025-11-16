@@ -17,7 +17,7 @@
       --black: #000000;
       --white: #FFFFFF;
       --green: #86BB27;
-      --green-light: #DFF3C6; /* 86BB27 を薄めた色 */
+      --green-light: #DFF3C6; /* thin green background */
       --gray: #C4C4C4;
 
       --board-cols:10; --board-rows:6; --cell-size:68px;
@@ -39,25 +39,27 @@
     }
     *{box-sizing:border-box}
     html,body{height:100%; margin:0}
+    /* User requested: all text bold */
     body{
       display:flex; flex-direction:column; align-items:stretch;
       font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,"Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic","Meiryo",sans-serif;
       color:var(--text); background:var(--bg);
       min-height:100vh;
+      font-weight:700;
     }
 
     /* ===== App Bar / Toolbar ===== */
     .appbar{
       position:sticky; top:0; z-index:1100; width:100%;
       display:flex; justify-content:center;
-      background:linear-gradient(180deg, rgba(255,255,255,.98), rgba(255,255,255,.95));
+      background: var(--white);
       backdrop-filter:saturate(0.9); border-bottom:1px solid rgba(0,0,0,0.06);
       pointer-events:auto;
       box-shadow: 0 4px 18px rgba(0,0,0,0.03);
     }
     /* slightly smaller toolbar per request */
     .toolbar{width:100%; padding:6px 10px; display:flex; flex-wrap:wrap; align-items:center; gap:10px}
-    .title{font-weight:800; font-size:15px; color:var(--black); letter-spacing:.02em; white-space:nowrap; margin-right:auto}
+    .title{font-weight:900; font-size:15px; color:var(--black); letter-spacing:.02em; white-space:nowrap; margin-right:auto}
 
     .group{display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--white); border:1px solid var(--gray); border-radius:14px}
     label{font-size:12px; color:var(--black)}
@@ -67,9 +69,10 @@
     input[type="range"]{width:120px}
     button{
       padding:8px 12px; border-radius:var(--btn-radius); border:1px solid var(--gray);
-      background:var(--white); cursor:pointer; font-weight:700; color:var(--black);
+      background:var(--white); cursor:pointer; color:var(--black);
       transition: transform .12s ease, box-shadow .12s ease, opacity .12s ease, background .12s ease;
       box-shadow: none;
+      font-weight:900;
     }
     /* simplified, flat primary button (no heavy gradient) */
     button.primary{
@@ -81,13 +84,13 @@
     button:disabled{opacity:.45; cursor:not-allowed; box-shadow:none}
     button:hover:not(:disabled){ transform: translateY(-2px); box-shadow: var(--btn-hover-shadow); }
 
-    .dice{width:44px; height:44px; display:grid; place-items:center; border-radius:12px; border:1px solid var(--gray); background:var(--white); font-weight:800; color:var(--black)}
+    .dice{width:44px; height:44px; display:grid; place-items:center; border-radius:12px; border:1px solid var(--gray); background:var(--white); color:var(--black)}
     .dice.spin{animation:spin .6s ease}
     @keyframes spin{0%{transform:rotate(0)}50%{transform:rotate(180deg) scale(1.05)}100%{transform:rotate(360deg)}}
 
     /* player name inputs */
     .player-names { display:flex; gap:8px; align-items:center; }
-    .player-names input { width:140px; padding:8px 10px; border-radius:10px; border:1px solid var(--gray); background:var(--white); color:var(--black) }
+    .player-names input { width:140px; padding:8px 10px; border-radius:10px; border:1px solid var(--gray); background:var(--white); color:var(--black); font-weight:900; }
 
     /* ===== Layout ===== */
     .wrap{width:100%; padding:16px; display:grid; grid-template-columns:3fr 1.1fr; gap:12px; flex:1; align-items:start}
@@ -111,24 +114,31 @@
       max-width: none;
       box-shadow: 0 6px 22px rgba(0,0,0,0.04);
     }
-    .cell{background:var(--white); border:1px solid var(--gray); border-radius:12px; padding:8px; display:grid; place-items:center; font-size:12px; position:relative; cursor:default; color:var(--black)}
-    .cell.start{background:linear-gradient(180deg,var(--green-light),var(--white))}
-    .cell.goal{background:linear-gradient(180deg,var(--green),var(--green-light))}
-    .cell.event{background:linear-gradient(180deg,var(--green-light),var(--white))}
-    .cell.penalty{background:linear-gradient(180deg,#FBFBFB,var(--white))}
-    .cell.bonus{background:linear-gradient(180deg,var(--green-light),#F8FFF2)}
-    .cell.client{background:linear-gradient(180deg,var(--green-light),var(--white))}
-    .cell.workshop{background:linear-gradient(180deg,var(--green-light),var(--white))}
+    .cell{
+      background:var(--white); border:1px solid var(--gray); border-radius:12px; padding:8px;
+      display:grid; place-items:center; font-size:12px; position:relative; cursor:default; color:var(--black);
+      font-weight:900;
+    }
+    /* start/goal distinct but no gradients */
+    .cell.start{background: var(--green-light); border-color:var(--green)}
+    .cell.goal{background: var(--green); border-color:var(--green)}
+    /* unify appearance for event-like types: visual unified as green "イベント" */
+    .cell.event, .cell.bonus, .cell.workshop, .cell.client {
+      background: var(--green-light);
+      border-color: var(--green);
+      color: var(--black);
+    }
+    .cell.penalty{background:#FBFBFB; border-color:var(--gray)}
     .cell .idx{position:absolute; top:6px; left:8px; font-size:10px; color:var(--black)}
 
     /* ===== Tokens ===== */
-    .token{width:30px; height:30px; border-radius:50%; border:2px solid var(--black); display:grid; place-items:center; color:var(--white); font-size:12px; font-weight:800; box-shadow:0 8px 20px rgba(0,0,0,0.06)}
+    .token{width:30px; height:30px; border-radius:50%; border:2px solid var(--black); display:grid; place-items:center; color:var(--white); font-size:12px; font-weight:900; box-shadow:0 8px 20px rgba(0,0,0,0.06)}
     .token.finished{opacity:.9; border-color:var(--gray)}
     .token.active{outline:3px solid rgba(0,0,0,0.08)}
 
     /* ===== Sidebar ===== */
     .sidebar{background:var(--white); border:2px solid var(--gray); border-radius:14px; padding:14px; display:grid; gap:12px; height:fit-content; z-index:2; box-shadow: 0 10px 30px rgba(0,0,0,0.04)}
-    .stat{display:flex; justify-content:space-between; gap:8px; padding:10px 12px; background:linear-gradient(180deg,var(--white),#FBFBFB); border-radius:12px}
+    .stat{display:flex; justify-content:space-between; gap:8px; padding:10px 12px; background:var(--white); border-radius:12px}
     .players{display:grid; gap:10px}
     /* compact two-column player row */
     .player-row{display:grid; grid-template-columns:1fr 1fr; gap:10px; align-items:center; padding:10px 12px; background:var(--white); border:1px solid var(--gray); border-radius:12px}
@@ -137,18 +147,18 @@
 
     .left-col{display:flex; align-items:center; gap:10px}
     .name-wrap{display:flex; flex-direction:column}
-    .player-name{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:220px; font-weight:700}
-    .rank{font-weight:800; color:var(--black)}
-    .salary{font-weight:700; color:var(--black); font-size:13px}
+    .player-name{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:220px; font-weight:900}
+    .rank{font-weight:900; color:var(--black)}
+    .salary{font-weight:900; color:var(--black); font-size:13px}
 
     .attr-list{display:flex; gap:8px; justify-content:flex-end; align-items:center}
-    .attr{font-size:12px; background:var(--white); padding:6px 10px; border-radius:10px; border:1px solid var(--gray); min-width:86px; text-align:center; color:var(--black)}
+    .attr{font-size:12px; background:var(--white); padding:6px 10px; border-radius:10px; border:1px solid var(--gray); min-width:86px; text-align:center; color:var(--black); font-weight:900}
 
-    .log{border:1px solid var(--gray); border-radius:12px; background:linear-gradient(180deg,var(--white),#FBFBFB); padding:12px; max-height:320px; overflow:auto; font-size:13px; line-height:1.4}
+    .log{border:1px solid var(--gray); border-radius:12px; background:var(--white); padding:12px; max-height:320px; overflow:auto; font-size:13px; line-height:1.4}
     .log p{margin:0 0 8px}
     .log p.ok{color:var(--green)}
     .log p.bad{color:var(--black)}
-    .footer{font-size:12px; color:var(--black)}
+    .footer{font-size:12px; color:var(--black); font-weight:900}
 
     /* nice little flash for attribute changes */
     .flash-attr { animation: flashAttr 520ms ease; }
@@ -160,11 +170,11 @@
 
     /* Modal card styling */
     .card{padding:16px; border-radius:var(--card-radius); background:var(--white); box-shadow:var(--card-shadow); border:1px solid var(--gray)}
-    .card h3{margin:0 0 8px; color:var(--black)}
-    .card p{margin:0 0 8px}
-    .card .muted{color:var(--black); opacity:0.7; font-size:13px}
+    .card h3{margin:0 0 8px; color:var(--black); font-weight:900}
+    .card p{margin:0 0 8px; font-weight:900}
+    .card .muted{color:var(--black); opacity:0.7; font-size:13px; font-weight:900}
     .card .actions{display:flex; justify-content:flex-end; gap:10px; margin-top:12px}
-    .card .actions button{min-width:84px; padding:8px 12px; border-radius:12px; font-weight:800}
+    .card .actions button{min-width:84px; padding:8px 12px; border-radius:12px; font-weight:900}
 
     /* ensure dialog buttons clickable */
     dialog button{pointer-events:auto}
@@ -386,9 +396,13 @@
         div.className = "cell "+(cell.type!="none"?cell.type:"");
         div.dataset.index = String(cell.index);
         const idx = document.createElement("div"); idx.className = "idx"; idx.textContent = String(cell.index); div.appendChild(idx);
-        const label = document.createElement("div"); label.textContent = cell.label||""; div.appendChild(label);
+        // Visual requirement: for types event/bonus/workshop/client show label "イベント"
+        const isEventish = ["event","bonus","workshop","client"].includes(cell.type);
+        const label = document.createElement("div");
+        label.textContent = isEventish ? "イベント" : (cell.label||"");
+        div.appendChild(label);
         const {row,col} = indexToGrid(cell.index); div.style.gridRowStart = row+1; div.style.gridColumnStart = col+1;
-        // hover handlers still attached but tooltip functions are no-op now
+        // hover handlers still attached but tooltip functions are no-op
         div.addEventListener("mouseenter", e=> showCellTooltip(cell, e));
         div.addEventListener("mousemove", e=> moveTooltip(e));
         div.addEventListener("mouseleave", hideTooltip);
@@ -455,7 +469,7 @@
         const nameWrap = document.createElement("div"); nameWrap.className = "name-wrap";
         const name = document.createElement("div"); name.className = "player-name"; name.textContent = pl.name;
         const { rank, estimatedSalary } = getRankAndSalary(pl);
-        const rankEl = document.createElement("div"); rankEl.className = "rank"; rankEl.textContent = rank; // score removed per request
+        const rankEl = document.createElement("div"); rankEl.className = "rank"; rankEl.textContent = rank;
         const salEl = document.createElement("div"); salEl.className = "salary"; salEl.textContent = `${yen(estimatedSalary)}`;
         nameWrap.appendChild(name); nameWrap.appendChild(rankEl); nameWrap.appendChild(salEl);
         left.appendChild(nameWrap);
