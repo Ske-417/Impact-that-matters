@@ -129,10 +129,8 @@
       display:grid; place-items:center; font-size:12px; position:relative; cursor:default; color:var(--black);
       font-weight:900;
     }
-    /* start/goal distinct but no gradients */
     .cell.start{background: var(--green-light); border-color:var(--green)}
     .cell.goal{background: var(--green); border-color:var(--green)}
-    /* unify appearance for event-like types: visual unified as green "イベント" */
     .cell.event, .cell.bonus, .cell.workshop, .cell.client {
       background: var(--green-light);
       border-color: var(--green);
@@ -150,7 +148,6 @@
     .sidebar{background:var(--white); border:2px solid var(--gray); border-radius:14px; padding:14px; display:grid; gap:12px; height:fit-content; z-index:2; box-shadow: 0 10px 30px rgba(0,0,0,0.04)}
     .stat{display:flex; justify-content:space-between; gap:8px; padding:10px 12px; background:var(--white); border-radius:12px}
     .players{display:grid; gap:10px}
-    /* compact two-column player row */
     .player-row{display:grid; grid-template-columns:1fr 1fr; gap:10px; align-items:center; padding:10px 12px; background:var(--white); border:1px solid var(--gray); border-radius:12px}
     .player-row.active{border-color:rgba(0,0,0,0.12); box-shadow:0 0 0 2px rgba(134,187,39,0.06) inset}
     .badge{width:20px; height:20px; border-radius:50%; border:2px solid var(--black); display:inline-block; margin-right:8px}
@@ -185,7 +182,6 @@
     .card .actions{display:flex; justify-content:flex-end; gap:10px; margin-top:12px}
     .card .actions button{min-width:84px; padding:8px 12px; border-radius:12px; font-weight:900}
 
-    /* ensure dialog buttons clickable */
     dialog button{pointer-events:auto}
   </style>
 </head>
@@ -202,8 +198,6 @@
         </select>
       </div>
 
-      <!-- initial money removed per request -->
-
       <!-- Player name inputs -->
       <div class="group player-names" id="player-names"></div>
 
@@ -215,7 +209,6 @@
 
       <button id="btn-settings" title="プレイヤー設定" type="button">設定</button>
 
-      <!-- SECOND COLUMN: only zoom controls visible here -->
       <div class="group" style="margin-left:auto;">
         <button id="btn-zoom-in" title="ズームイン" type="button">ズーム＋</button>
         <button id="btn-zoom-out" title="ズームアウト" type="button">ズーム−</button>
@@ -232,14 +225,11 @@
       <div class="stat"><span>手番</span><strong id="stat-current">-</strong></div>
       <div class="players" id="players-panel"></div>
       <div class="log" id="log" aria-live="polite" aria-atomic="false"></div>
-      <!-- footer text removed per request -->
     </aside>
   </div>
 
-  <!-- Tooltip (kept in DOM but tooltip display is disabled by JS no-op) -->
   <div id="tooltip" role="tooltip" aria-hidden="true" style="display:none;"></div>
 
-  <!-- Modals -->
   <dialog class="modal" id="modal" aria-labelledby="modal-title">
     <div class="card">
       <h3 id="modal-title">イベント</h3>
@@ -291,7 +281,6 @@
     const playersCountSel = $("#players-count");
     const playerNamesEl = $("#player-names");
     const btnZoomIn = $("#btn-zoom-in"), btnZoomOut = $("#btn-zoom-out");
-    const tooltip = $("#tooltip");
     const genericModal = $("#modal"), genericTitle = $("#modal-title"), genericText = $("#modal-text"), genericSub = $("#modal-sub"), genericActions = $("#modal-actions");
     const historyModal = $("#history-modal"), historyBody = $("#history-body"), historyClose = $("#history-close"), historyClear = $("#history-clear");
     const resultDlg = $("#result"), resultBody = $("#result-body");
@@ -300,7 +289,6 @@
     const PLAYER_COLORS = ["#86BB27", "#DFF3C6", "#C4C4C4", "#000000", "#86BB27"];
     const BRANCH_CHANCE = 0.36;
 
-    // events: attribute deltas
     const eventTable = [
       { text:"短期支援入り", learning:+6, mental:+2, rating:+3, responsibility:+1 },
       { text:"見積り漏れでトラブル", learning:+2, mental:-6, rating:-1, responsibility:0 },
@@ -331,13 +319,11 @@
       return { rank: rank.key, baseSalary: rank.base, estimatedSalary: estimated, score: Math.round(score) };
     }
 
-    // state
     let state = {
       started:false, turn:0, currentPlayerIndex:0, players:[], finishedCount:0, animating:false,
       rng: Math.random, speed:180, overshoot:"clamp", playerSettings: []
     };
 
-    // Initialize player name inputs based on players-count
     function renderPlayerNameInputs(){
       const count = Math.max(1, parseInt(playersCountSel.value || "2"));
       playerNamesEl.innerHTML = "";
@@ -359,13 +345,19 @@
       return names;
     }
 
-    // helpers
     function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
     function randPick(rng, arr){ return arr[Math.floor(rng()*arr.length)]; }
     function tokenId(i){ return `token-${i}` }
     function yen(n){ return "¥" + Number(n).toLocaleString("ja-JP"); }
+    function flashAttr(playerIndex, attrName){
+      try{
+        const el = document.getElementById(`${attrName}-${playerIndex}`);
+        if(!el) return;
+        el.classList.add('flash-attr');
+        setTimeout(()=> el.classList.remove('flash-attr'), 520);
+      }catch(e){}
+    }
 
-    // Board setup: use 'コスト' label for penalty cells
     const cells = Array.from({length:TOTAL_CELLS},(_,i)=>({index:i,type:"none",label:""}));
     cells[0] = {index:0,type:"start",label:"スタート"};
     cells[TOTAL_CELLS-1] = {index:TOTAL_CELLS-1,type:"goal",label:"ゴール"};
@@ -375,7 +367,7 @@
         else if(i % 13 === 0) { cells[i].type = "workshop"; cells[i].label = "ワークショップ"; }
         else if(i % 6 === 0) { cells[i].type = "event"; cells[i].label = "案件/イベント"; }
         else if(i % 5 === 0) { cells[i].type = "bonus"; cells[i].label = "案件成功"; }
-        else if(i % 7 === 0) { cells[i].type = "penalty"; cells[i].label = "コスト"; } // changed here
+        else if(i % 7 === 0) { cells[i].type = "penalty"; cells[i].label = "コスト"; }
         else { cells[i].type = "none"; cells[i].label = ""; }
       }
     })();
@@ -395,23 +387,19 @@
         div.className = "cell "+(cell.type!="none"?cell.type:"");
         div.dataset.index = String(cell.index);
         const idx = document.createElement("div"); idx.className = "idx"; idx.textContent = String(cell.index); div.appendChild(idx);
-        // Visual requirement: for types event/bonus/workshop/client show label "イベント"
         const isEventish = ["event","bonus","workshop","client"].includes(cell.type);
         const label = document.createElement("div");
         label.textContent = isEventish ? "イベント" : (cell.label||"");
         div.appendChild(label);
         const {row,col} = indexToGrid(cell.index); div.style.gridRowStart = row+1; div.style.gridColumnStart = col+1;
-        // hover handlers still attached but tooltip functions are no-op now
         div.addEventListener("mouseenter", e=> showCellTooltip(cell, e));
         div.addEventListener("mousemove", e=> moveTooltip(e));
         div.addEventListener("mouseleave", hideTooltip);
         boardEl.appendChild(div);
       });
-      // tokens
       state.players.forEach((pl,i)=>{
         const token=document.createElement("div"); token.className="token"; token.id=tokenId(i); token.textContent=String(i+1);
         token.style.background = PLAYER_COLORS[i % PLAYER_COLORS.length];
-        // Set token text color: players 2 and 3 (indexes 1 and 2) use black text for better readability
         token.style.color = (i === 1 || i === 2) ? 'var(--black)' : 'var(--white)';
         if(pl.finished) token.classList.add("finished");
         token.style.position = "absolute"; token.style.left = "0px"; token.style.top = "0px";
@@ -456,56 +444,13 @@
       });
     }
 
-    function renderPlayersPanel(){
-      if(!playersPanelEl) return;
-      playersPanelEl.innerHTML = "";
-      state.players.forEach((pl,i)=>{
-        const row=document.createElement("div"); row.className="player-row"+(i===state.currentPlayerIndex?" active":"");
+    // Tooltip disabled functions (kept no-op)
+    function showCellTooltip(){ }
+    function showPlayerTooltip(){ }
+    function moveTooltip(){ }
+    function hideTooltip(){ }
 
-        // left column: name + rank/salary
-        const left = document.createElement("div"); left.className = "left-col";
-        const badge=document.createElement("span"); badge.className="badge"; badge.style.background=pl.color; left.appendChild(badge);
-        const nameWrap = document.createElement("div"); nameWrap.className = "name-wrap";
-        const name = document.createElement("div"); name.className = "player-name"; name.textContent = pl.name;
-        const { rank, estimatedSalary } = getRankAndSalary(pl);
-        const rankEl = document.createElement("div"); rankEl.className = "rank"; rankEl.textContent = rank;
-        const salEl = document.createElement("div"); salEl.className = "salary"; salEl.textContent = `${yen(estimatedSalary)}`;
-        nameWrap.appendChild(name); nameWrap.appendChild(rankEl); nameWrap.appendChild(salEl);
-        left.appendChild(nameWrap);
-
-        // right column: attributes compact
-        const right = document.createElement("div"); right.className = "attr-list";
-        const aLearning = document.createElement("div"); aLearning.className="attr"; aLearning.id=`learning-${i}`; aLearning.textContent = `学び: ${pl.learning}`;
-        const aMental = document.createElement("div"); aMental.className="attr"; aMental.id=`mental-${i}`; aMental.textContent = `メンタル: ${pl.mental}`;
-        const aRating = document.createElement("div"); aRating.className="attr"; aRating.id=`rating-${i}`; aRating.textContent = `評価: ${pl.rating}`;
-        const aResp = document.createElement("div"); aResp.className="attr"; aResp.id=`responsibility-${i}`; aResp.textContent = `責任: ${pl.responsibility}`;
-        right.appendChild(aLearning); right.appendChild(aMental); right.appendChild(aRating); right.appendChild(aResp);
-
-        row.appendChild(left); row.appendChild(right);
-        playersPanelEl.appendChild(row);
-      });
-    }
-
-    // history & log helpers
-    function pushLog(text, kind){ if(!logEl) return; const p=document.createElement("p"); p.textContent=text; if(kind) p.classList.add(kind); logEl.appendChild(p); logEl.scrollTop = logEl.scrollHeight; }
-    function showHistory(){
-      if(!historyBody) return;
-      historyBody.innerHTML = "";
-      const items = Array.from(logEl.querySelectorAll("p")).slice(-200);
-      if(items.length===0) historyBody.textContent = "履歴がありません";
-      items.reverse().forEach(p => { const d = document.createElement("div"); d.textContent = p.textContent; d.className = p.className; historyBody.appendChild(d); });
-      if(historyModal && historyModal.showModal) historyModal.showModal();
-    }
-    if(historyClose) historyClose.addEventListener("click", ()=> { try{ historyModal.close(); }catch(e){} });
-    if(historyClear) historyClear.addEventListener("click", ()=> { if(!confirm("履歴をクリアしますか？")) return; if(logEl) logEl.innerHTML=""; if(historyBody) historyBody.innerHTML=""; pushLog("履歴をクリアしました"); });
-
-    // Tooltip functions disabled to remove left-bottom/detail display
-    function showCellTooltip(){ /* disabled per user request */ }
-    function showPlayerTooltip(){ /* disabled per user request */ }
-    function moveTooltip(){ /* disabled per user request */ }
-    function hideTooltip(){ /* disabled per user request */ }
-
-    // Robust modal helpers
+    // Robust modal helpers with escape/key cleanup and timeout fallback
     function showCard(title, text, sub){
       return new Promise(resolve => {
         if(!genericModal){ resolve(); return; }
@@ -516,18 +461,36 @@
         const ok = document.createElement("button"); ok.className = "primary"; ok.textContent = "OK"; ok.type = "button";
 
         let finished = false;
-        function finish(){
+        const TIMEOUT = 30000; // 30s fallback
+        let timer = null;
+        function cleanup(){
+          if(timer) { clearTimeout(timer); timer = null; }
+          genericModal.removeEventListener("close", onClose);
+          document.removeEventListener("keydown", onKey);
+          ok.removeEventListener("click", onOk);
+        }
+        function finish(val){
           if(finished) return;
           finished = true;
-          genericModal.removeEventListener("close", onClose);
           try{ genericModal.close(); }catch(e){}
-          resolve();
+          cleanup();
+          resolve(val);
         }
+        function onOk(){ finish(); }
         function onClose(){ finish(); }
-        ok.addEventListener("click", finish);
+        function onKey(e){ if(e.key === "Escape"){ finish(); } }
+
+        ok.addEventListener("click", onOk);
         genericModal.addEventListener("close", onClose);
+        document.addEventListener("keydown", onKey);
         genericActions.appendChild(ok);
-        try{ genericModal.showModal(); ok.focus(); }catch(e){}
+
+        // fallback timeout to avoid indefinite blocking
+        timer = setTimeout(()=> {
+          finish();
+        }, TIMEOUT);
+
+        try{ genericModal.showModal(); ok.focus(); }catch(e){ cleanup(); resolve(); }
       });
     }
 
@@ -540,18 +503,35 @@
         genericActions.innerHTML = "";
 
         let resolved = false;
+        const TIMEOUT = 30000;
+        let timer = null;
+        function cleanup(){
+          if(timer){ clearTimeout(timer); timer = null; }
+          genericModal.removeEventListener("close", onClose);
+          document.removeEventListener("keydown", onKey);
+          // remove click handlers on buttons if necessary
+          Array.from(genericActions.querySelectorAll("button")).forEach(b=>{
+            b.disabled = false;
+            b.replaceWith(b.cloneNode(true));
+          });
+        }
         function finish(val){
           if(resolved) return;
           resolved = true;
-          genericModal.removeEventListener("close", onClose);
           try{ genericModal.close(); }catch(e){}
+          cleanup();
           resolve(val);
         }
         function onClose(){ finish(null); }
+        function onKey(e){ if(e.key === "Escape"){ finish(null); } }
 
+        // Add buttons for choices
+        const buttons = [];
         branchEv.choices.forEach(choice=>{
           const b = document.createElement("button"); b.type = "button"; b.textContent = choice.label;
           b.addEventListener("click", async ()=>{
+            // disable all buttons immediately to prevent double clicks
+            buttons.forEach(btn => { btn.disabled = true; });
             const baseProb = (typeof choice.probGood === "number") ? choice.probGood : 1.0;
             const pl = state.players[playerIndex];
             const repBonus = Math.max(-0.3, Math.min(0.3, (pl.rating || 0) / 200));
@@ -569,17 +549,25 @@
             finish({choice, res, success});
           });
           genericActions.appendChild(b);
+          buttons.push(b);
         });
         const cancel = document.createElement("button"); cancel.type = "button"; cancel.textContent = "やめる";
         cancel.addEventListener("click", ()=> finish(null));
         genericActions.appendChild(cancel);
+        buttons.push(cancel);
 
+        // safety listeners
         genericModal.addEventListener("close", onClose);
-        try{ genericModal.showModal(); }catch(e){}
+        document.addEventListener("keydown", onKey);
+
+        timer = setTimeout(()=> {
+          finish(null);
+        }, TIMEOUT);
+
+        try{ genericModal.showModal(); }catch(e){ cleanup(); resolve(null); }
       });
     }
 
-    // resolveCell (unchanged behavior)
     async function resolveCell(playerIndex, index){
       const pl = state.players[playerIndex]; const cell = cells[index]; if(!cell||!pl) return;
       switch(cell.type){
@@ -592,7 +580,7 @@
             pl.finished = true; state.finishedCount += 1; $("#"+tokenId(playerIndex))?.classList.add("finished");
             pl.turnsToGoal = state.turn;
             pushLog(`${pl.name}: プロジェクト完了（ゴール）！`);
-            const { rank, estimatedSalary, score } = getRankAndSalary(pl);
+            const { rank, estimatedSalary } = getRankAndSalary(pl);
             await showCard("ゴール（プロジェクト完了）", `ランク: ${rank} / 推定年収: ${yen(estimatedSalary)}`, `${pl.name}`);
             if(isGameFinished()) showResult();
           }
@@ -659,16 +647,22 @@
               { label:"攻めの提案", probGood:0.5, success:{learning:+3,mental:+1,rating:+4,responsibility:+2,move:1,text:"提案受注！"}, failure:{learning:+1,mental:-2,rating:-1,responsibility:0,move:0,text:"提案失敗"} },
               { label:"守りの提案", probGood:0.8, success:{learning:+1,mental:+1,rating:+1,responsibility:+0,move:0,text:"小さな案件獲得"}, failure:{learning:0,mental:0,rating:0,responsibility:0,move:0,text:"何もしない"} }
             ]};
-            const res = await showBranchModal(defaultBranch, playerIndex);
-            if(res && res.res && typeof res.res.move === "number" && res.res.move !== 0){
-              if(res.res.move > 0) {
-                await animateMove(playerIndex, res.res.move);
+            // wrap in try/catch to avoid uncaught exceptions blocking animateMove
+            try{
+              const res = await showBranchModal(defaultBranch, playerIndex);
+              if(res && res.res && typeof res.res.move === "number" && res.res.move !== 0){
+                if(res.res.move > 0) {
+                  await animateMove(playerIndex, res.res.move);
+                } else {
+                  pl.position = Math.max(0, pl.position + res.res.move);
+                  placeAllTokens();
+                  await resolveCell(playerIndex, pl.position);
+                }
               } else {
-                pl.position = Math.max(0, pl.position + res.res.move);
-                placeAllTokens();
-                await resolveCell(playerIndex, pl.position);
+                renderPlayersPanel();
               }
-            } else {
+            }catch(e){
+              console.error("showBranchModal error:", e);
               renderPlayersPanel();
             }
             return;
@@ -688,48 +682,51 @@
       renderPlayersPanel();
     }
 
-    // dice and movement and other controls unchanged...
-
     function rollDice(){ const n = Math.floor(state.rng()*6)+1; if(diceEl) diceEl.textContent = n; if(diceEl) diceEl.classList.add("spin"); setTimeout(()=>{ if(diceEl) diceEl.classList.remove("spin"); }, 620); return n; }
     async function animateMove(playerIndex, steps){
       const pl = state.players[playerIndex]; if(!pl || pl.finished) return;
       state.animating = true; updateRollState();
-      const delay = Number(state.speed || 180);
-      let pos = pl.position;
-      let dir = 1;
-      let remaining = steps;
-      while(remaining > 0){
-        let next = pos + dir;
-        if(next >= TOTAL_CELLS){
-          if(state.overshoot === "clamp"){
-            pos = TOTAL_CELLS-1;
+      try{
+        const delay = Number(state.speed || 180);
+        let pos = pl.position;
+        let dir = 1;
+        let remaining = steps;
+        while(remaining > 0){
+          let next = pos + dir;
+          if(next >= TOTAL_CELLS){
+            if(state.overshoot === "clamp"){
+              pos = TOTAL_CELLS-1;
+              pl.position = pos;
+              placeAllTokens();
+              await sleep(delay);
+              break;
+            } else {
+              pos = TOTAL_CELLS-1;
+              pl.position = pos;
+              placeAllTokens();
+              await sleep(delay);
+              dir = -1;
+            }
+          } else if(next < 0){
+            pos = 0;
             pl.position = pos;
             placeAllTokens();
             await sleep(delay);
             break;
           } else {
-            pos = TOTAL_CELLS-1;
+            pos = next;
             pl.position = pos;
             placeAllTokens();
             await sleep(delay);
-            dir = -1;
           }
-        } else if(next < 0){
-          pos = 0;
-          pl.position = pos;
-          placeAllTokens();
-          await sleep(delay);
-          break;
-        } else {
-          pos = next;
-          pl.position = pos;
-          placeAllTokens();
-          await sleep(delay);
+          remaining--;
         }
-        remaining--;
+        await resolveCell(playerIndex, pl.position);
+      }catch(e){
+        console.error("animateMove error:", e);
+      }finally{
+        state.animating = false; updateRollState();
       }
-      await resolveCell(playerIndex, pl.position);
-      state.animating = false; updateRollState();
     }
 
     function nextPlayerTurn(){
@@ -839,7 +836,6 @@
       if(btnRoll) btnRoll.disabled = !state.started || state.animating;
     }
 
-    // event wiring
     if(btnStart) btnStart.addEventListener("click", ()=> startGame());
     if(btnRoll) btnRoll.addEventListener("click", ()=> { rollTurn().catch(e=>console.error(e)); });
     if(btnReset) btnReset.addEventListener("click", ()=> resetGame());
@@ -861,7 +857,6 @@
       }
     });
 
-    // initial render
     renderBoard();
     renderPlayersPanel();
     updateRollState();
