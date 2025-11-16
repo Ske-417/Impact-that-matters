@@ -127,15 +127,11 @@
     /* ===== Small UI helpers ===== */
     .tiny{font-size:12px;padding:6px 8px}
     .slot-select{min-width:120px}
-    .help-list{line-height:1.6}
     .choice-row{display:flex; gap:6px; align-items:center; margin-bottom:6px}
     .choice-row input[type="number"]{width:84px}
     .choice-row input[type="text"]{flex:1}
     .branch-editor { display:grid; gap:8px; }
     .choices-list{border:1px dashed #ddd; padding:8px; border-radius:8px; max-height:260px; overflow:auto}
-    .ach-list{display:grid; gap:6px; max-height:360px; overflow:auto}
-    .ach-row{display:flex; justify-content:space-between; align-items:center; padding:8px; border-radius:8px; background:#fff; border:1px solid #eee}
-    .ach-locked{opacity:0.55}
     .settings-row{display:flex; gap:8px; align-items:center; margin-bottom:8px}
     .persona-table td .tiny{margin-right:6px}
 
@@ -190,13 +186,6 @@
       <div class="group">
         <button id="btn-zoom-in" title="ズームイン" type="button">ズーム＋</button>
         <button id="btn-zoom-out" title="ズームアウト" type="button">ズーム−</button>
-        <button id="btn-fit" title="画面に合わせる" type="button">フィット</button>
-      </div>
-
-      <div class="group">
-        <button id="btn-history" title="イベント履歴" type="button">履歴</button>
-        <button id="btn-shortcuts" title="ショートカット" type="button">操作ヘルプ</button>
-        <button id="btn-achievements" title="実績" type="button">実績</button>
       </div>
 
       <input id="file-personas" type="file" accept="application/json" hidden />
@@ -218,34 +207,6 @@
 
   <!-- Tooltip -->
   <div id="tooltip" role="tooltip" aria-hidden="true"></div>
-
-  <!-- History Modal -->
-  <dialog class="modal" id="history-modal" aria-labelledby="history-title">
-    <div class="card">
-      <h3 id="history-title">イベント履歴</h3>
-      <div id="history-body" style="max-height:360px; overflow:auto;"></div>
-      <div class="actions">
-        <button id="history-close" class="primary" type="button">閉じる</button>
-        <button id="history-clear" type="button">クリア</button>
-      </div>
-    </div>
-  </dialog>
-
-  <!-- Shortcuts Modal -->
-  <dialog class="modal" id="shortcuts-modal" aria-labelledby="shortcuts-title">
-    <div class="card">
-      <h3 id="shortcuts-title">操作ショートカット</h3>
-      <div class="help-list">
-        Space / Enter: サイコロを振る<br>
-        S: 保存スロットをクイック保存<br>
-        L: 保存スロットをクイック読込<br>
-        H: このヘルプを開く/閉じる<br>
-        Z / Shift+Z: ズームイン / ズームアウト<br>
-        F: 盤面を画面にフィット<br>
-      </div>
-      <div class="actions"><button id="shortcuts-close" class="primary" type="button">閉じる</button></div>
-    </div>
-  </dialog>
 
   <!-- Settings Modal -->
   <dialog class="modal" id="settings-modal" aria-labelledby="settings-title">
@@ -321,18 +282,6 @@
     </div>
   </dialog>
 
-  <!-- Achievements Modal -->
-  <dialog class="modal" id="achievements-modal" aria-labelledby="achievements-title">
-    <div class="card">
-      <h3 id="achievements-title">実績</h3>
-      <div class="ach-list" id="ach-list"></div>
-      <div class="actions">
-        <button id="ach-close" class="primary" type="button">閉じる</button>
-        <button id="ach-reset" type="button">リセット</button>
-      </div>
-    </div>
-  </dialog>
-
   <script>
   // ===========================
   // 人生ゲーム — コンサル体験拡張 ver-15
@@ -348,11 +297,9 @@
     const btnSave = $("#btn-save"), btnLoad = $("#btn-load"), btnExport = $("#btn-export"), btnImport = $("#btn-import"), fileImport = $("#file-import");
     const playersCountSel = $("#players-count"), initialMoneyInput = $("#initial-money");
     const rngSeedInput = $("#rng-seed"), speedInput = $("#speed"), overshootSel = $("#overshoot");
-    const btnZoomIn = $("#btn-zoom-in"), btnZoomOut = $("#btn-zoom-out"), btnFit = $("#btn-fit");
+    const btnZoomIn = $("#btn-zoom-in"), btnZoomOut = $("#btn-zoom-out");
     const tooltip = $("#tooltip");
     const saveSlotSel = $("#save-slot"), btnSaveSlot = $("#btn-save-slot"), btnLoadSlot = $("#btn-load-slot"), btnDeleteSlot = $("#btn-delete-slot");
-    const btnHistory = $("#btn-history"), historyModal = $("#history-modal"), historyBody = $("#history-body"), historyClose = $("#history-close"), historyClear = $("#history-clear");
-    const btnShortcuts = $("#btn-shortcuts"), shortcutsModal = $("#shortcuts-modal"), shortcutsClose = $("#shortcuts-close");
     const settingsBtn = $("#btn-settings"), settingsModal = $("#settings-modal"), settingsListEl = $("#settings-list");
     const settingsSaveBtn = $("#settings-save"), settingsCancelBtn = $("#settings-cancel");
     const btnImportPersonas = $("#btn-import-personas"), filePersonas = $("#file-personas");
@@ -362,7 +309,6 @@
     const branchAddChoiceBtn = $("#branch-add-choice"), branchSaveBtn = $("#branch-save"), branchCancelBtn = $("#branch-cancel"), branchPreviewBtn = $("#branch-preview");
     const genericModal = $("#modal"), genericTitle = $("#modal-title"), genericText = $("#modal-text"), genericSub = $("#modal-sub"), genericActions = $("#modal-actions");
     const resultDlg = $("#result"), resultBody = $("#result-body"), resultClose = $("#result-close");
-    const btnAchievements = $("#btn-achievements"), achModal = $("#achievements-modal"), achListEl = $("#ach-list"), achClose = $("#ach-close"), achReset = $("#ach-reset");
 
     // Board size & constants
     const BOARD_COLS = 10, BOARD_ROWS = 6, TOTAL_CELLS = BOARD_COLS * BOARD_ROWS;
@@ -486,9 +432,7 @@
       const rec = { id:achDef.id, name:achDef.name, desc:achDef.desc, awardedAt: (new Date()).toISOString() };
       p.achievements.push(rec);
       pushLog(`${p.name} が実績を獲得: ${achDef.name}`, "ok");
-      showCard("実績獲得！", achDef.name, achDef.desc);
       renderPlayersPanel();
-      updateAchievementsModal();
     }
 
     // Only award early_goal if player actually finished
@@ -507,31 +451,6 @@
       if(rows[0]) awardAchievement(rows[0].i, "consulting_star");
     }
 
-    // Achievements modal update
-    function updateAchievementsModal(){
-      achListEl.innerHTML = "";
-      ACHIEVEMENTS.forEach(a=>{
-        const div = document.createElement("div"); div.className = "ach-row";
-        const left = document.createElement("div"); left.innerHTML = `<strong>${a.name}</strong><div class="muted small">${a.desc}</div>`;
-        const right = document.createElement("div");
-        const makers = state.players.map((p, idx)=> ({ p, idx })).filter(o=> (o.p.achievements || []).find(x=>x.id===a.id));
-        if(makers.length>0){
-          right.innerHTML = makers.map(m=>`${m.p.name}`).join(", ");
-        } else {
-          right.innerHTML = `<span class="ach-locked">未獲得</span>`;
-        }
-        div.appendChild(left); div.appendChild(right);
-        achListEl.appendChild(div);
-      });
-    }
-    achClose.addEventListener("click", ()=> achModal.close());
-    achReset.addEventListener("click", ()=> {
-      if(!confirm("全実績をリセットしますか？（プレイヤーデータは残ります）")) return;
-      state.players.forEach(p => { p.achievements = []; p.bonusCount = 0; p.branchSuccessCount = 0; p.maxMoneyReached = p.money; p.highestSingleGain = 0; p.turnsToGoal = null; p.penaltyCount = 0; p.clientSatisfaction = p.clientSatisfaction || 50; });
-      pushLog("実績をリセットしました");
-      updateAchievementsModal();
-    });
-
     // Rendering helpers
     function getCellSize(){
       const val = getComputedStyle(document.documentElement).getPropertyValue('--cell-size') || '68px';
@@ -544,15 +463,6 @@
     }
     function zoomIn(){ const s = getCellSize(); setCellSize(s + parseInt(getComputedStyle(document.documentElement).getPropertyValue('--zoom-step'))); }
     function zoomOut(){ const s = getCellSize(); setCellSize(Math.max(44, s - parseInt(getComputedStyle(document.documentElement).getPropertyValue('--zoom-step')))); }
-    function fitBoard(){
-      const toolbarRect = document.querySelector('.appbar').getBoundingClientRect();
-      const viewportH = window.innerHeight;
-      const availableH = viewportH - toolbarRect.height - 48;
-      const maxCellH = Math.floor((availableH - 16) / BOARD_ROWS);
-      const current = getCellSize();
-      const newSize = Math.max(44, Math.min(current, maxCellH));
-      setCellSize(newSize);
-    }
 
     function indexToGrid(index){
       const row = Math.floor(index/BOARD_COLS);
@@ -645,15 +555,6 @@
 
     // history & log
     function pushLog(text, kind){ const p=document.createElement("p"); p.textContent=text; if(kind) p.classList.add(kind); logEl.appendChild(p); logEl.scrollTop = logEl.scrollHeight; }
-    function showHistory(){
-      historyBody.innerHTML = "";
-      const items = Array.from(logEl.querySelectorAll("p")).slice(-200);
-      if(items.length===0) historyBody.textContent = "履歴がありません";
-      items.reverse().forEach(p => { const d = document.createElement("div"); d.textContent = p.textContent; d.className = p.className; historyBody.appendChild(d); });
-      historyModal.showModal();
-    }
-    historyClose.addEventListener("click", ()=> historyModal.close());
-    historyClear.addEventListener("click", ()=> { if(!confirm("履歴をクリアしますか？")) return; logEl.innerHTML=""; historyBody.innerHTML=""; pushLog("履歴をクリアしました"); });
 
     // Tooltip
     function showCellTooltip(cell, e){
@@ -1334,15 +1235,9 @@
     }
     resultClose.addEventListener("click", ()=> resultDlg.close());
 
-    // Zoom / Fit handlers
+    // Zoom handlers
     btnZoomIn.addEventListener("click", zoomIn);
     btnZoomOut.addEventListener("click", zoomOut);
-    btnFit.addEventListener("click", fitBoard);
-
-    // History & shortcuts
-    btnHistory.addEventListener("click", ()=> showHistory());
-    btnShortcuts.addEventListener("click", ()=> shortcutsModal.showModal());
-    shortcutsClose.addEventListener("click", ()=> shortcutsModal.close());
 
     // Persona modal open
     btnManagePersonas.addEventListener("click", ()=> { renderPersonaTable(); personaModal.showModal(); });
@@ -1352,15 +1247,10 @@
       if(e.key === " " || e.key === "Enter"){ e.preventDefault(); btnRoll.click(); }
       if(e.key === "s" || e.key === "S"){ if(document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "TEXTAREA") { btnSaveSlot.click(); } }
       if(e.key === "l" || e.key === "L"){ if(document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "TEXTAREA") { btnLoadSlot.click(); } }
-      if(e.key === "h" || e.key === "H"){ if(document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "TEXTAREA") { if(shortcutsModal.open) shortcutsModal.close(); else shortcutsModal.showModal(); } }
       if(e.key === "z" || e.key === "Z"){
         if(e.shiftKey) zoomOut(); else zoomIn();
       }
-      if(e.key === "f" || e.key === "F"){ fitBoard(); }
     });
-
-    // Achievements button handler (ensure clickable)
-    btnAchievements.addEventListener("click", (e)=> { e.stopPropagation(); updateAchievementsModal(); achModal.showModal(); });
 
     // Persona modal click handler — prevent click-through and ensure internal buttons receive events
     personaModal.addEventListener("click", (e) => {
@@ -1410,7 +1300,6 @@
     // initial render & safety
     renderBoard();
     buildSettingsForm();
-    updateAchievementsModal();
     updateRollState();
     window.__life_game = { state, renderBoard, renderPlayersPanel, personasStore, syncStoresFromPersonasList, promotePersonaButtons };
 
