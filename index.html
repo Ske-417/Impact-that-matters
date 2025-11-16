@@ -89,16 +89,15 @@
     .sidebar{background:#fff; border:2px solid #eee; border-radius:12px; padding:12px; display:grid; gap:12px; height:fit-content; z-index:2}
     .stat{display:flex; justify-content:space-between; gap:8px; padding:8px 10px; background:#f5f7fa; border-radius:10px}
     .players{display:grid; gap:8px}
-    .player-row{display:grid; grid-template-columns:1.2fr .8fr .7fr .6fr; gap:8px; align-items:center; padding:8px 10px; background:#fafcff; border:1px solid #eee; border-radius:10px}
+    .player-row{display:grid; grid-template-columns:1.4fr .7fr .6fr; gap:8px; align-items:center; padding:8px 10px; background:#fafcff; border:1px solid #eee; border-radius:10px}
     .player-row.active{border-color:var(--active); box-shadow:0 0 0 2px rgba(76,154,255,.2) inset}
     .badge{width:18px; height:18px; border-radius:50%; border:2px solid #333; display:inline-block; margin-right:6px}
-    .ach-badge{background:#ffd54f;color:#111;padding:4px 8px;border-radius:8px;font-weight:700;font-size:12px}
-    .money{justify-self:end; font-weight:700; transition:color 240ms ease, transform 240ms ease}
-    .money.flash-plus{color:#0a7a2d; transform:scale(1.06)}
-    .money.flash-minus{color:#b00020; transform:scale(.96)}
 
-    .rep{font-size:12px;color:var(--muted);justify-self:end}
-    .csat{font-size:12px;color:#0b6;justify-self:end}
+    .attr-list{display:flex; gap:8px; align-items:center}
+    .attr{font-size:12px; background:#fff; padding:4px 8px; border-radius:8px; border:1px solid #eee}
+
+    .rank{font-weight:800; color:#111}
+    .salary{font-weight:700; color:#333}
 
     .log{border:1px solid #eee; border-radius:10px; background:#fafcff; padding:10px; max-height:300px; overflow:auto; font-size:13px; line-height:1.4}
     .log p{margin:0 0 6px}
@@ -106,38 +105,13 @@
     .log p.bad{color:var(--bad)}
     .footer{font-size:12px; color:#777}
 
-    /* ===== Tooltips / Overlays ===== */
-    #tooltip{position:fixed; pointer-events:none; z-index:1050; background:rgba(20,20,20,0.95); color:#fff; padding:8px 10px; border-radius:6px; font-size:13px; max-width:260px; display:none}
-    .kbd{background:#111;color:#fff;padding:2px 6px;border-radius:4px;font-weight:700;font-size:12px;display:inline-block}
-
-    /* ===== Modal ===== */
-    dialog.modal{
-      border:none; border-radius:12px; padding:0; width:min(92vw,760px);
-      z-index:1200;
-      position:fixed; left:50%; top:50%; transform:translate(-50%,-50%);
-      background:transparent;
+    /* nice little flash for attribute changes */
+    .flash-attr { animation: flashAttr 520ms ease; }
+    @keyframes flashAttr {
+      0% { transform: scale(1); background: #fff; }
+      50% { transform: scale(1.05); background: #f0fff4; }
+      100% { transform: scale(1); background: #fff; }
     }
-    dialog::backdrop{ background: rgba(0,0,0,0.35); z-index:1190; }
-    .card{padding:16px; border-radius:12px; background:#fff}
-    .card h3{margin:0 0 6px}
-    .card p{margin:0 0 8px}
-    .card .muted{color:#64748b; font-size:12px}
-    .card .actions{display:flex; justify-content:flex-end; gap:8px; margin-top:12px}
-    .card .actions button{min-width:84px}
-    table{border-collapse:collapse; width:100%}
-    th,td{border:1px solid #e5e7eb; padding:8px; text-align:left}
-    th{background:#f8fafc}
-
-    /* ===== Small UI helpers ===== */
-    .tiny{font-size:12px;padding:6px 8px}
-    .help-list{line-height:1.6}
-    .choice-row{display:flex; gap:6px; align-items:center; margin-bottom:6px}
-    .branch-editor { display:grid; gap:8px; }
-    .choices-list{border:1px dashed #ddd; padding:8px; border-radius:8px; max-height:260px; overflow:auto}
-    .ach-list{display:grid; gap:6px; max-height:360px; overflow:auto}
-    .ach-row{display:flex; justify-content:space-between; align-items:center; padding:8px; border-radius:8px; background:#fff; border:1px solid #eee}
-    .ach-locked{opacity:0.55}
-    .settings-row{display:flex; gap:8px; align-items:center; margin-bottom:8px}
 
     /* ensure dialog buttons clickable */
     dialog button{pointer-events:auto}
@@ -155,7 +129,7 @@
         </select>
       </div>
 
-      <div class="group"><label for="initial-money">初期資金</label><input id="initial-money" type="number" value="50000" min="0" step="1000" /></div>
+      <div class="group"><label for="initial-money">初期資金(未使用)</label><input id="initial-money" type="number" value="50000" min="0" step="1000" /></div>
 
       <!-- Player name inputs replace persona features -->
       <div class="group player-names" id="player-names">
@@ -267,21 +241,48 @@
     const PLAYER_COLORS = ["#ff6b6b", "#4c9aff", "#00c853", "#ff8f00", "#9c27b0", "#00acc1"];
     const BRANCH_CHANCE = 0.36;
 
-    // Removed persona system. No persona imports or persona modals.
-    // Provide a small default set of player-related event data only via eventTable.
-
+    // events now give four attributes: learning, mental, rating, responsibility
+    // values are moderate (scale roughly 0..100 per attribute, typical changes +-1..+10)
     const eventTable = [
-      { text:"短期支援入り +¥20,000", money:+20000, rep:+1, csat:+1 },
-      { text:"見積り漏れで-¥15,000", money:-15000, rep:-1, csat:-2 },
-      { text:"紹介で新規案件+¥40,000", money:+40000, rep:+2, csat:+2 },
-      { text:"資料誤記で修正費-¥5,000", money:-5000, rep:-1, csat:-1 },
-      { text:"アップセル成功で+¥30,000", money:+30000, rep:+2, csat:+2 },
-      { text:"請求遅延で-¥10,000", money:-10000, rep:0, csat:-1 },
-      { text:"分析成果評価+¥12,000", money:+12000, rep:+1, csat:+1 },
-      { text:"外注コスト増で-¥20,000", money:-20000, rep:-1, csat:-1 },
-      { text:"プロトタイプが好評+¥50,000", money:+50000, rep:+3, csat:+3 },
-      { text:"内部調整で停滞（変化なし）", money:0, rep:0, csat:0 }
+      { text:"短期支援入り", learning:+6, mental:+2, rating:+3, responsibility:+1 },
+      { text:"見積り漏れでトラブル", learning:+2, mental:-6, rating:-1, responsibility:0 },
+      { text:"紹介で新規案件獲得", learning:+4, mental:+3, rating:+5, responsibility:+2 },
+      { text:"資料誤記で修正対応", learning:+3, mental:-2, rating:-1, responsibility:+1 },
+      { text:"アップセル成功", learning:+5, mental:+3, rating:+4, responsibility:+2 },
+      { text:"請求遅延で対応", learning:+1, mental:-3, rating:0, responsibility:+1 },
+      { text:"分析が評価される", learning:+7, mental:+1, rating:+4, responsibility:0 },
+      { text:"外注コスト増で調整", learning:+1, mental:-4, rating:-1, responsibility:+1 },
+      { text:"プロトタイプが好評", learning:+8, mental:+5, rating:+6, responsibility:+3 },
+      { text:"内部調整で停滞", learning:0, mental:-1, rating:0, responsibility:0 }
     ];
+
+    // ranking logic:
+    // compute score = learning * 0.35 + rating * 0.35 + responsibility * 0.2 + mental * 0.1
+    // thresholds (you asked to assign reasonably):
+    // score < 60 => アナリスト
+    // 60 <= score < 85 => コンサルタント
+    // 85 <= score < 110 => シニアコンサルタント
+    // score >= 110 => マネージャー
+    // base salaries per rank:
+    const RANKS = [
+      { key: "アナリスト", min: -Infinity, max: 59.999, base: 5000000 },
+      { key: "コンサルタント", min: 60, max: 84.999, base: 8500000 },
+      { key: "シニアコンサルタント", min: 85, max: 109.999, base: 12000000 },
+      { key: "マネージャー", min: 110, max: Infinity, base: 18000000 }
+    ];
+
+    function estimateScore(p){
+      // attributes assumed 0-100
+      return ( (p.learning||0) * 0.35 + (p.rating||0) * 0.35 + (p.responsibility||0) * 0.2 + (p.mental||0) * 0.1 );
+    }
+    function getRankAndSalary(p){
+      const score = estimateScore(p);
+      const rank = RANKS.find(r => score >= r.min && score <= r.max) || RANKS[0];
+      // salary adjusted slightly by responsibility and rating
+      const modifier = 1 + Math.min(0.5, (p.responsibility||0) / 200) + Math.min(0.3, (p.rating||0) / 400);
+      const estimated = Math.round(rank.base * modifier / 1000) * 1000;
+      return { rank: rank.key, baseSalary: rank.base, estimatedSalary: estimated, score: Math.round(score) };
+    }
 
     // state
     let state = {
@@ -289,7 +290,7 @@
       rng: Math.random, speed:180, overshoot:"clamp", playerSettings: []
     };
 
-    // Initialize player name inputs based on players-count
+    // player name input handling
     function renderPlayerNameInputs(){
       const count = Math.max(1, parseInt(playersCountSel.value || "2"));
       playerNamesEl.innerHTML = "";
@@ -307,74 +308,14 @@
 
     function getPlayerNames(){
       const inputs = playerNamesEl.querySelectorAll("input");
-      const names = Array.from(inputs).map(inp => inp.value.trim() || inp.placeholder);
-      return names;
+      return Array.from(inputs).map((inp, i) => inp.value.trim() || `プレイヤー${i+1}`);
     }
 
     // helpers
     function yen(n){ return "¥" + Number(n).toLocaleString("ja-JP"); }
     function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
-    function randPick(rng, arr){ return arr[Math.floor(rng()*arr.length)]; }
 
-    // Modal helpers return Promises
-    function showCard(title, text, sub){
-      return new Promise(resolve => {
-        if(!genericModal){ resolve(); return; }
-        genericTitle.textContent = title || "";
-        genericText.textContent = text || "";
-        genericSub.textContent = sub || "";
-        genericActions.innerHTML = "";
-        const ok = document.createElement("button"); ok.className = "primary"; ok.textContent = "OK"; ok.type = "button";
-        const onOk = () => { ok.removeEventListener("click", onOk); try{ genericModal.close(); }catch(e){}; resolve(); };
-        ok.addEventListener("click", onOk);
-        genericActions.appendChild(ok);
-        try{ genericModal.showModal(); }catch(e){}
-      });
-    }
-
-    function showBranchModal(branchEv, playerIndex){
-      return new Promise(resolve => {
-        if(!genericModal){ resolve(null); return; }
-        genericTitle.textContent = "案件分岐 (提案)";
-        genericText.textContent = branchEv.text || "";
-        genericSub.textContent = `あなた: ${state.players[playerIndex].name}`;
-        genericActions.innerHTML = "";
-        const cleanupAndResolve = (val) => {
-          genericActions.querySelectorAll("button").forEach(b=>b.removeEventListener("click", ()=>{}));
-          try{ genericModal.close(); }catch(e){}
-          resolve(val);
-        };
-        branchEv.choices.forEach(choice=>{
-          const b = document.createElement("button"); b.type = "button"; b.textContent = choice.label;
-          b.addEventListener("click", async ()=>{
-            const baseProb = (typeof choice.probGood === "number") ? choice.probGood : 1.0;
-            const pl = state.players[playerIndex];
-            const repBonus = Math.max(-0.3, Math.min(0.3, (pl.reputation || 0) / 200));
-            const prob = Math.max(0.05, Math.min(0.95, baseProb + repBonus));
-            const success = state.rng() < prob;
-            const res = success ? (choice.success||{}) : (choice.failure||{});
-            // apply immediate effects
-            if(typeof res.money === "number" && res.money !== 0){
-              const delta = res.money;
-              pl.money += delta;
-              flashMoney(playerIndex, delta);
-            }
-            if(typeof res.rep === "number") pl.reputation = Math.max(0, Math.min(100, (pl.reputation || 50) + res.rep));
-            if(typeof res.csat === "number") pl.clientSatisfaction = Math.max(0, Math.min(100, (pl.clientSatisfaction || 50) + res.csat));
-            if(success) pl.branchSuccessCount = (pl.branchSuccessCount || 0) + 1;
-            pushLog(`${pl.name}: ${success ? res.text || (choice.label + " → 受注成功") : res.text || (choice.label + " → 失注")}`, success ? "ok" : "bad");
-            cleanupAndResolve({choice, res, success});
-          });
-          genericActions.appendChild(b);
-        });
-        const cancel = document.createElement("button"); cancel.type = "button"; cancel.textContent = "やめる";
-        cancel.addEventListener("click", ()=> cleanupAndResolve(null));
-        genericActions.appendChild(cancel);
-        try{ genericModal.showModal(); }catch(e){}
-      });
-    }
-
-    // Board setup
+    // board setup
     const cells = Array.from({length:TOTAL_CELLS},(_,i)=>({index:i,type:"none",label:""}));
     cells[0] = {index:0,type:"start",label:"スタート"};
     cells[TOTAL_CELLS-1] = {index:TOTAL_CELLS-1,type:"goal",label:"ゴール"};
@@ -458,7 +399,6 @@
       });
     }
 
-    function moneyId(i){return `money-${i}`}
     function renderPlayersPanel(){
       if(!playersPanelEl) return;
       playersPanelEl.innerHTML="";
@@ -468,17 +408,37 @@
         left.style.display = "flex"; left.style.alignItems = "center";
         const badge=document.createElement("span"); badge.className="badge"; badge.style.background=pl.color; left.appendChild(badge);
         const nameText=document.createElement("span"); nameText.textContent = pl.name + (pl.finished?"（ゴール）":""); left.appendChild(nameText);
-        const ach = document.createElement("div"); ach.style.marginLeft="8px"; ach.innerHTML = `<span class="ach-badge">${(pl.achievements||[]).length}</span>`;
-        left.appendChild(ach);
-        const pos=document.createElement("div"); pos.textContent = "位置: "+pl.position;
-        const money=document.createElement("div"); money.className="money"; money.id=moneyId(i); money.textContent=yen(pl.money);
-        const rep=document.createElement("div"); rep.className="rep"; rep.textContent = `評判: ${pl.reputation || 0}`;
-        const csat=document.createElement("div"); csat.className="csat"; csat.textContent = `顧客満足: ${pl.clientSatisfaction || 50}`;
-        row.appendChild(left); row.appendChild(pos); row.appendChild(money); row.appendChild(rep); row.appendChild(csat);
+
+        const attrs=document.createElement("div"); attrs.className="attr-list";
+        const aLearning = document.createElement("div"); aLearning.className="attr"; aLearning.id=`learning-${i}`; aLearning.textContent = `学び: ${pl.learning}`;
+        const aMental = document.createElement("div"); aMental.className="attr"; aMental.id=`mental-${i}`; aMental.textContent = `メンタル: ${pl.mental}`;
+        const aRating = document.createElement("div"); aRating.className="attr"; aRating.id=`rating-${i}`; aRating.textContent = `評価: ${pl.rating}`;
+        const aResp = document.createElement("div"); aResp.className="attr"; aResp.id=`resp-${i}`; aResp.textContent = `責任: ${pl.responsibility}`;
+        attrs.appendChild(aLearning); attrs.appendChild(aMental); attrs.appendChild(aRating); attrs.appendChild(aResp);
+
+        const right=document.createElement("div"); right.style.textAlign = "right";
+        const { rank, estimatedSalary, score } = getRankAndSalary(pl);
+        const rankEl = document.createElement("div"); rankEl.className="rank"; rankEl.textContent = rank + ` (S:${score})`;
+        const salEl = document.createElement("div"); salEl.className="salary"; salEl.textContent = `推定年収: ${yen(estimatedSalary)}`;
+        right.appendChild(rankEl); right.appendChild(salEl);
+
+        row.appendChild(left); row.appendChild(attrs); row.appendChild(right);
         playersPanelEl.appendChild(row);
       });
     }
-    function flashMoney(i,delta){ const el=$("#"+moneyId(i)); if(!el) return; const cls=delta>=0?"flash-plus":"flash-minus"; el.classList.add(cls); setTimeout(()=>el.classList.remove(cls), 400) }
+
+    function flashAttr(playerIndex, attrName){
+      try{
+        const el = document.getElementById(`${attrName}-${playerIndex}`);
+        if(!el) return;
+        el.classList.add('flash-attr');
+        setTimeout(()=> el.classList.remove('flash-attr'), 520);
+        el.textContent = `${attrLabel(attrName)}: ${state.players[playerIndex][attrName]}`;
+      }catch(e){}
+    }
+    function attrLabel(k){
+      return ({ learning: "学び", mental: "メンタル", rating: "評価", responsibility: "責任" }[k]) || k;
+    }
 
     // history & log
     function pushLog(text, kind){ if(!logEl) return; const p=document.createElement("p"); p.textContent=text; if(kind) p.classList.add(kind); logEl.appendChild(p); logEl.scrollTop = logEl.scrollHeight; }
@@ -506,19 +466,6 @@
       tooltip.style.display = "block";
       moveTooltip(e);
     }
-    function showPlayerTooltip(pl, e){
-      if(!tooltip) return;
-      const info = [];
-      info.push(`${pl.name}`);
-      info.push(`所持金: ${yen(pl.money)}`);
-      info.push(`評判: ${pl.reputation || 0}`);
-      info.push(`顧客満足: ${pl.clientSatisfaction || 50}`);
-      info.push(`位置: ${pl.position}`);
-      if(pl.finished) info.push("ゴール済み");
-      tooltip.innerHTML = info.join("<br>");
-      tooltip.style.display = "block";
-      moveTooltip(e);
-    }
     function moveTooltip(e){
       if(!tooltip) return;
       const pad = 12;
@@ -527,7 +474,64 @@
     }
     function hideTooltip(){ if(tooltip) tooltip.style.display = "none"; }
 
-    // resolveCell: handles per-cell logic and waits for modal interactions
+    // Modal helpers return Promises
+    function showCard(title, text, sub){
+      return new Promise(resolve => {
+        if(!genericModal){ resolve(); return; }
+        genericTitle.textContent = title || "";
+        genericText.textContent = text || "";
+        genericSub.textContent = sub || "";
+        genericActions.innerHTML = "";
+        const ok = document.createElement("button"); ok.className = "primary"; ok.textContent = "OK"; ok.type = "button";
+        const onOk = () => { ok.removeEventListener("click", onOk); try{ genericModal.close(); }catch(e){}; resolve(); };
+        ok.addEventListener("click", onOk);
+        genericActions.appendChild(ok);
+        try{ genericModal.showModal(); }catch(e){}
+      });
+    }
+
+    function showBranchModal(branchEv, playerIndex){
+      return new Promise(resolve => {
+        if(!genericModal){ resolve(null); return; }
+        genericTitle.textContent = "案件分岐 (提案)";
+        genericText.textContent = branchEv.text || "";
+        genericSub.textContent = `あなた: ${state.players[playerIndex].name}`;
+        genericActions.innerHTML = "";
+        const cleanupAndResolve = (val) => {
+          genericActions.querySelectorAll("button").forEach(b=>b.removeEventListener("click", ()=>{}));
+          try{ genericModal.close(); }catch(e){}
+          resolve(val);
+        };
+        branchEv.choices.forEach(choice=>{
+          const b = document.createElement("button"); b.type = "button"; b.textContent = choice.label;
+          b.addEventListener("click", async ()=>{
+            const baseProb = (typeof choice.probGood === "number") ? choice.probGood : 1.0;
+            const pl = state.players[playerIndex];
+            const repBonus = Math.max(-0.3, Math.min(0.3, (pl.rating || 0) / 200));
+            const prob = Math.max(0.05, Math.min(0.95, baseProb + repBonus));
+            const success = state.rng() < prob;
+            const res = success ? (choice.success||{}) : (choice.failure||{});
+            // apply attributes
+            ["learning","mental","rating","responsibility"].forEach(k=>{
+              if(typeof res[k] === "number"){
+                pl[k] = Math.max(0, Math.round((pl[k]||0) + res[k]));
+                flashAttr(playerIndex, k);
+              }
+            });
+            if(success) pl.branchSuccessCount = (pl.branchSuccessCount || 0) + 1;
+            pushLog(`${pl.name}: ${success ? (res.text || choice.label + " → 成功") : (res.text || choice.label + " → 失敗")}`, success ? "ok" : "bad");
+            cleanupAndResolve({choice, res, success});
+          });
+          genericActions.appendChild(b);
+        });
+        const cancel = document.createElement("button"); cancel.type = "button"; cancel.textContent = "やめる";
+        cancel.addEventListener("click", ()=> cleanupAndResolve(null));
+        genericActions.appendChild(cancel);
+        try{ genericModal.showModal(); }catch(e){}
+      });
+    }
+
+    // core resolveCell handles attribute changes and awaits interactive modals
     async function resolveCell(playerIndex, index){
       const pl = state.players[playerIndex]; const cell = cells[index]; if(!cell||!pl) return;
       switch(cell.type){
@@ -540,64 +544,72 @@
             pl.finished = true; state.finishedCount += 1; $("#"+tokenId(playerIndex))?.classList.add("finished");
             pl.turnsToGoal = state.turn;
             pushLog(`${pl.name}: プロジェクト完了（ゴール）！`);
-            await showCard("ゴール（プロジェクト完了）", `${pl.name} がゴール！`, `現在残高: ${yen(pl.money)} / 評判: ${pl.reputation || 0}`);
-            if(isGameFinished()){
-              // evaluate achievements could be here
-              showResult();
-            }
+            const { rank, estimatedSalary, score } = getRankAndSalary(pl);
+            await showCard("ゴール（プロジェクト完了）", `ランク: ${rank} / スコア: ${score} / 推定年収: ${yen(estimatedSalary)}`, `${pl.name}`);
+            if(isGameFinished()) showResult();
           }
           break;
 
         case "bonus":{
-          const amount = randPick(state.rng, [15000,20000,30000,50000]); pl.money += amount; flashMoney(playerIndex, amount);
-          pushLog(`${pl.name}: 案件成功！${yen(amount)}獲得（残高: ${yen(pl.money)}）`, "ok");
+          const ev = eventTable[2]; // use a positive event
+          ["learning","mental","rating","responsibility"].forEach(k=>{
+            if(typeof ev[k] === "number"){
+              pl[k] = Math.max(0, Math.round((pl[k]||0) + ev[k]));
+              flashAttr(playerIndex, k);
+            }
+          });
+          pushLog(`${pl.name}: ボーナスイベント（属性上昇）`, "ok");
           break;
         }
 
         case "penalty":{
-          const amount = randPick(state.rng, [8000,12000,18000,25000]); pl.money -= amount; flashMoney(playerIndex, -amount);
-          pushLog(`${pl.name}: コスト発生…${yen(amount)}失う（残高: ${yen(pl.money)}）`, "bad");
+          const ev = eventTable[1];
+          ["learning","mental","rating","responsibility"].forEach(k=>{
+            if(typeof ev[k] === "number"){
+              pl[k] = Math.max(0, Math.round((pl[k]||0) + ev[k]));
+              flashAttr(playerIndex, k);
+            }
+          });
+          pushLog(`${pl.name}: ペナルティイベント（属性変動）`, "bad");
           break;
         }
 
         case "client":{
           const base = 0.55;
-          const repBonus = ((pl.reputation||50) - 50) / 200;
+          const repBonus = ((pl.rating||50) - 50) / 200;
           const prob = Math.max(0.05, Math.min(0.95, base + repBonus));
           const success = state.rng() < prob;
           if(success){
-            const pay = randPick(state.rng, [20000,30000,45000]);
-            pl.money += pay; pl.clientSatisfaction = Math.min(100, (pl.clientSatisfaction||50) + randPick(state.rng, [3,5,8]));
-            pl.reputation = Math.min(100, (pl.reputation||50) + 2);
-            flashMoney(playerIndex, pay);
-            pushLog(`${pl.name}: クライアント面談成功！${yen(pay)} 獲得（CSAT↑）`, "ok");
+            pl.learning = Math.max(0, Math.round((pl.learning||0) + 4));
+            pl.mental = Math.max(0, Math.round((pl.mental||0) + 2));
+            pl.rating = Math.max(0, Math.round((pl.rating||0) + 3));
+            flashAttr(playerIndex, "learning"); flashAttr(playerIndex, "mental"); flashAttr(playerIndex, "rating");
+            pushLog(`${pl.name}: クライアント成功（学び↑ 評価↑）`, "ok");
           } else {
-            const loss = randPick(state.rng, [5000,10000]);
-            pl.money -= loss; pl.clientSatisfaction = Math.max(0, (pl.clientSatisfaction||50) - randPick(state.rng, [2,4]));
-            pl.reputation = Math.max(0, (pl.reputation||50) - 1);
-            flashMoney(playerIndex, -loss);
-            pushLog(`${pl.name}: 面談が振るわず…${yen(loss)}のコスト（CSAT↓）`, "bad");
+            pl.mental = Math.max(0, Math.round((pl.mental||0) - 3));
+            pl.rating = Math.max(0, Math.round((pl.rating||0) - 1));
+            flashAttr(playerIndex, "mental"); flashAttr(playerIndex, "rating");
+            pushLog(`${pl.name}: クライアント不調（メンタル↓）`, "bad");
           }
-          await showCard("クライアント面談", `結果: ${pl.clientSatisfaction} / 残高: ${yen(pl.money)}`, `${pl.name}`);
+          await showCard("クライアント面談", `結果: ${pl.clientSatisfaction || 50} / 学び: ${pl.learning}`, `${pl.name}`);
           break;
         }
 
         case "workshop":{
-          const gain = randPick(state.rng, [0,5000,10000]);
-          pl.money += gain; flashMoney(playerIndex, gain);
-          pl.reputation = Math.min(100, (pl.reputation||50) + randPick(state.rng, [1,2,3]));
-          pl.clientSatisfaction = Math.min(100, (pl.clientSatisfaction||50) + 1);
-          pushLog(`${pl.name}: ワークショップでスキル向上（評判↑ / ${gain?`報酬 ${yen(gain)}`:"報酬なし"}）`, "ok");
-          await showCard("ワークショップ", `評判: ${pl.reputation} / 残高: ${yen(pl.money)}`, `${pl.name}`);
+          const gain = randPick(state.rng, [1,2,3,5]);
+          pl.learning = Math.max(0, Math.round((pl.learning||0) + gain));
+          pl.rating = Math.max(0, Math.round((pl.rating||0) + 1));
+          flashAttr(playerIndex, "learning"); flashAttr(playerIndex, "rating");
+          pushLog(`${pl.name}: ワークショップで学び+${gain}`, "ok");
+          await showCard("ワークショップ", `学び +${gain}`, `${pl.name}`);
           break;
         }
 
         case "event":{
-          // Branch possibility: use only default branch choices (persona system removed)
           if(state.rng() < BRANCH_CHANCE){
             const defaultBranch = { text: "クライアントへの提案機会", choices: [
-              { label:"攻めの提案", probGood:0.5, success:{money:40000,move:1,rep:+2,csat:+3,text:"提案受注！"}, failure:{money:-10000,move:0,rep:-1,csat:-2,text:"提案失敗"} },
-              { label:"守りの提案", probGood:0.8, success:{money:15000,move:0,rep:+1,csat:+1,text:"小さな案件を獲得"}, failure:{money:0,move:0,rep:0,csat:0,text:"何もしない"} }
+              { label:"攻めの提案", probGood:0.5, success:{learning:+3,mental:+1,rating:+4,responsibility:+2,move:1,text:"提案受注！"}, failure:{learning:+1,mental:-2,rating:-1,responsibility:0,move:0,text:"提案失敗"} },
+              { label:"守りの提案", probGood:0.8, success:{learning:+1,mental:+1,rating:+1,responsibility:+0,move:0,text:"小さな案件獲得"}, failure:{learning:0,mental:0,rating:0,responsibility:0,move:0,text:"何もしない"} }
             ]};
             const res = await showBranchModal(defaultBranch, playerIndex);
             if(res && res.res && typeof res.res.move === "number" && res.res.move !== 0){
@@ -613,12 +625,14 @@
             }
             return;
           }
-
           const ev2 = randPick(state.rng, eventTable);
-          pl.money += ev2.money; flashMoney(playerIndex, ev2.money || 0);
-          if(typeof ev2.rep === "number") pl.reputation = (pl.reputation || 0) + ev2.rep;
-          if(typeof ev2.csat === "number") pl.clientSatisfaction = (pl.clientSatisfaction || 50) + ev2.csat;
-          pushLog(`${pl.name}: ${ev2.text}（残高: ${yen(pl.money)}）`, ev2.money>=0?"ok":"bad");
+          ["learning","mental","rating","responsibility"].forEach(k=>{
+            if(typeof ev2[k] === "number"){
+              pl[k] = Math.max(0, Math.round((pl[k]||0) + ev2[k]));
+              flashAttr(playerIndex, k);
+            }
+          });
+          pushLog(`${pl.name}: ${ev2.text}（属性変動）`, ev2.learning>=0?"ok":"bad");
           await showCard("案件イベント", ev2.text, `${pl.name}`);
           break;
         }
@@ -665,7 +679,6 @@
         }
         remaining--;
       }
-      // Wait for resolveCell (which may open modal(s))
       await resolveCell(playerIndex, pl.position);
       state.animating = false; updateRollState();
     }
@@ -694,16 +707,19 @@
     // show result
     function showResult(){
       if(!resultDlg) return;
-      const rows = state.players.map((p,i)=>({i, name:p.name, money:p.money})).sort((a,b)=> b.money-a.money);
-      resultBody.innerHTML = `<ol>${rows.map(r=>`<li>${r.name}: ${yen(state.players[r.i].money)}</li>`).join("")}</ol>`;
+      const rows = state.players.map((p,i)=>({i, name:p.name, score: Math.round(estimateScore(p))})).sort((a,b)=> b.score-a.score);
+      resultBody.innerHTML = `<ol>${rows.map(r=>`<li>${r.name}: スコア ${r.score} / ランク ${getRankAndSalary(state.players[r.i]).rank} / ${yen(getRankAndSalary(state.players[r.i]).estimatedSalary)}</li>`).join("")}</ol>`;
       try{ resultDlg.showModal(); }catch(e){}
     }
 
-    // Game control functions
+    // control
     function startGame(){
       if(state.started) return;
       const count = Math.max(1, parseInt(playersCountSel?.value || "2"));
-      const initialMoney = Number(initialMoneyInput?.value || 50000);
+      const initialLearning = 50;
+      const initialMental = 50;
+      const initialRating = 50;
+      const initialResp = 0;
       const names = getPlayerNames();
       state.players = [];
       for(let i=0;i<count;i++){
@@ -711,9 +727,10 @@
           name: names[i] || `プレイヤー${i+1}`,
           color: PLAYER_COLORS[i % PLAYER_COLORS.length],
           position: 0,
-          money: initialMoney,
-          reputation: 50,
-          clientSatisfaction: 50,
+          learning: initialLearning,
+          mental: initialMental,
+          rating: initialRating,
+          responsibility: initialResp,
           achievements: [],
           finished: false,
           skipTurn: false
@@ -739,7 +756,6 @@
       const current = state.currentPlayerIndex;
       const val = rollDice();
       await animateMove(current, val);
-      // advance turn after interactive handling completes
       const wasLast = (function(){
         const active = state.players.map((p,i)=> ({i, active: !p.finished}));
         const indices = active.filter(a=>a.active).map(a=>a.i);
@@ -803,6 +819,18 @@
     renderPlayersPanel();
     updateRollState();
     window.dispatchEvent(new CustomEvent('app-ready'));
+
+    // ranking helper exposed for UI reuse
+    function estimateScore(p){
+      return ( (p.learning||0) * 0.35 + (p.rating||0) * 0.35 + (p.responsibility||0) * 0.2 + (p.mental||0) * 0.1 );
+    }
+    function getRankAndSalary(p){
+      const score = estimateScore(p);
+      const rank = RANKS.find(r => score >= r.min && score <= r.max) || RANKS[0];
+      const modifier = 1 + Math.min(0.5, (p.responsibility||0) / 200) + Math.min(0.3, (p.rating||0) / 400);
+      const estimated = Math.round(rank.base * modifier / 1000) * 1000;
+      return { rank: rank.key, baseSalary: rank.base, estimatedSalary: estimated, score: Math.round(score) };
+    }
   })();
   </script>
 </body>
