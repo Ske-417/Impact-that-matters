@@ -89,15 +89,18 @@
     .sidebar{background:#fff; border:2px solid #eee; border-radius:12px; padding:12px; display:grid; gap:12px; height:fit-content; z-index:2}
     .stat{display:flex; justify-content:space-between; gap:8px; padding:8px 10px; background:#f5f7fa; border-radius:10px}
     .players{display:grid; gap:8px}
-    .player-row{display:grid; grid-template-columns:1.4fr .7fr .6fr; gap:8px; align-items:center; padding:8px 10px; background:#fafcff; border:1px solid #eee; border-radius:10px}
+    /* compact two-column player row */
+    .player-row{display:grid; grid-template-columns:1fr 1fr; gap:8px; align-items:center; padding:8px 10px; background:#fafcff; border:1px solid #eee; border-radius:10px}
     .player-row.active{border-color:var(--active); box-shadow:0 0 0 2px rgba(76,154,255,.2) inset}
-    .badge{width:18px; height:18px; border-radius:50%; border:2px solid #333; display:inline-block; margin-right:6px}
+    .badge{width:18px; height:18px; border-radius:50%; border:2px solid #333; display:inline-block; margin-right:8px}
 
-    .attr-list{display:flex; gap:8px; align-items:center}
-    .attr{font-size:12px; background:#fff; padding:4px 8px; border-radius:8px; border:1px solid #eee}
-
+    .left-col{display:flex; align-items:center; gap:8px}
+    .name-wrap{display:flex; flex-direction:column}
     .rank{font-weight:800; color:#111}
-    .salary{font-weight:700; color:#333}
+    .salary{font-weight:700; color:#333; font-size:13px}
+
+    .attr-list{display:flex; gap:8px; justify-content:flex-end; align-items:center}
+    .attr{font-size:12px; background:#fff; padding:4px 8px; border-radius:8px; border:1px solid #eee; min-width:86px; text-align:center}
 
     .log{border:1px solid #eee; border-radius:10px; background:#fafcff; padding:10px; max-height:300px; overflow:auto; font-size:13px; line-height:1.4}
     .log p{margin:0 0 6px}
@@ -132,9 +135,7 @@
       <div class="group"><label for="initial-money">初期資金(未使用)</label><input id="initial-money" type="number" value="50000" min="0" step="1000" /></div>
 
       <!-- Player name inputs replace persona features -->
-      <div class="group player-names" id="player-names">
-        <!-- JS will populate name inputs according to players-count -->
-      </div>
+      <div class="group player-names" id="player-names"></div>
 
       <div class="dice" id="dice" aria-live="polite" aria-atomic="true">-</div>
 
@@ -235,14 +236,12 @@
     const genericModal = $("#modal"), genericTitle = $("#modal-title"), genericText = $("#modal-text"), genericSub = $("#modal-sub"), genericActions = $("#modal-actions");
     const historyModal = $("#history-modal"), historyBody = $("#history-body"), historyClose = $("#history-close"), historyClear = $("#history-clear");
     const resultDlg = $("#result"), resultBody = $("#result-body");
-    const achModal = $("#achievements-modal"), achListEl = $("#ach-list"), achClose = $("#ach-close"), achReset = $("#ach-reset");
 
     const BOARD_COLS = 10, BOARD_ROWS = 6, TOTAL_CELLS = BOARD_COLS * BOARD_ROWS;
     const PLAYER_COLORS = ["#ff6b6b", "#4c9aff", "#00c853", "#ff8f00", "#9c27b0", "#00acc1"];
     const BRANCH_CHANCE = 0.36;
 
     // events now give four attributes: learning, mental, rating, responsibility
-    // values are moderate (scale roughly 0..100 per attribute, typical changes +-1..+10)
     const eventTable = [
       { text:"短期支援入り", learning:+6, mental:+2, rating:+3, responsibility:+1 },
       { text:"見積り漏れでトラブル", learning:+2, mental:-6, rating:-1, responsibility:0 },
@@ -256,29 +255,19 @@
       { text:"内部調整で停滞", learning:0, mental:-1, rating:0, responsibility:0 }
     ];
 
-    // ranking logic:
-    // compute score = learning * 0.35 + rating * 0.35 + responsibility * 0.2 + mental * 0.1
-    // thresholds (you asked to assign reasonably):
-    // score < 60 => アナリスト
-    // 60 <= score < 85 => コンサルタント
-    // 85 <= score < 110 => シニアコンサルタント
-    // score >= 110 => マネージャー
-    // base salaries per rank:
+    // ranking logic and RANKS
     const RANKS = [
       { key: "アナリスト", min: -Infinity, max: 59.999, base: 5000000 },
       { key: "コンサルタント", min: 60, max: 84.999, base: 8500000 },
       { key: "シニアコンサルタント", min: 85, max: 109.999, base: 12000000 },
       { key: "マネージャー", min: 110, max: Infinity, base: 18000000 }
     ];
-
     function estimateScore(p){
-      // attributes assumed 0-100
       return ( (p.learning||0) * 0.35 + (p.rating||0) * 0.35 + (p.responsibility||0) * 0.2 + (p.mental||0) * 0.1 );
     }
     function getRankAndSalary(p){
       const score = estimateScore(p);
       const rank = RANKS.find(r => score >= r.min && score <= r.max) || RANKS[0];
-      // salary adjusted slightly by responsibility and rating
       const modifier = 1 + Math.min(0.5, (p.responsibility||0) / 200) + Math.min(0.3, (p.rating||0) / 400);
       const estimated = Math.round(rank.base * modifier / 1000) * 1000;
       return { rank: rank.key, baseSalary: rank.base, estimatedSalary: estimated, score: Math.round(score) };
@@ -290,7 +279,7 @@
       rng: Math.random, speed:180, overshoot:"clamp", playerSettings: []
     };
 
-    // player name input handling
+    // player name inputs
     function renderPlayerNameInputs(){
       const count = Math.max(1, parseInt(playersCountSel.value || "2"));
       playerNamesEl.innerHTML = "";
@@ -312,8 +301,10 @@
     }
 
     // helpers
-    function yen(n){ return "¥" + Number(n).toLocaleString("ja-JP"); }
     function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
+    function randPick(rng, arr){ return arr[Math.floor(rng()*arr.length)]; }
+    function tokenId(i){ return `token-${i}` }
+    function yen(n){ return "¥" + Number(n).toLocaleString("ja-JP"); }
 
     // board setup
     const cells = Array.from({length:TOTAL_CELLS},(_,i)=>({index:i,type:"none",label:""}));
@@ -364,8 +355,6 @@
       placeAllTokens(); highlightActiveToken();
     }
 
-    function tokenId(i){ return `token-${i}` }
-
     function placeAllTokens(){
       const groups = new Map();
       state.players.forEach((pl,i)=>{
@@ -401,28 +390,30 @@
 
     function renderPlayersPanel(){
       if(!playersPanelEl) return;
-      playersPanelEl.innerHTML="";
+      playersPanelEl.innerHTML = "";
       state.players.forEach((pl,i)=>{
         const row=document.createElement("div"); row.className="player-row"+(i===state.currentPlayerIndex?" active":"");
-        const left=document.createElement("div");
-        left.style.display = "flex"; left.style.alignItems = "center";
-        const badge=document.createElement("span"); badge.className="badge"; badge.style.background=pl.color; left.appendChild(badge);
-        const nameText=document.createElement("span"); nameText.textContent = pl.name + (pl.finished?"（ゴール）":""); left.appendChild(nameText);
 
-        const attrs=document.createElement("div"); attrs.className="attr-list";
+        // left column: name + rank/salary
+        const left = document.createElement("div"); left.className = "left-col";
+        const badge=document.createElement("span"); badge.className="badge"; badge.style.background=pl.color; left.appendChild(badge);
+        const nameWrap = document.createElement("div"); nameWrap.className = "name-wrap";
+        const name = document.createElement("div"); name.textContent = pl.name; name.style.fontWeight = 700;
+        const { rank, estimatedSalary, score } = getRankAndSalary(pl);
+        const rankEl = document.createElement("div"); rankEl.className = "rank"; rankEl.textContent = `${rank} (S:${score})`;
+        const salEl = document.createElement("div"); salEl.className = "salary"; salEl.textContent = `${yen(estimatedSalary)}`;
+        nameWrap.appendChild(name); nameWrap.appendChild(rankEl); nameWrap.appendChild(salEl);
+        left.appendChild(nameWrap);
+
+        // right column: attributes compact
+        const right = document.createElement("div"); right.className = "attr-list";
         const aLearning = document.createElement("div"); aLearning.className="attr"; aLearning.id=`learning-${i}`; aLearning.textContent = `学び: ${pl.learning}`;
         const aMental = document.createElement("div"); aMental.className="attr"; aMental.id=`mental-${i}`; aMental.textContent = `メンタル: ${pl.mental}`;
         const aRating = document.createElement("div"); aRating.className="attr"; aRating.id=`rating-${i}`; aRating.textContent = `評価: ${pl.rating}`;
-        const aResp = document.createElement("div"); aResp.className="attr"; aResp.id=`resp-${i}`; aResp.textContent = `責任: ${pl.responsibility}`;
-        attrs.appendChild(aLearning); attrs.appendChild(aMental); attrs.appendChild(aRating); attrs.appendChild(aResp);
+        const aResp = document.createElement("div"); aResp.className="attr"; aResp.id=`responsibility-${i}`; aResp.textContent = `責任: ${pl.responsibility}`;
+        right.appendChild(aLearning); right.appendChild(aMental); right.appendChild(aRating); right.appendChild(aResp);
 
-        const right=document.createElement("div"); right.style.textAlign = "right";
-        const { rank, estimatedSalary, score } = getRankAndSalary(pl);
-        const rankEl = document.createElement("div"); rankEl.className="rank"; rankEl.textContent = rank + ` (S:${score})`;
-        const salEl = document.createElement("div"); salEl.className="salary"; salEl.textContent = `推定年収: ${yen(estimatedSalary)}`;
-        right.appendChild(rankEl); right.appendChild(salEl);
-
-        row.appendChild(left); row.appendChild(attrs); row.appendChild(right);
+        row.appendChild(left); row.appendChild(right);
         playersPanelEl.appendChild(row);
       });
     }
@@ -433,11 +424,8 @@
         if(!el) return;
         el.classList.add('flash-attr');
         setTimeout(()=> el.classList.remove('flash-attr'), 520);
-        el.textContent = `${attrLabel(attrName)}: ${state.players[playerIndex][attrName]}`;
+        // text updated where attribute is modified
       }catch(e){}
-    }
-    function attrLabel(k){
-      return ({ learning: "学び", mental: "メンタル", rating: "評価", responsibility: "責任" }[k]) || k;
     }
 
     // history & log
@@ -474,7 +462,7 @@
     }
     function hideTooltip(){ if(tooltip) tooltip.style.display = "none"; }
 
-    // Modal helpers return Promises
+    // Robust modal helpers (resolve also on dialog close/cancel)
     function showCard(title, text, sub){
       return new Promise(resolve => {
         if(!genericModal){ resolve(); return; }
@@ -483,10 +471,19 @@
         genericSub.textContent = sub || "";
         genericActions.innerHTML = "";
         const ok = document.createElement("button"); ok.className = "primary"; ok.textContent = "OK"; ok.type = "button";
-        const onOk = () => { ok.removeEventListener("click", onOk); try{ genericModal.close(); }catch(e){}; resolve(); };
+
+        function cleanup(){
+          ok.removeEventListener("click", onOk);
+          genericModal.removeEventListener("close", onClose);
+          try{ genericModal.close(); }catch(e){}
+        }
+        function onOk(){ cleanup(); resolve(); }
+        function onClose(){ cleanup(); resolve(); }
+
         ok.addEventListener("click", onOk);
+        genericModal.addEventListener("close", onClose);
         genericActions.appendChild(ok);
-        try{ genericModal.showModal(); }catch(e){}
+        try{ genericModal.showModal(); ok.focus(); }catch(e){ /* ignore */ }
       });
     }
 
@@ -497,11 +494,17 @@
         genericText.textContent = branchEv.text || "";
         genericSub.textContent = `あなた: ${state.players[playerIndex].name}`;
         genericActions.innerHTML = "";
-        const cleanupAndResolve = (val) => {
-          genericActions.querySelectorAll("button").forEach(b=>b.removeEventListener("click", ()=>{}));
+
+        let resolved = false;
+        function finish(val){
+          if(resolved) return;
+          resolved = true;
+          genericModal.removeEventListener("close", onClose);
           try{ genericModal.close(); }catch(e){}
           resolve(val);
-        };
+        }
+        function onClose(){ finish(null); }
+
         branchEv.choices.forEach(choice=>{
           const b = document.createElement("button"); b.type = "button"; b.textContent = choice.label;
           b.addEventListener("click", async ()=>{
@@ -515,23 +518,25 @@
             ["learning","mental","rating","responsibility"].forEach(k=>{
               if(typeof res[k] === "number"){
                 pl[k] = Math.max(0, Math.round((pl[k]||0) + res[k]));
-                flashAttr(playerIndex, k);
               }
             });
-            if(success) pl.branchSuccessCount = (pl.branchSuccessCount || 0) + 1;
+            // flash attributes
+            ["learning","mental","rating","responsibility"].forEach(k=> flashAttr(playerIndex, k));
             pushLog(`${pl.name}: ${success ? (res.text || choice.label + " → 成功") : (res.text || choice.label + " → 失敗")}`, success ? "ok" : "bad");
-            cleanupAndResolve({choice, res, success});
+            finish({choice, res, success});
           });
           genericActions.appendChild(b);
         });
         const cancel = document.createElement("button"); cancel.type = "button"; cancel.textContent = "やめる";
-        cancel.addEventListener("click", ()=> cleanupAndResolve(null));
+        cancel.addEventListener("click", ()=> finish(null));
         genericActions.appendChild(cancel);
+
+        genericModal.addEventListener("close", onClose);
         try{ genericModal.showModal(); }catch(e){}
       });
     }
 
-    // core resolveCell handles attribute changes and awaits interactive modals
+    // resolveCell handles attribute updates; waits for modals safely
     async function resolveCell(playerIndex, index){
       const pl = state.players[playerIndex]; const cell = cells[index]; if(!cell||!pl) return;
       switch(cell.type){
@@ -551,7 +556,7 @@
           break;
 
         case "bonus":{
-          const ev = eventTable[2]; // use a positive event
+          const ev = eventTable[2];
           ["learning","mental","rating","responsibility"].forEach(k=>{
             if(typeof ev[k] === "number"){
               pl[k] = Math.max(0, Math.round((pl[k]||0) + ev[k]));
@@ -591,7 +596,7 @@
             flashAttr(playerIndex, "mental"); flashAttr(playerIndex, "rating");
             pushLog(`${pl.name}: クライアント不調（メンタル↓）`, "bad");
           }
-          await showCard("クライアント面談", `結果: ${pl.clientSatisfaction || 50} / 学び: ${pl.learning}`, `${pl.name}`);
+          await showCard("クライアント面談", `学び: ${pl.learning} / メンタル: ${pl.mental}`, `${pl.name}`);
           break;
         }
 
@@ -679,6 +684,7 @@
         }
         remaining--;
       }
+      // Wait until cell resolution completes (modals included)
       await resolveCell(playerIndex, pl.position);
       state.animating = false; updateRollState();
     }
@@ -820,7 +826,7 @@
     updateRollState();
     window.dispatchEvent(new CustomEvent('app-ready'));
 
-    // ranking helper exposed for UI reuse
+    // expose helpers used above
     function estimateScore(p){
       return ( (p.learning||0) * 0.35 + (p.rating||0) * 0.35 + (p.responsibility||0) * 0.2 + (p.mental||0) * 0.1 );
     }
