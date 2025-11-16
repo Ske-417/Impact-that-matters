@@ -155,10 +155,6 @@
       <div class="group"><label for="players-count">人数</label><select id="players-count"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option></select></div>
       <div class="group"><label for="initial-money">初期資金</label><input id="initial-money" type="number" value="50000" min="0" step="1000" /></div>
 
-      <div class="group"><label for="rng-seed">シード</label><input id="rng-seed" type="text" placeholder="任意(空=ランダム)" /></div>
-      <div class="group"><label for="speed">速度</label><input id="speed" type="range" min="80" max="400" value="180" /></div>
-
-      <div class="group"><label for="overshoot">ゴール超過</label><select id="overshoot"><option value="clamp" selected>止まる</option><option value="bounce">反射</option></select></div>
       <div class="dice" id="dice" aria-live="polite" aria-atomic="true">-</div>
 
       <button id="btn-start" class="primary" type="button">開始</button>
