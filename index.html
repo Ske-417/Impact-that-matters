@@ -104,7 +104,6 @@
 
       const TILE_SIZE = Number(getComputedStyle(document.documentElement).getPropertyValue('--tile-size')) || 68;
       const NUM_TILES = 60;
-      const BASE_JITTER = 12;
       const GAP = Number(getComputedStyle(document.documentElement).getPropertyValue('--tile-gap')) || 16;
       const TOKEN_MOVE_MS = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--token-move-ms')) || 140;
 
@@ -127,7 +126,7 @@
       renderPlayerNameInputs();
       function getPlayerNames(){ return Array.from(playerNamesWrap.querySelectorAll("input")).map((el,idx)=> el.value.trim() || `プレイヤー${idx+1}`); }
 
-      // Event templates (kept same as prior).
+      // Event templates (same as before, abbreviated here for clarity)
       const EVENT_TEMPLATES = {
         junior: [
           { title:"デロイトに入社、念願のコンサル職！", body:"入社し念願のコンサル職に就けた！思ったよりも温かみのあるオフィスで安心して発言できた！", changes:{ learning:0, motivation:10, rating:3, mental:0, responsibility:0 } },
@@ -246,8 +245,7 @@
         const ok = document.createElement('button'); ok.className='primary'; ok.textContent='OK';
         ok.addEventListener('click', ()=>{ applyAttributeChanges(playerIndex, changes); overlay.remove(); });
         actions.appendChild(ok);
-        card.appendChild(h); card.appendChild(b); card.appendChild(chg); card.appendChild(actions);
-        overlay.appendChild(card); document.body.appendChild(overlay); ok.focus();
+        card.appendChild(h); card.appendChild(b); card.appendChild(chg); card.appendChild(actions); overlay.appendChild(card); document.body.appendChild(overlay); ok.focus();
       }
 
       async function showChoiceModal(playerIndex, tmpl){
@@ -291,146 +289,100 @@
         if(tmpl.choices && Array.isArray(tmpl.choices)) await showChoiceModal(playerIndex, tmpl); else await showEventModal(playerIndex, tmpl);
       }
 
-      /* Improved path generation: inner rings get smaller spacing (more points), connectors prefer axis alignment and avoid near overlaps */
-      function buildConnectedPath(N, containerW, containerH, tileSize, gap){
-        const cx = containerW/2, cy = containerH/2;
+      /* NEW: Grid-based rectangular spiral generator (guarantees no overlaps) */
+      function buildGridSpiralPath(N, containerW, containerH, tileSize, gap){
+        // cell spacing equals tile plus gap -> ensures tiles won't overlap
+        const cell = tileSize + gap;
+        // margin from edges to allow tiles to not touch borders (center positions)
+        let margin = Math.max(tileSize/2 + 12, 12);
+        // compute cols/rows, try to ensure cols*rows >= N
+        const maxAttempts = 8;
+        let cols, rows;
+        for(let attempt=0; attempt<maxAttempts; attempt++){
+          const usableW = Math.max(0, containerW - margin*2);
+          const usableH = Math.max(0, containerH - margin*2);
+          cols = Math.max(1, Math.floor((usableW + gap) / cell));
+          rows = Math.max(1, Math.floor((usableH + gap) / cell));
+          if(cols * rows >= N) break;
+          // shrink margin to fit more cells
+          margin = Math.max(8, margin - 6);
+        }
+        // As a fallback if still not enough, expand rows/cols artificially by lowering cell spacing slightly (rare)
+        if(cols * rows < N){
+          const usableW = Math.max(0, containerW - (tileSize/2) * 2);
+          const usableH = Math.max(0, containerH - (tileSize/2) * 2);
+          cols = Math.max(1, Math.floor(usableW / tileSize));
+          rows = Math.max(1, Math.floor(usableH / tileSize));
+        }
+
+        // ensure at least 3x3
+        cols = Math.max(cols, 3);
+        rows = Math.max(rows, 3);
+
+        // start coordinate (center of top-left cell)
+        const startX = margin;
+        const startY = margin;
+
+        // generate spiral traversal over grid cells (layer by layer), starting at top-left corner
         const coords = [];
-        const margin = Math.max(tileSize*1.6, 28);
-        let left = margin, top = margin, right = containerW - margin, bottom = containerH - margin;
-        const ringInset = tileSize + gap + Math.round(tileSize*0.4);
-        function perimeterPoints(l,t,r,b, spacing){
-          const w = Math.max(1, r - l), h = Math.max(1, b - t);
-          const perim = 2*(w + h);
-          const count = Math.max(4, Math.floor(perim / spacing));
-          let topCount = Math.max(1, Math.round(count * (w / perim)));
-          let rightCount = Math.max(1, Math.round(count * (h / perim)));
-          let bottomCount = Math.max(1, Math.round(count * (w / perim)));
-          let leftCount = Math.max(1, Math.round(count * (h / perim)));
-          let sum = topCount + rightCount + bottomCount + leftCount;
-          let idxAdjust = 0;
-          while(sum < count){ if(idxAdjust%4===0) topCount++; else if(idxAdjust%4===1) rightCount++; else if(idxAdjust%4===2) bottomCount++; else leftCount++; idxAdjust++; sum++; }
-          while(sum > count){ if(idxAdjust%4===0 && topCount>1) topCount--; else if(idxAdjust%4===1 && rightCount>1) rightCount--; else if(idxAdjust%4===2 && bottomCount>1) bottomCount--; else if(idxAdjust%4===3 && leftCount>1) leftCount--; idxAdjust++; sum--; }
-          const pts = [];
-          for(let i=0;i<topCount;i++){ const x = l + (i+0.5) * (w / topCount); const y = t; pts.push({x,y}); }
-          for(let i=0;i<rightCount;i++){ const x = r; const y = t + (i+0.5) * (h / rightCount); pts.push({x,y}); }
-          for(let i=0;i<bottomCount;i++){ const x = r - (i+0.5) * (w / bottomCount); const y = b; pts.push({x,y}); }
-          for(let i=0;i<leftCount;i++){ const x = l; const y = b - (i+0.5) * (h / leftCount); pts.push({x,y}); }
-          return pts;
+        const totalCells = cols * rows;
+        const visitedCount = Math.min(N, totalCells);
+
+        let layer = 0;
+        while(coords.length < visitedCount){
+          const left = layer, top = layer, right = cols - 1 - layer, bottom = rows - 1 - layer;
+          if(left > right || top > bottom) break;
+          // top row left->right
+          for(let c = left; c <= right && coords.length < visitedCount; c++){
+            coords.push({col:c, row:top});
+          }
+          // right col top+1 -> bottom
+          for(let r = top+1; r <= bottom-1 && coords.length < visitedCount; r++){
+            coords.push({col:right, row:r});
+          }
+          // bottom row right -> left
+          if(bottom > top){
+            for(let c = right; c >= left && coords.length < visitedCount; c--){
+              coords.push({col:c, row:bottom});
+            }
+          }
+          // left col bottom-1 -> top+1
+          if(left < right){
+            for(let r = bottom-1; r > top && coords.length < visitedCount; r--){
+              coords.push({col:left, row:r});
+            }
+          }
+          layer++;
         }
 
-        const rings = [];
-        let attempts = 0;
-        while(coords.length < N - 1 && right - left > tileSize && bottom - top > tileSize && attempts < 24){
-          // spacing: outer rings have slightly larger spacing, inner rings smaller (so inner rings get more points)
-          const ringIndex = attempts;
-          const spacingScale = (ringIndex >= 2) ? 0.72 : (ringIndex === 1 ? 0.92 : 1.08);
-          const spacing = Math.max(8, Math.round((tileSize + gap) * spacingScale));
-          const pts = perimeterPoints(left, top, right, bottom, spacing);
-          rings.push({pts, l:left, t:top, r:right, b:bottom});
-          left += ringInset; top += ringInset; right -= ringInset; bottom -= ringInset;
-          attempts++;
-        }
-
-        let prevExit = null;
-        for(let ri = 0; ri < rings.length && coords.length < N - 1; ri++){
-          const ring = rings[ri];
-          const pts = ring.pts.slice();
-          let startIdx = 0;
-          if(prevExit){
-            // choose candidate minimizing (dist - alignmentBias) but also ensure not too close to prevExit area
-            let best = 0, bestScore = Infinity;
-            for(let k=0;k<pts.length;k++){
-              const dx = pts[k].x - prevExit.x, dy = pts[k].y - prevExit.y;
-              const dist = Math.hypot(dx,dy);
-              const absX = Math.abs(dx), absY = Math.abs(dy);
-              const alignment = Math.abs(absX - absY) / (absX + absY + 1e-6);
-              const score = dist - (alignment * 48);
-              if(score < bestScore){ bestScore = score; best = k; }
+        // if still short (shouldn't happen), fill remaining with center-based radial points
+        if(coords.length < N){
+          for(let r = 0; r < rows && coords.length < N; r++){
+            for(let c = 0; c < cols && coords.length < N; c++){
+              // avoid duplicates
+              if(!coords.find(p => p.col === c && p.row === r)){
+                coords.push({col:c, row:r});
+              }
             }
-            startIdx = best;
-          } else {
-            // start near top-left for ring 0
-            let best = 0, bestD = Infinity;
-            const topLeft = {x: ring.l + 6, y: ring.t + 6};
-            for(let k=0;k<pts.length;k++){
-              const dx = pts[k].x - topLeft.x, dy = pts[k].y - topLeft.y;
-              const d = Math.hypot(dx,dy);
-              if(d < bestD){ best = k; bestD = d; }
-            }
-            startIdx = best;
-          }
-
-          // if this ring's chosen start would make last points too close to previous ring points, shift startIdx
-          function minDistToPrev(startIndex){
-            if(!prevExit) return Infinity;
-            let minD = Infinity;
-            for(let kk=0; kk<pts.length; kk++){
-              const idx = (startIndex + kk) % pts.length;
-              const dx = pts[idx].x - prevExit.x, dy = pts[idx].y - prevExit.y;
-              const d = Math.hypot(dx,dy);
-              if(d < minD) minD = d;
-            }
-            return minD;
-          }
-          if(prevExit){
-            const minD = minDistToPrev(startIdx);
-            const threshold = TILE_SIZE * 1.05; // minimum comfortable distance
-            if(minD < threshold){
-              // shift startIdx by approx quarter to avoid clustering with previous ring
-              startIdx = (startIdx + Math.round(pts.length/4)) % pts.length;
-            }
-          }
-
-          for(let k=0;k<pts.length && coords.length < N - 1;k++){
-            const idx = (startIdx + k) % pts.length;
-            const jitterX = (Math.random()*2 -1) * (BASE_JITTER * 0.35);
-            const jitterY = (Math.random()*2 -1) * (BASE_JITTER * 0.35);
-            coords.push({x: pts[idx].x + jitterX, y: pts[idx].y + jitterY, ang: (Math.random()*2-1)*6, ringIndex: ri});
-          }
-          prevExit = coords[coords.length-1];
-          if(ri < rings.length - 1 && coords.length < N - 1){
-            const inner = rings[ri+1];
-            const innerCenter = {x: (inner.l + inner.r)/2, y: (inner.t + inner.b)/2};
-            let connX = prevExit.x + (innerCenter.x - prevExit.x) * 0.25;
-            let connY = prevExit.y + (innerCenter.y - prevExit.y) * 0.25;
-            const dx = Math.abs(innerCenter.x - prevExit.x), dy = Math.abs(innerCenter.y - prevExit.y);
-            if(Math.abs(dx - dy) > 30){ if(dx > dy) connY = prevExit.y; else connX = prevExit.x; }
-            // small safety offset outward if connector is too close to any previous coords
-            const safetyMin = TILE_SIZE * 0.9;
-            const closeToAny = coords.some(pc => Math.hypot(pc.x - connX, pc.y - connY) < safetyMin);
-            if(closeToAny){
-              connX += (Math.random()*2-1) * TILE_SIZE * 0.6;
-              connY += (Math.random()*2-1) * TILE_SIZE * 0.6;
-            }
-            connX += (Math.random()*2-1)*(BASE_JITTER*0.6);
-            connY += (Math.random()*2-1)*(BASE_JITTER*0.6);
-            coords.push({x: connX, y: connY, ang: (Math.random()*2-1)*6, ringIndex: ri});
-            prevExit = coords[coords.length-1];
           }
         }
 
-        if(coords.length < N - 1){
-          const remaining = (N - 1) - coords.length;
-          for(let i=0;i<remaining;i++){
-            const angle = (i/remaining) * Math.PI * 2;
-            const radius = Math.min(containerW, containerH) * 0.11 + (i%3) * (tileSize*0.4);
-            const x = cx + Math.cos(angle) * radius + (Math.random()*2-1)*BASE_JITTER;
-            const y = cy + Math.sin(angle) * radius + (Math.random()*2-1)*BASE_JITTER;
-            coords.push({x,y,ang:(Math.random()*2-1)*8, ringIndex: rings.length});
-          }
-        }
+        // Map grid positions to pixel centers
+        const pixelCoords = coords.slice(0, N).map(p => {
+          const x = startX + p.col * cell;
+          const y = startY + p.row * cell;
+          return { x, y, col: p.col, row: p.row };
+        });
 
-        coords.push({x: cx, y: cy, ang:0, ringIndex: rings.length});
-        const clampMargin = tileSize;
-        for(const c of coords){ c.x = Math.max(clampMargin, Math.min(containerW - clampMargin, c.x)); c.y = Math.max(clampMargin, Math.min(containerH - clampMargin, c.y)); }
-        if(coords.length > N) coords.length = N;
-        return coords;
+        // Safety: ensure min pair distance >= cell - small epsilon (guaranteed by grid)
+        return pixelCoords;
       }
 
+      // Replace previous path builder with the grid spiral builder
       function layoutTiles(){
         board.querySelectorAll(".tile").forEach(n=>n.remove());
         const rect = board.getBoundingClientRect();
-        const coords = buildConnectedPath(NUM_TILES, rect.width, rect.height, TILE_SIZE, GAP);
+        const coords = buildGridSpiralPath(NUM_TILES, rect.width, rect.height, TILE_SIZE, GAP);
         tileCoords = coords;
         coords.forEach((c, idx)=>{
           const div = document.createElement("div");
@@ -443,38 +395,37 @@
           else if(idx % 5 === 0){ div.classList.add("bonus"); }
           else if(idx % 7 === 0){ div.classList.add("penalty"); }
           div.style.left = `${c.x}px`; div.style.top = `${c.y}px`;
-          const rot = c.ang || ((Math.random()*2-1)*6);
-          div.style.transform = `translate(-50%,-50%) rotate(${rot}deg)`;
+          div.style.transform = `translate(-50%,-50%)`; // keep no rotation to avoid accidental closeness
           board.appendChild(div);
         });
-        if(tileCoords && tileCoords[0]){ const t0 = tileCoords[0]; START_MARKER.style.left = `${t0.x}px`; START_MARKER.style.top = `${t0.y}px`; START_MARKER.style.display = 'grid'; } else { START_MARKER.style.display = 'none'; }
+
+        // align START_MARKER to tile 0 (top-left-ish)
+        if(tileCoords && tileCoords[0]){
+          const t0 = tileCoords[0];
+          START_MARKER.style.left = `${t0.x}px`;
+          START_MARKER.style.top = `${t0.y}px`;
+          START_MARKER.style.display = 'grid';
+        } else {
+          START_MARKER.style.display = 'none';
+        }
+
         placeAllTokens();
       }
 
-      // token helpers with auto text-color based on background brightness
+      // token helpers: ensure token exists, set background and readable text color
       function ensureToken(i){
         let t = document.getElementById(`token-${i}`);
-        if(!t){
-          t = document.createElement("div"); t.className = "token"; t.id = `token-${i}`; t.textContent = String(i+1);
-          board.appendChild(t);
-        }
-        // color palette
-        const palette = ["#86BB27","#DFF3C6","#C4C4C4","#000000"];
+        if(!t){ t = document.createElement("div"); t.className = "token"; t.id = `token-${i}`; t.textContent = String(i+1); board.appendChild(t); }
+        const palette = ["#86BB27","#DFF3C6","#C4C4C4","#2B2B2B"];
         const bg = palette[i % palette.length];
         t.style.background = bg;
-        // set text color based on relative luminance
         const rgb = hexToRgb(bg);
         const lum = (0.2126 * linearize(rgb.r/255) + 0.7152 * linearize(rgb.g/255) + 0.0722 * linearize(rgb.b/255));
-        // threshold: if luminance > 0.6 use black, else white
+        // choose black text when background is light (gray/light-green), else white
         t.style.color = (lum > 0.6) ? "#000" : "#fff";
         return t;
       }
-      function hexToRgb(hex){
-        hex = hex.replace('#','');
-        if(hex.length===3) hex = hex.split('').map(c=>c+c).join('');
-        const num = parseInt(hex,16);
-        return { r:(num>>16)&255, g:(num>>8)&255, b:num&255 };
-      }
+      function hexToRgb(hex){ hex = hex.replace('#',''); if(hex.length===3) hex = hex.split('').map(c=>c+c).join(''); const num = parseInt(hex,16); return { r:(num>>16)&255, g:(num>>8)&255, b:num&255 }; }
       function linearize(c){ return (c <= 0.03928) ? c/12.92 : Math.pow((c+0.055)/1.055, 2.4); }
 
       function placeAllTokens(){
@@ -601,7 +552,7 @@
           const row = document.createElement("div"); row.className = "player-row";
           const left = document.createElement("div"); left.style.display = "flex"; left.style.alignItems = "center"; left.style.gap = "8px";
           const badge = document.createElement("div"); badge.style.width = "18px"; badge.style.height = "18px"; badge.style.borderRadius = "50%";
-          badge.style.background = (["#86BB27","#DFF3C6","#C4C4C4","#000000"][i % 4]) || "#86BB27";
+          badge.style.background = (["#86BB27","#DFF3C6","#C4C4C4","#2B2B2B"][i % 4]) || "#86BB27";
           left.appendChild(badge);
           const name = document.createElement("div"); name.textContent = pl.name;
           left.appendChild(name);
@@ -624,7 +575,7 @@
 
       function attachHandlers(){ btnStart.addEventListener("click", ()=> startGame()); btnRoll.addEventListener("click", ()=> rollTurn()); btnReset.addEventListener("click", ()=> resetGame()); window.addEventListener("resize", ()=> layoutTiles()); window.addEventListener("keydown", (e)=>{ if((e.key === " " || e.key === "Enter") && state.started && !state.animating){ e.preventDefault(); rollTurn(); }}); }
 
-      attachHandlers(); layoutTiles(); pushLog("UI ready — レイアウトを調整し、3周目をより引き込み、2周目終盤の被りを回避。トークン文字色は背景に合わせ自動で黒/白に切替。");
+      attachHandlers(); layoutTiles(); pushLog("UI ready — グリッド螺旋で重なりゼロを保証しました。3周目を引き込む配分にしています。");
     }
   })();
   </script>
