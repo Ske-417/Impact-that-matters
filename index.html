@@ -30,11 +30,7 @@
       font-weight:700;
     }
 
-    .appbar{
-      position:sticky; top:0; z-index:1100; width:100%;
-      display:flex; justify-content:center; background:var(--white);
-      border-bottom:1px solid rgba(0,0,0,0.06); box-shadow: 0 4px 18px rgba(0,0,0,0.03);
-    }
+    .appbar{position:sticky; top:0; z-index:1100; width:100%; display:flex; justify-content:center; background:var(--white); border-bottom:1px solid rgba(0,0,0,0.06); box-shadow: 0 4px 18px rgba(0,0,0,0.03)}
     .toolbar{width:100%; padding:6px 10px; display:flex; flex-wrap:wrap; align-items:center; gap:10px}
     .title{font-weight:900; font-size:15px; color:var(--black); white-space:nowrap; margin-right:auto}
     .group{display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--white); border:1px solid var(--gray); border-radius:14px}
@@ -102,7 +98,7 @@
       <div class="title" id="app-title"><span style="color:var(--green); font-weight:900">M</span>ake an impact that matters</div>
 
       <div class="group"><label for="players-count">人数</label>
-        <select id="players-count"><option>1</option><option selected>2</option><option>3</option><option>4</option></select>
+        <select id="players-count"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option></select>
       </div>
 
       <div class="group player-names" id="player-names"></div>
@@ -186,7 +182,7 @@
       history: []
     };
 
-    // expose state for easier debugging and external fixes if needed
+    // expose for debugging
     window.gameState = state;
 
     try{
@@ -254,7 +250,7 @@
     if(btnHistory) btnHistory.addEventListener("click", showHistory);
 
     function renderPlayerNameInputs(){
-      const count = Math.max(1, parseInt(playersCountSel.value || "2"));
+      const count = Math.max(1, Number(playersCountSel.value) || 2);
       playerNamesEl.innerHTML = "";
       for(let i=0;i<count;i++){
         const input = document.createElement("input");
@@ -547,6 +543,90 @@
       }catch(e){}
     }
 
+    async function resolveCell(playerIndex, index){
+      const pl = state.players[playerIndex]; const cell = cells[index]; if(!cell||!pl) return;
+      switch(cell.type){
+        case "start":
+          pushLog(`${pl.name}: スタート`, "ok");
+          break;
+        case "goal":
+          if(!pl.finished){
+            pl.finished = true; state.finishedCount += 1; $("#"+tokenId(playerIndex))?.classList.add("finished");
+            pl.turnsToGoal = state.turn;
+            pushLog(`${pl.name}: ゴール！`);
+            const { rank, estimatedSalary } = getRankAndSalary(pl);
+            await showCard("ゴール（プロジェクト完了）", `ランク: ${rank} / 推定年収: ${yen(estimatedSalary)}`, `${pl.name}`);
+            if(isGameFinished()) showResult();
+          }
+          break;
+        case "bonus":{
+          const ev = eventTable[2];
+          ["learning","mental","rating","responsibility"].forEach(k=>{
+            if(typeof ev[k] === "number"){ pl[k] = Math.max(0, Math.round((pl[k]||0) + ev[k])); flashAttr(playerIndex,k); }
+          });
+          pushLog(`${pl.name}: ボーナスイベント（属性上昇）`, "ok");
+          break;
+        }
+        case "penalty":{
+          const ev = eventTable[1];
+          ["learning","mental","rating","responsibility"].forEach(k=>{
+            if(typeof ev[k] === "number"){ pl[k] = Math.max(0, Math.round((pl[k]||0) + ev[k])); flashAttr(playerIndex,k); }
+          });
+          pushLog(`${pl.name}: コスト（属性変動）`, "bad");
+          break;
+        }
+        case "client":{
+          const base = 0.55;
+          const repBonus = ((pl.rating||50) - 50) / 200;
+          const prob = Math.max(0.05, Math.min(0.95, base + repBonus));
+          const success = state.rng() < prob;
+          if(success){
+            pl.learning = Math.max(0, pl.learning+4); pl.mental = Math.max(0, pl.mental+2); pl.rating = Math.max(0, pl.rating+3);
+            flashAttr(playerIndex,"learning"); flashAttr(playerIndex,"mental"); flashAttr(playerIndex,"rating");
+            pushLog(`${pl.name}: クライアント成功`, "ok");
+          } else {
+            pl.mental = Math.max(0, pl.mental-3); pl.rating = Math.max(0, pl.rating-1);
+            flashAttr(playerIndex,"mental"); flashAttr(playerIndex,"rating");
+            pushLog(`${pl.name}: クライアント不調`, "bad");
+          }
+          await showCard("クライアント面談", `学び: ${pl.learning} / メンタル: ${pl.mental}`, `${pl.name}`);
+          break;
+        }
+        case "workshop":{
+          const gain = randPick(state.rng, [1,2,3,5]);
+          pl.learning = Math.max(0, pl.learning+gain); pl.rating = Math.max(0, pl.rating+1);
+          flashAttr(playerIndex,"learning"); flashAttr(playerIndex,"rating");
+          pushLog(`${pl.name}: ワークショップで学び+${gain}`, "ok");
+          await showCard("ワークショップ", `学び +${gain}`, `${pl.name}`);
+          break;
+        }
+        case "event":{
+          if(state.rng() < BRANCH_CHANCE){
+            const defaultBranch = { text: "クライアントへの提案機会", choices:[
+              { label:"攻めの提案", probGood:0.5, success:{learning:+3,mental:+1,rating:+4,responsibility:+2,move:1,text:"提案受注！"}, failure:{learning:+1,mental:-2,rating:-1,responsibility:0,move:0,text:"提案失敗"} },
+              { label:"守りの提案", probGood:0.8, success:{learning:+1,mental:+1,rating:+1,responsibility:+0,move:0,text:"小さな案件獲得"}, failure:{learning:0,mental:0,rating:0,responsibility:0,move:0,text:"何もしない"} }
+            ]};
+            try{
+              const res = await showBranchModal(defaultBranch, playerIndex);
+              if(res && res.res && typeof res.res.move === "number" && res.res.move !== 0){
+                if(res.res.move > 0) { await animateMove(playerIndex, res.res.move); }
+                else { pl.position = Math.max(0, pl.position + res.res.move); placeAllTokens(); await resolveCell(playerIndex, pl.position); }
+              } else { renderPlayersPanel(); }
+            }catch(e){ console.error(e); renderPlayersPanel(); }
+            return;
+          }
+          const ev2 = randPick(state.rng, eventTable);
+          ["learning","mental","rating","responsibility"].forEach(k=>{
+            if(typeof ev2[k] === "number"){ pl[k] = Math.max(0, Math.round((pl[k]||0) + ev2[k])); flashAttr(playerIndex,k); }
+          });
+          pushLog(`${pl.name}: ${ev2.text}（属性変動）`, ev2.learning>=0?"ok":"bad");
+          await showCard("案件イベント", ev2.text, `${pl.name}`);
+          break;
+        }
+      }
+      renderPlayersPanel();
+    }
+
     const eventTable = [
       { text:"短期支援入り", learning:+6, mental:+2, rating:+3, responsibility:+1 },
       { text:"見積り漏れでトラブル", learning:+2, mental:-6, rating:-1, responsibility:0 },
@@ -577,7 +657,7 @@
       return { rank: rank.key, baseSalary: rank.base, estimatedSalary: estimated, score: Math.round(score) };
     }
 
-    // movement and control with debug-friendly behavior
+    // movement and control
     function rollDice(){ const n = Math.floor(state.rng()*6)+1; if(diceEl) diceEl.textContent = n; return n; }
 
     async function animateMove(playerIndex, steps){
@@ -614,7 +694,7 @@
     function startGame(){
       if(state.started) return;
       try{
-        const count = Math.max(1, parseInt(playersCountSel?.value || "2"));
+        const count = Math.max(1, Number(playersCountSel?.value) || 2);
         const names = getPlayerNames();
         state.players = [];
         for(let i=0;i<count;i++){
@@ -623,17 +703,25 @@
         state.started = true; state.turn = 1; state.currentPlayerIndex = 0; state.finishedCount = 0; state.rng = Math.random;
         renderBoard(); renderPlayersPanel(); statTurnEl.textContent = String(state.turn); statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
         pushLog("ゲームを開始しました","ok");
-        // explicit safety: enable roll button after successful start
         if(btnRoll){ btnRoll.disabled = false; btnRoll.removeAttribute('aria-disabled'); }
         updateRollState();
         if(btnStart) btnStart.disabled = true;
       }catch(e){
-        console.error("startGame error:", e);
-        state.started = false; updateRollState(); if(btnStart) btnStart.disabled = false; pushLog("ゲーム開始に失敗しました","bad");
+        // More informative error handling: record error detail to history and console, and ensure UI is usable
+        console.error("startGame failed:", e);
+        const msg = (e && e.message) ? e.message : String(e);
+        // include a short stack if available
+        const stack = (e && e.stack) ? ("\n" + e.stack.split("\n").slice(0,5).join("\n")) : "";
+        pushLog(`ゲーム開始に失敗しました: ${msg}`, "bad");
+        // also append stack in history (truncated) for debugging
+        pushLog(`(debug) start error stack: ${stack}`, "bad");
+        state.started = false;
+        // ensure UI not locked
+        try{ if(btnStart) btnStart.disabled = false; }catch(err){}
+        try{ state.animating = false; updateRollState(); }catch(err){}
       }
     }
 
-    // stronger debug/logging in rollTurn and ensure handler attached
     async function rollTurn(){
       try{
         console.debug("rollTurn called", {started: state.started, animating: state.animating});
@@ -649,7 +737,7 @@
         updateRollState();
       }catch(err){
         console.error("rollTurn error:", err);
-        // make sure UI isn't locked
+        pushLog("サイコロ処理でエラーが発生しました: " + (err && err.message ? err.message : String(err)), "bad");
         state.animating = false;
         updateRollState();
       }
@@ -663,10 +751,10 @@
       updateRollState();
     }
 
-    // Attach robust event listeners with debug logs
+    // Attach listeners
     if(btnStart) btnStart.addEventListener("click", ()=> startGame());
-    if(btnRoll) {
-      // replace previous listener with a debug-friendly one
+    if(btnRoll){
+      // remove existing handlers if any - then attach
       btnRoll.addEventListener("click", ()=> {
         console.debug("btn-roll clicked", {started: state.started, animating: state.animating});
         rollTurn().catch(e=>console.error(e));
@@ -676,7 +764,7 @@
     if(btnZoomIn) btnZoomIn.addEventListener('click', ()=> { document.documentElement.style.fontSize = 'calc(100% + 8px)'; });
     if(btnZoomOut) btnZoomOut.addEventListener('click', ()=> { document.documentElement.style.fontSize = '100%'; });
 
-    // keyboard shortcut: Space / Enter to roll (if game started and not animating)
+    // keyboard support
     window.addEventListener('keydown', function (ev) {
       if ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey) {
         if (ev.key === '+' || ev.key === '=') { ev.preventDefault(); document.getElementById('btn-zoom-in')?.click(); }
@@ -688,7 +776,7 @@
           ev.preventDefault();
           rollTurn().catch(e=>console.error(e));
         }
-        if (ev.key === 'f' || ev.key === 'F') { ev.preventDefault(); /* fitBoard not implemented, reserved */ }
+        if (ev.key === 'f' || ev.key === 'F') { ev.preventDefault(); }
       }
     });
 
@@ -696,7 +784,7 @@
     try{ state.history.forEach(it => appendLogToDom(it)); }catch(e){}
     renderBoard(); renderPlayersPanel(); updateRollState(); window.dispatchEvent(new CustomEvent('app-ready'));
 
-    // final UI health: remove stray overlays and ensure buttons are in usable state
+    // health guard
     (function ensureUIHealthy(){
       try{ document.querySelectorAll('.modal-fallback').forEach(e=>e.remove()); }catch(e){}
       try{
@@ -705,8 +793,6 @@
       }catch(e){ console.error('ensureUIHealthy error', e); }
     })();
 
-    // expose state globally for debugging convenience (read-only use)
-    window.__gameStateDebug = state;
   })();
   </script>
 </body>
