@@ -68,10 +68,18 @@
     }
     .tile.goal{ background: var(--green); color: #fff; border-color: var(--green) }
 
+    /* START_MARKER: will be positioned dynamically to match tile 0 */
     .start-marker{
-      position:absolute; left:18px; top:18px; width:calc(var(--tile-size) * 1.05); height:calc(var(--tile-size) * 1.05);
-      display:grid; place-items:center; border-radius:10px; border:2px dashed var(--gray); color:var(--black); font-weight:900; background:#fff;
+      position:absolute;
+      width:calc(var(--tile-size) * 0.9);
+      height:calc(var(--tile-size) * 0.28);
+      display:grid; place-items:center;
+      border-radius:6px; border:1px solid rgba(0,0,0,0.08);
+      color:var(--black); font-weight:900; background:rgba(134,187,39,0.08);
       z-index:6;
+      transform: translate(-50%,-125%); /* place slightly above the tile */
+      pointer-events:none;
+      font-size:12px;
     }
 
     .token{
@@ -179,7 +187,7 @@
       return Array.from(playerNamesWrap.querySelectorAll("input")).map((el,idx)=> el.value.trim() || `プレイヤー${idx+1}`);
     }
 
-    // Build a single connected path using rings + connectors (as before), but fixed syntax and robust.
+    // Build connected path (rings + connectors)
     function buildConnectedPath(N, containerW, containerH, tileSize, gap){
       const cx = containerW/2, cy = containerH/2;
       const coords = [];
@@ -200,30 +208,10 @@
         while(sum < count){ if(idxAdjust%4===0) topCount++; else if(idxAdjust%4===1) rightCount++; else if(idxAdjust%4===2) bottomCount++; else leftCount++; idxAdjust++; sum++; }
         while(sum > count){ if(idxAdjust%4===0 && topCount>1) topCount--; else if(idxAdjust%4===1 && rightCount>1) rightCount--; else if(idxAdjust%4===2 && bottomCount>1) bottomCount--; else if(idxAdjust%4===3 && leftCount>1) leftCount--; idxAdjust++; sum--; }
         const pts = [];
-        // top edge left->right
-        for(let i=0;i<topCount;i++){
-          const x = l + (i+0.5) * (w / topCount);
-          const y = t;
-          pts.push({x,y});
-        }
-        // right edge top->bottom
-        for(let i=0;i<rightCount;i++){
-          const x = r;
-          const y = t + (i+0.5) * (h / rightCount);
-          pts.push({x,y});
-        }
-        // bottom edge right->left
-        for(let i=0;i<bottomCount;i++){
-          const x = r - (i+0.5) * (w / bottomCount);
-          const y = b;
-          pts.push({x,y});
-        }
-        // left edge bottom->top
-        for(let i=0;i<leftCount;i++){
-          const x = l;
-          const y = b - (i+0.5) * (h / leftCount);
-          pts.push({x,y});
-        }
+        for(let i=0;i<topCount;i++){ const x = l + (i+0.5) * (w / topCount); const y = t; pts.push({x,y}); }
+        for(let i=0;i<rightCount;i++){ const x = r; const y = t + (i+0.5) * (h / rightCount); pts.push({x,y}); }
+        for(let i=0;i<bottomCount;i++){ const x = r - (i+0.5) * (w / bottomCount); const y = b; pts.push({x,y}); }
+        for(let i=0;i<leftCount;i++){ const x = l; const y = b - (i+0.5) * (h / leftCount); pts.push({x,y}); }
         return pts;
       }
 
@@ -236,7 +224,6 @@
         attempts++;
       }
 
-      // concatenate rings into continuous path with connectors
       let prevExit = null;
       for(let ri = 0; ri < rings.length && coords.length < N - 1; ri++){
         const ring = rings[ri];
@@ -278,7 +265,6 @@
         }
       }
 
-      // fill remaining if needed
       if(coords.length < N - 1){
         const remaining = (N - 1) - coords.length;
         for(let i=0;i<remaining;i++){
@@ -290,10 +276,8 @@
         }
       }
 
-      // final center
       coords.push({x: cx, y: cy, ang:0});
 
-      // clamp
       const clampMargin = tileSize;
       for(const c of coords){
         c.x = Math.max(clampMargin, Math.min(containerW - clampMargin, c.x));
@@ -331,10 +315,20 @@
         div.style.transform = `translate(-50%,-50%) rotate(${rot}deg)`;
         board.appendChild(div);
       });
+
+      // align START_MARKER to tile 0 (slight offset above tile)
+      if(tileCoords && tileCoords[0]){
+        const t0 = tileCoords[0];
+        START_MARKER.style.left = `${t0.x}px`;
+        START_MARKER.style.top = `${t0.y}px`;
+        START_MARKER.style.display = 'grid';
+      } else {
+        START_MARKER.style.display = 'none';
+      }
+
       placeAllTokens();
     }
 
-    // ensure token element exists and return it
     function ensureToken(i){
       let t = document.getElementById(`token-${i}`);
       if(!t){
@@ -346,9 +340,7 @@
       return t;
     }
 
-    // place tokens with auto-offset when multiple tokens share same tile
     function placeAllTokens(){
-      // group players by position
       const groups = new Map();
       state.players.forEach((pl,i)=>{
         const pos = (typeof pl.position === "number" && pl.position >= 0) ? pl.position : "__start";
@@ -356,7 +348,6 @@
         groups.get(pos).push(i);
       });
       const bRect = board.getBoundingClientRect();
-      // handle start group
       if(groups.has("__start")){
         const startIdxs = groups.get("__start");
         const sRect = START_MARKER.getBoundingClientRect();
@@ -369,7 +360,6 @@
           t.style.transform = `translate(${sx + offX}px, ${sy + offY}px)`;
         });
       }
-      // handle tile groups
       groups.forEach((idxs, pos)=>{
         if(pos === "__start") return;
         const center = tileCoords[pos];
@@ -415,7 +405,6 @@
       logEl.scrollTop = logEl.scrollHeight;
     }
 
-    // move token step-by-step for the moving player: per-tile animation using CSS transition and awaiting it
     function moveTokenStep(playerIndex, pos){
       return new Promise(resolve=>{
         const t = ensureToken(playerIndex);
@@ -438,13 +427,11 @@
           setTimeout(()=> resolve(), 20);
         }
         t.addEventListener('transitionend', onEnd);
-        const fallback = setTimeout(()=>{ if(!finished){ finished=true; t.removeEventListener('transitionend', onEnd); resolve(); } }, TOKEN_MOVE_MS + 120);
-        // trigger move
+        setTimeout(()=>{ if(!finished){ finished=true; t.removeEventListener('transitionend', onEnd); resolve(); } }, TOKEN_MOVE_MS + 200);
         t.style.transform = `translate(${c.x}px, ${c.y}px)`;
       });
     }
 
-    // animateMove uses moveTokenStep to produce per-tile movement
     async function animateMove(playerIndex, steps){
       const pl = state.players[playerIndex]; if(!pl || pl.finished) return;
       state.animating = true; updateRollState();
@@ -465,14 +452,12 @@
           }
           remaining--;
         }
-        // after finishing movement, recompute offsets for co-located tokens
         placeAllTokens();
         await resolveCell(playerIndex, pl.position);
       }catch(e){ console.error(e); }
       finally{ state.animating = false; updateRollState(); }
     }
 
-    // resolve cell (unchanged game logic)
     async function resolveCell(playerIndex, pathIndex){
       const pl = state.players[playerIndex];
       if(pl == null) return;
@@ -590,9 +575,10 @@
     function startGame(){
       if(state.started) return;
       const names = getPlayerNames();
+      // set initial positions to 0 (start tile) so players "start" immediately on the start tile
       state.players = names.map((n,i)=>({
         name: n,
-        position: -1,
+        position: 0, // start at tile 0
         learning: 50,
         rating: 50,
         finished: false
@@ -604,7 +590,7 @@
       statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
       layoutTiles();
       renderPlayersPanel();
-      pushLog("ゲームを開始しました", "ok");
+      pushLog("ゲームを開始しました（プレイヤーはスタートマスに配置されます）", "ok");
       updateRollState();
     }
 
@@ -653,7 +639,7 @@
 
     attachHandlers();
     layoutTiles();
-    pushLog("UI ready — favicon set; token moves are now per-tile; tokens sharing a tile auto-offset to avoid overlap.");
+    pushLog("UI ready — スタートマス調整済み。開始でプレイヤーがスタートマスに配置されます。");
 
   })();
   </script>
