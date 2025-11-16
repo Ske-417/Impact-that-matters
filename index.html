@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <style>
     :root{
-      --black:#000000; --white:#FFFFFF; --green:#86BB27; --gray:#C4C4C4;
+      --black:#000000; --white:#FFFFFF; --green:#86BB27; --green-light:#DFF3C6; --gray:#C4C4C4;
       --cell-size:68px;
       --tile-size: var(--cell-size);
       --tile-gap: 16px;
@@ -34,12 +34,54 @@
     @media (max-width:980px){ .wrap{grid-template-columns:1fr} }
     .board-wrap{background:var(--white); border:2px solid var(--gray); border-radius:14px; padding:var(--board-padding); position:relative; overflow:auto; min-height:520px}
     .board{position:relative; width:100%; height:860px; touch-action:none; background: linear-gradient(180deg, rgba(0,0,0,0.01), rgba(0,0,0,0.00));}
-    .tile{position:absolute; width:var(--tile-size); height:var(--tile-size); background:#f6f8fb; border:2px solid rgba(0,0,0,0.06); border-radius:8px; transform: translate(-50%,-50%); display:grid; place-items:center; font-weight:900; color:var(--black); box-shadow: 0 6px 14px rgba(14,20,25,0.06); transition: transform 120ms linear; z-index:2; font-size:12px;}
+    .tile{
+      position:absolute;
+      width:var(--tile-size);
+      height:var(--tile-size);
+      background:#f6f8fb;
+      border:2px solid rgba(0,0,0,0.06);
+      border-radius:8px;
+      transform: translate(-50%,-50%);
+      display:grid; place-items:center;
+      font-weight:900; color:var(--black);
+      box-shadow: 0 6px 14px rgba(14,20,25,0.06);
+      transition: transform 120ms linear;
+      z-index:2;
+      font-size:12px;
+    }
     .tile:hover{ box-shadow: 0 10px 26px rgba(14,20,25,0.12); }
-    .tile.event, .tile.client, .tile.workshop, .tile.bonus, .tile.penalty { border:3px solid var(--green); background:#f7fff6; }
-    .tile.goal{ background: var(--green); color: #fff; border-color: var(--green); font-weight:900; box-shadow: 0 10px 30px rgba(134,187,39,0.18); }
-    .start-marker{position:absolute; width:calc(var(--tile-size) * 0.9); height:calc(var(--tile-size) * 0.28); display:grid; place-items:center; border-radius:6px; border:1px solid rgba(0,0,0,0.08); color:var(--black); font-weight:900; background:rgba(134,187,39,0.08); z-index:6; transform: translate(-50%,-125%); pointer-events:none; font-size:12px;}
-    .token{position:absolute; width:var(--token-size); height:var(--token-size); border-radius:50%; display:grid; place-items:center; color:#fff; font-weight:900; border:2px solid #000; transform: translate(-50%,-50%); box-shadow:0 8px 20px rgba(0,0,0,0.08); pointer-events:none; transition: transform var(--token-move-ms) linear; z-index:30;}
+    .tile.event, .tile.client, .tile.workshop, .tile.bonus, .tile.penalty {
+      border:3px solid var(--green);
+      background:#f7fff6;
+    }
+    .tile.goal{
+      background: var(--green);
+      color: #fff;
+      border-color: var(--green);
+      font-weight:900;
+      box-shadow: 0 10px 30px rgba(134,187,39,0.18);
+    }
+    .start-marker{
+      position:absolute;
+      width:calc(var(--tile-size) * 0.9);
+      height:calc(var(--tile-size) * 0.28);
+      display:grid; place-items:center;
+      border-radius:6px; border:1px solid rgba(0,0,0,0.08);
+      color:var(--black); font-weight:900; background:rgba(134,187,39,0.08);
+      z-index:6;
+      transform: translate(-50%,-125%);
+      pointer-events:none;
+      font-size:12px;
+    }
+    .token{
+      position:absolute;
+      width:var(--token-size); height:var(--token-size); border-radius:50%; display:grid; place-items:center; color:#fff; font-weight:900;
+      border:2px solid #000; transform: translate(-50%,-50%);
+      box-shadow:0 8px 20px rgba(0,0,0,0.08);
+      pointer-events:none;
+      transition: transform var(--token-move-ms) linear;
+      z-index:30;
+    }
     .token.finished{ opacity:0.85; border-color:var(--gray) }
     .sidebar{border:2px solid var(--gray); border-radius:14px; padding:14px}
     .stat{display:flex; justify-content:space-between; padding:10px; border-radius:10px}
@@ -104,6 +146,7 @@
 
       const TILE_SIZE = Number(getComputedStyle(document.documentElement).getPropertyValue('--tile-size')) || 68;
       const NUM_TILES = 60;
+      const BASE_JITTER = 12;
       const GAP = Number(getComputedStyle(document.documentElement).getPropertyValue('--tile-gap')) || 16;
       const TOKEN_MOVE_MS = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--token-move-ms')) || 140;
 
@@ -126,12 +169,13 @@
       renderPlayerNameInputs();
       function getPlayerNames(){ return Array.from(playerNamesWrap.querySelectorAll("input")).map((el,idx)=> el.value.trim() || `プレイヤー${idx+1}`); }
 
-      // events (kept same as earlier)
+      // Expanded event templates with probabilistic choices (success/failure)
       const EVENT_TEMPLATES = {
         junior: [
           { title:"デロイトに入社、念願のコンサル職！", body:"入社し念願のコンサル職に就けた！思ったよりも温かみのあるオフィスで安心して発言できた！", changes:{ learning:0, motivation:10, rating:3, mental:0, responsibility:0 } },
           { title:"初めての長期プロジェクト配属", body:"初めて長期プロジェクトに配属された！2年かかる予定のなかなかない機会だ。しっかり頑張ろう！", changes:{ learning:0, motivation:5, rating:0, mental:0, responsibility:5 } },
           { title:"1年で昇進！", body:"入社から一年が経過して職務にも慣れてきた。実績が評価されアナリストからコンサルタントに昇進した！", changes:{ learning:0, motivation:0, rating:5, mental:0, responsibility:5 } },
+          // branching with probabilistic success
           { title:"有名企業からの直案件（相談）", body:"有名企業の社長から直々に案件が！1ヶ月で意味あるインパクトを起こせるか問われる。受注しますか？", choices:[
             { label:"受注する（挑戦）", probGood:0.65, success:{ learning:5, rating:5, motivation:4, responsibility:5, mental:0 }, failure:{ learning:4, rating:-2, motivation:1, responsibility:2, mental:0 }, resultTextSuccess:"受注成功！評価と責任が大きく伸びた。", resultTextFailure:"挑戦は失敗したが多くを学んだ。次に活かそう。" },
             { label:"見送る（慎重）", probGood:1.0, success:{ learning:1, rating:1, motivation:1, responsibility:0, mental:0 }, resultTextSuccess:"今回は見送った。安定を取り次に備える判断だった。" }
@@ -143,10 +187,31 @@
           { title:"オンライン勉強会で新知見を獲得", body:"自習会で新しい手法を学んだ。小さな積み重ねが大きな差になる。", changes:{ learning:4, motivation:2, rating:0, mental:0, responsibility:0 } },
           { title:"社内プロジェクトで小さな勝ち", body:"改善提案が採用され、プロジェクトがスムーズに。自信がついた。", changes:{ learning:2, motivation:4, rating:2, mental:0, responsibility:0 } }
         ],
-        mid: [ /* omitted for brevity — same structures as before */ ],
-        senior: [ /* omitted for brevity — same structures as before */ ]
+        mid: [
+          { title:"大規模案件の主要メンバーに抜擢", body:"中堅として大規模案件に主要メンバーで参加。チームを率いる経験が得られる。", changes:{ learning:6, motivation:6, rating:4, mental:0, responsibility:4 } },
+          { title:"社内表彰で評価される", body:"プロジェクトの成果が評価され社内で表彰された。認められるのは嬉しい。", changes:{ learning:2, motivation:4, rating:5, mental:0, responsibility:2 } },
+          { title:"勉強会で登壇", body:"社内勉強会で登壇し、伝えることで自分も成長した。", changes:{ learning:5, motivation:3, rating:2, mental:0, responsibility:0 } },
+          { title:"重要クライアントの短期案件（相談）", body:"有名クライアントから短期集中案件が舞い込む。受注判断が問われる。", choices:[
+            { label:"受注（チャレンジ）", probGood:0.7, success:{ learning:6, rating:6, motivation:4, responsibility:6, mental:0 }, failure:{ learning:5, rating:-2, motivation:1, responsibility:3, mental:0 }, resultTextSuccess:"短期案件を成功させ、高評価を得た。", resultTextFailure:"苦い結果だが得た学びは大きい。次に活かせる。" },
+            { label:"見送り（慎重）", probGood:1.0, success:{ learning:1, motivation:1, rating:1, responsibility:0, mental:0 }, resultTextSuccess:"見送りでリスク管理に成功。次の機会に備える。" }
+          ] },
+          { title:"部下の指導で学び倍増", body:"後輩育成を通して自分の理解が深まった。教育は力だ。", changes:{ learning:6, motivation:2, rating:1, mental:0, responsibility:2 } },
+          { title:"国内外の出張で視野が広がる", body:"海外出張で異文化の現場を経験。提案の幅が増えた。", changes:{ learning:5, motivation:4, rating:2, mental:0, responsibility:1 } },
+          { title:"社内講師を担当", body:"新人向け研修の講師を担当。教えることで信頼も高まる。", changes:{ learning:3, motivation:3, rating:3, mental:0, responsibility:2 } }
+        ],
+        senior: [
+          { title:"チームを率いて大きな成果", body:"ベテランとしてチームを牽引し、クライアントに大きなインパクトを提供した。信頼が高まる。", changes:{ learning:8, motivation:6, rating:6, mental:0, responsibility:8 } },
+          { title:"業界賞や表彰を受賞", body:"成果が認められ、表彰を受けた。キャリアの大きな栄誉だ。", changes:{ learning:4, motivation:8, rating:8, mental:0, responsibility:3 } },
+          { title:"経営層と提案の機会（大勝負）", body:"経営層に重要提案を任される。成功すれば組織に大きな影響を与えられる。", choices:[
+            { label:"受注（大勝負）", probGood:0.6, success:{ learning:6, rating:8, motivation:6, responsibility:10, mental:0 }, failure:{ learning:6, rating:-3, motivation:2, responsibility:5, mental:0 }, resultTextSuccess:"大勝負に成功し、評判がさらに向上！", resultTextFailure:"失敗したが重要な学びを得た。組織には好意的な評価も残った。" },
+            { label:"見送り（戦略判断）", probGood:1.0, success:{ learning:2, motivation:2, rating:2, responsibility:1, mental:0 }, resultTextSuccess:"戦略的な判断で組織に安定をもたらした。" }
+          ] },
+          { title:"後進育成で組織強化", body:"若手の育成に注力し、自身の経験が組織の力になる実感を得た。", changes:{ learning:3, motivation:5, rating:2, mental:0, responsibility:3 } },
+          { title:"業界カンファレンスで基調講演", body:"業界カンファレンスで経験を共有。社外での評価が高まりネットワークも広がった。", changes:{ learning:5, motivation:6, rating:6, mental:0, responsibility:2 } }
+        ]
       };
 
+      // pick event based on stage and lightweight weighting
       function eventStageForPlayer(pl){
         const pos = typeof pl.position === "number" ? pl.position : 0;
         if(pos >= 30) return "senior";
@@ -157,10 +222,26 @@
         const pl = state.players[playerIndex];
         if(!pl) return null;
         const stage = eventStageForPlayer(pl);
-        const pool = (EVENT_TEMPLATES[stage] && EVENT_TEMPLATES[stage].length) ? EVENT_TEMPLATES[stage] : [{ title:"案件", body:"良いことがあった", changes:{ learning:3 } }];
-        return pool[Math.floor(state.rng()*pool.length)];
+        const pool = EVENT_TEMPLATES[stage] || EVENT_TEMPLATES.junior;
+        const weights = pool.map(c => {
+          let w = 1;
+          const ch = c.changes || {};
+          if((pl.learning||0) < 40 && (ch.learning || 0) > 0) w += 1.6;
+          if((pl.motivation||0) < 40 && (ch.motivation || 0) > 0) w += 1.4;
+          if((pl.rating||0) < 40 && (ch.rating || 0) > 0) w += 1.2;
+          if(c.choices) w += 0.3;
+          return w;
+        });
+        const total = weights.reduce((a,b)=>a+b,0);
+        let r = state.rng() * total;
+        for(let i=0;i<pool.length;i++){
+          r -= weights[i];
+          if(r <= 0) return pool[i];
+        }
+        return pool[pool.length-1];
       }
 
+      // modal helpers
       function removeFallbacks(){ document.querySelectorAll('.modal-fallback').forEach(e=>e.remove()); }
       function showCard(title, body){
         return new Promise(resolve=>{
@@ -184,10 +265,12 @@
         const attrs = ['learning','rating','mental','motivation','responsibility'];
         attrs.forEach(a=>{
           if(typeof changes[a] === 'number'){
+            // apply positive or negative as provided (we added failure which can be negative)
             pl[a] = Math.round((pl[a]||0) + changes[a]);
             if(pl[a] < 0) pl[a] = 0;
           }
         });
+        // ensure attributes remain reasonable
         pushLog(`${pl.name}: 属性が変化しました → ${Object.entries(changes).filter(([k,v])=>v!==0).map(([k,v])=> `${k} ${v>0?'+':''}${v}`).join(', ')}`, "ok");
         renderPlayersPanel();
       }
@@ -209,9 +292,14 @@
         chg.textContent = parts.join('　');
         const actions = document.createElement('div'); actions.style.textAlign='right';
         const ok = document.createElement('button'); ok.className='primary'; ok.textContent='OK';
-        ok.addEventListener('click', ()=>{ applyAttributeChanges(playerIndex, changes); overlay.remove(); });
+        ok.addEventListener('click', ()=>{
+          applyAttributeChanges(playerIndex, changes);
+          overlay.remove();
+        });
         actions.appendChild(ok);
-        card.appendChild(h); card.appendChild(b); card.appendChild(chg); card.appendChild(actions); overlay.appendChild(card); document.body.appendChild(overlay); ok.focus();
+        card.appendChild(h); card.appendChild(b); card.appendChild(chg); card.appendChild(actions);
+        overlay.appendChild(card); document.body.appendChild(overlay);
+        ok.focus();
       }
 
       async function showChoiceModal(playerIndex, tmpl){
@@ -224,8 +312,10 @@
         tmpl.choices.forEach(choice=>{
           const btn = document.createElement('button'); btn.type='button'; btn.className='choice-btn'; btn.textContent = choice.label;
           btn.addEventListener('click', async ()=> {
+            // compute success probability
             const baseProb = (typeof choice.probGood === 'number') ? choice.probGood : 1.0;
             const pl = state.players[playerIndex];
+            // small modifier: higher rating gives slightly more success chance
             const repBonus = Math.max(-0.2, Math.min(0.2, ((pl.rating||50)-50)/250));
             const prob = Math.max(0.02, Math.min(0.98, baseProb + repBonus));
             const success = state.rng() < prob;
@@ -235,6 +325,7 @@
               overlay.remove();
               await showCard("成功！", choice.resultTextSuccess || choice.resultText || "良い結果が得られました。");
             } else {
+              // failure path: apply failure changes if provided, else apply a default: learning up, rating down slightly
               const fail = choice.failure || { learning:4, rating:-2, motivation:1 };
               applyAttributeChanges(playerIndex, fail);
               overlay.remove();
@@ -252,133 +343,130 @@
       async function handleEventTile(playerIndex){
         const tmpl = pickEventForPlayer(playerIndex);
         if(!tmpl) return;
-        if(tmpl.choices && Array.isArray(tmpl.choices)) await showChoiceModal(playerIndex, tmpl); else await showEventModal(playerIndex, tmpl);
+        if(tmpl.choices && Array.isArray(tmpl.choices)){
+          await showChoiceModal(playerIndex, tmpl);
+        } else {
+          await showEventModal(playerIndex, tmpl);
+        }
       }
 
-      /* New: densify center while keeping safety and nice spiral flow
-         Approach:
-         - generate a spiral traversal on a grid (guarantees no overlapping grid centers),
-         - map traversal indices to desired radii that bias many tiles toward the center (nonlinear mapping),
-         - compute positions as points on an angular spiral oriented to match traversal order,
-         - apply small bounded jitter perpendicular to the radial direction for organic look,
-         - enforce pairwise minimum distance and clamp to bounds.
-         - last tile (goal) fixed at exact center.
-      */
-      function buildDenseCenterSpiral(N, w, h, tileSize, gap){
-        // parameters
-        const minCenterDist = tileSize + 4; // required center-to-center minimal distance
-        const centerX = Math.round(w/2), centerY = Math.round(h/2);
-        // maximum usable radius (keep margin)
-        const maxR = Math.min(w,h) * 0.45;
-        const minR = tileSize * 0.9; // how close non-goal tiles can get to center
-
-        // we will place N-1 tiles along an inward spiral (last tile is goal at center)
-        const count = Math.max(1, N - 1);
-        // choose angular step tuned to spacing
-        const approxStep = minCenterDist / (Math.max(minR, 8));
-        // build points along Archimedean spiral r = a + b * theta
-        const b = minCenterDist * 0.95 / (2 * Math.PI / 6 + 0.2); // empirical spacing control
-        // compute maximum theta so r(theta) ~ maxR
-        const a = minR;
-        const thetaMax = Math.max(2 * Math.PI, (maxR - a) / b);
-        // we'll sample count points by stepping theta from thetaMax down to small value so indices go outer->inner
+      /* ----- Improved path generation: prefer axis-aligned connectors ----- */
+      function buildConnectedPath(N, containerW, containerH, tileSize, gap){
+        const cx = containerW/2, cy = containerH/2;
         const coords = [];
-        for(let i=0;i<count;i++){
-          // t in [0,1]
-          const t = i / (count - 1 || 1);
-          // bias t nonlinearly to concentrate more points near center (use ease-in)
-          const biased = Math.pow(t, 0.55); // tweak: <1 => more outer, >1 => more inner; 0.55 gives slight inner emphasis when reversed
-          // compute theta decreasing from thetaMax to small (so early indices are outer)
-          const theta = thetaMax * (1 - biased) + 0.2 * biased;
-          let r = a + b * theta;
-          // clamp r
-          r = Math.max(minR, Math.min(maxR, r));
-          // angle: rotate so start near top-left (~ -140deg) for nicer entry
-          const startAngle = -Math.PI * 0.78;
-          const angle = startAngle + theta;
-          // convert to xy
-          const x = Math.round(centerX + Math.cos(angle) * r);
-          const y = Math.round(centerY + Math.sin(angle) * r);
-          coords.push({ x, y, angle, theta, r });
+        const margin = Math.max(tileSize*1.6, 28);
+        let left = margin, top = margin, right = containerW - margin, bottom = containerH - margin;
+        const ringInset = tileSize + gap + Math.round(tileSize*0.4);
+
+        function perimeterPoints(l,t,r,b, spacing){
+          const w = Math.max(1, r - l), h = Math.max(1, b - t);
+          const perim = 2*(w + h);
+          const count = Math.max(4, Math.floor(perim / spacing));
+          let topCount = Math.max(1, Math.round(count * (w / perim)));
+          let rightCount = Math.max(1, Math.round(count * (h / perim)));
+          let bottomCount = Math.max(1, Math.round(count * (w / perim)));
+          let leftCount = Math.max(1, Math.round(count * (h / perim)));
+          let sum = topCount + rightCount + bottomCount + leftCount;
+          let idxAdjust = 0;
+          while(sum < count){ if(idxAdjust%4===0) topCount++; else if(idxAdjust%4===1) rightCount++; else if(idxAdjust%4===2) bottomCount++; else leftCount++; idxAdjust++; sum++; }
+          while(sum > count){ if(idxAdjust%4===0 && topCount>1) topCount--; else if(idxAdjust%4===1 && rightCount>1) rightCount--; else if(idxAdjust%4===2 && bottomCount>1) bottomCount--; else if(idxAdjust%4===3 && leftCount>1) leftCount--; idxAdjust++; sum--; }
+          const pts = [];
+          for(let i=0;i<topCount;i++){ const x = l + (i+0.5) * (w / topCount); const y = t; pts.push({x,y}); }
+          for(let i=0;i<rightCount;i++){ const x = r; const y = t + (i+0.5) * (h / rightCount); pts.push({x,y}); }
+          for(let i=0;i<bottomCount;i++){ const x = r - (i+0.5) * (w / bottomCount); const y = b; pts.push({x,y}); }
+          for(let i=0;i<leftCount;i++){ const x = l; const y = b - (i+0.5) * (h / leftCount); pts.push({x,y}); }
+          return pts;
         }
 
-        // small perpendicular jitter that won't reduce center distances below minCenterDist
-        const jitterMax = Math.min(12, (minCenterDist - 6) / 2);
-        for(let i=0;i<coords.length;i++){
-          const c = coords[i];
-          // perpendicular vector to radial direction
-          const px = -Math.sin(c.angle), py = Math.cos(c.angle);
-          const jitter = (Math.random()*2 - 1) * jitterMax;
-          c.x = Math.round(c.x + px * jitter);
-          c.y = Math.round(c.y + py * jitter);
+        const rings = [];
+        let attempts = 0;
+        while(coords.length < N - 1 && right - left > tileSize && bottom - top > tileSize && attempts < 24){
+          const pts = perimeterPoints(left, top, right, bottom, tileSize + gap);
+          rings.push({pts, l:left, t:top, r:right, b:bottom});
+          left += ringInset; top += ringInset; right -= ringInset; bottom -= ringInset;
+          attempts++;
         }
 
-        // ensure last tile (goal) at center
-        const full = coords.slice(0, N-1);
-        full.push({ x: centerX, y: centerY, angle:0 });
-
-        // safety pass: enforce minimal pairwise distances by nudging apart (iterative, conservative)
-        for(let pass=0; pass<3; pass++){
-          for(let i=0;i<full.length;i++){
-            for(let j=i+1;j<full.length;j++){
-              const aP = full[i], bP = full[j];
-              const dx = bP.x - aP.x, dy = bP.y - aP.y;
-              const d = Math.hypot(dx,dy) || 0.001;
-              if(d < minCenterDist){
-                const need = (minCenterDist - d) / 2 + 0.5;
-                const ux = dx / d, uy = dy / d;
-                aP.x = Math.round(aP.x - ux * need);
-                aP.y = Math.round(aP.y - uy * need);
-                bP.x = Math.round(bP.x + ux * need);
-                bP.y = Math.round(bP.y + uy * need);
-              }
+        let prevExit = null;
+        for(let ri = 0; ri < rings.length && coords.length < N - 1; ri++){
+          const ring = rings[ri];
+          const pts = ring.pts.slice();
+          let startIdx = 0;
+          if(prevExit){
+            // choose candidate that minimizes distance minus axis alignment benefit
+            let best = 0, bestScore = Infinity;
+            for(let k=0;k<pts.length;k++){
+              const dx = pts[k].x - prevExit.x, dy = pts[k].y - prevExit.y;
+              const dist = Math.hypot(dx,dy);
+              const absX = Math.abs(dx), absY = Math.abs(dy);
+              // alignment: 1 = perfectly axis-aligned, 0 = perfectly diagonal
+              const alignment = Math.abs(absX - absY) / (absX + absY + 1e-6);
+              // score: prefer small dist and high alignment; adjust penalty factor empirically
+              const score = dist - (alignment * 48); // 48 px bias toward axis alignment
+              if(score < bestScore){ bestScore = score; best = k; }
             }
-          }
-        }
-
-        // clamp to bounds
-        for(const p of full){
-          p.x = Math.max(tileSize/2 + 6, Math.min(w - (tileSize/2 + 6), p.x));
-          p.y = Math.max(tileSize/2 + 6, Math.min(h - (tileSize/2 + 6), p.y));
-        }
-
-        // final guarantee: if any pair still too close (very unlikely), fall back to grid spiral
-        for(let i=0;i<full.length;i++){
-          for(let j=i+1;j<full.length;j++){
-            const dx = full[j].x - full[i].x, dy = full[j].y - full[i].y;
-            if(Math.hypot(dx,dy) < minCenterDist - 0.1){
-              // fallback: use previous safe grid spiral
-              return buildSpiralGridWithJitterSafeFallback(N, w, h, tileSize, gap);
+            startIdx = best;
+          } else {
+            // first ring: pick point closest to top-left corner to make tile0 at top-left
+            let best = 0, bestD = Infinity;
+            const topLeft = {x: ring.l + 6, y: ring.t + 6};
+            for(let k=0;k<pts.length;k++){
+              const dx = pts[k].x - topLeft.x, dy = pts[k].y - topLeft.y;
+              const d = Math.hypot(dx,dy);
+              if(d < bestD){ best = k; bestD = d; }
             }
+            startIdx = best;
+          }
+
+          for(let k=0;k<pts.length && coords.length < N - 1;k++){
+            const idx = (startIdx + k) % pts.length;
+            const jitterX = (Math.random()*2 -1) * (BASE_JITTER * 0.35);
+            const jitterY = (Math.random()*2 -1) * (BASE_JITTER * 0.35);
+            coords.push({x: pts[idx].x + jitterX, y: pts[idx].y + jitterY, ang: (Math.random()*2-1)*6});
+          }
+          prevExit = coords[coords.length-1];
+          if(ri < rings.length - 1 && coords.length < N - 1){
+            const inner = rings[ri+1];
+            const innerCenter = {x: (inner.l + inner.r)/2, y: (inner.t + inner.b)/2};
+            // connector: prefer a point that lies horizontally or vertically nearer to prevExit
+            // compute a connector near 25% toward inner center but nudge to be axis-aligned
+            let connX = prevExit.x + (innerCenter.x - prevExit.x) * 0.25;
+            let connY = prevExit.y + (innerCenter.y - prevExit.y) * 0.25;
+            // nudge toward axis alignment: snap small fraction to either x or y of prevExit if close
+            const dx = Math.abs(innerCenter.x - prevExit.x), dy = Math.abs(innerCenter.y - prevExit.y);
+            if(Math.abs(dx - dy) > 30){ // if one direction dominant, align more strongly
+              if(dx > dy) connY = prevExit.y; else connX = prevExit.x;
+            }
+            connX += (Math.random()*2-1)*(BASE_JITTER*0.6);
+            connY += (Math.random()*2-1)*(BASE_JITTER*0.6);
+            coords.push({x: connX, y: connY, ang: (Math.random()*2-1)*6});
+            prevExit = coords[coords.length-1];
           }
         }
 
-        // attach small rotation 'ang' for visual variety
-        return full.map((p, idx)=> ({ x: p.x, y: p.y, ang: (Math.random()*2-1)*6 }));
-      }
-
-      // reuse safe fallback from earlier versions (deterministic grid)
-      function buildSpiralGridWithJitterSafeFallback(N, w, h, tileSize, gap){
-        const cell = tileSize + gap;
-        const margin = Math.max(tileSize/2 + 12, 12);
-        const cols = Math.max(3, Math.floor((w - margin*2) / cell));
-        const rows = Math.max(3, Math.floor((h - margin*2) / cell));
-        const coords = [];
-        let idx = 0;
-        for(let r=0;r<rows && idx<N;r++){
-          for(let c=0;c<cols && idx<N;c++){
-            coords.push({ x: margin + c*cell, y: margin + r*cell, ang:0});
-            idx++;
+        if(coords.length < N - 1){
+          const remaining = (N - 1) - coords.length;
+          for(let i=0;i<remaining;i++){
+            const angle = (i/remaining) * Math.PI * 2;
+            const radius = Math.min(containerW, containerH) * 0.11 + (i%3) * (tileSize*0.4);
+            const x = cx + Math.cos(angle) * radius + (Math.random()*2-1)*BASE_JITTER;
+            const y = cy + Math.sin(angle) * radius + (Math.random()*2-1)*BASE_JITTER;
+            coords.push({x,y,ang:(Math.random()*2-1)*8});
           }
         }
-        while(coords.length < N) coords.push({ x: w/2, y: h/2, ang:0});
+
+        coords.push({x: cx, y: cy, ang:0});
+        const clampMargin = tileSize;
+        for(const c of coords){ c.x = Math.max(clampMargin, Math.min(containerW - clampMargin, c.x)); c.y = Math.max(clampMargin, Math.min(containerH - clampMargin, c.y)); }
+        if(coords.length > N) coords.length = N;
         return coords;
       }
 
+      // tile layout and START align
       function layoutTiles(){
         board.querySelectorAll(".tile").forEach(n=>n.remove());
         const rect = board.getBoundingClientRect();
-        const coords = buildDenseCenterSpiral(NUM_TILES, rect.width, rect.height, TILE_SIZE, GAP);
+        const coords = buildConnectedPath(NUM_TILES, rect.width, rect.height, TILE_SIZE, GAP);
         tileCoords = coords;
         coords.forEach((c, idx)=>{
           const div = document.createElement("div");
@@ -391,37 +479,20 @@
           else if(idx % 5 === 0){ div.classList.add("bonus"); }
           else if(idx % 7 === 0){ div.classList.add("penalty"); }
           div.style.left = `${c.x}px`; div.style.top = `${c.y}px`;
-          div.style.transform = `translate(-50%,-50%) rotate(${c.ang || 0}deg)`;
+          const rot = c.ang || ((Math.random()*2-1)*6);
+          div.style.transform = `translate(-50%,-50%) rotate(${rot}deg)`;
           board.appendChild(div);
         });
-
-        if(tileCoords && tileCoords[0]){
-          const t0 = tileCoords[0];
-          START_MARKER.style.left = `${t0.x}px`;
-          START_MARKER.style.top = `${t0.y}px`;
-          START_MARKER.style.display = 'grid';
-        } else {
-          START_MARKER.style.display = 'none';
-        }
-
+        if(tileCoords && tileCoords[0]){ const t0 = tileCoords[0]; START_MARKER.style.left = `${t0.x}px`; START_MARKER.style.top = `${t0.y}px`; START_MARKER.style.display = 'grid'; } else { START_MARKER.style.display = 'none'; }
         placeAllTokens();
       }
 
-      // token helpers (text color auto adjust)
+      // token helpers
       function ensureToken(i){
         let t = document.getElementById(`token-${i}`);
-        if(!t){ t = document.createElement("div"); t.className = "token"; t.id = `token-${i}`; t.textContent = String(i+1); board.appendChild(t); }
-        const palette = ["#86BB27","#DFF3C6","#C4C4C4","#2B2B2B"];
-        const bg = palette[i % palette.length];
-        t.style.background = bg;
-        const rgb = hexToRgb(bg);
-        const lum = (0.2126 * linearize(rgb.r/255) + 0.7152 * linearize(rgb.g/255) + 0.0722 * linearize(rgb.b/255));
-        t.style.color = (lum > 0.6) ? "#000" : "#fff";
+        if(!t){ t = document.createElement("div"); t.className = "token"; t.id = `token-${i}`; t.textContent = String(i+1); t.style.background = (["#86BB27","#DFF3C6","#C4C4C4","#000000"][i % 4]) || "#86BB27"; board.appendChild(t); }
         return t;
       }
-      function hexToRgb(hex){ hex = hex.replace('#',''); if(hex.length===3) hex = hex.split('').map(c=>c+c).join(''); const num = parseInt(hex,16); return { r:(num>>16)&255, g:(num>>8)&255, b:num&255 }; }
-      function linearize(c){ return (c <= 0.03928) ? c/12.92 : Math.pow((c+0.055)/1.055, 2.4); }
-
       function placeAllTokens(){
         const groups = new Map();
         state.players.forEach((pl,i)=>{
@@ -453,7 +524,9 @@
         });
       }
 
-      function pushLog(text, kind){ const p = document.createElement("div"); p.textContent = `[${(new Date()).toLocaleTimeString()}] ${text}`; if(kind === "ok") p.style.color = "green"; if(kind === "bad") p.style.color = "#333"; logEl.appendChild(p); logEl.scrollTop = logEl.scrollHeight; }
+      function pushLog(text, kind){
+        const p = document.createElement("div"); p.textContent = `[${(new Date()).toLocaleTimeString()}] ${text}`; if(kind === "ok") p.style.color = "green"; if(kind === "bad") p.style.color = "#333"; logEl.appendChild(p); logEl.scrollTop = logEl.scrollHeight;
+      }
 
       function moveTokenStep(playerIndex, pos){
         return new Promise(resolve=>{
@@ -504,20 +577,31 @@
             await showCard("ゴール（完了）", `${pl.name} がゴールしました！`);
             checkAllFinishedAndShowResults();
           }
-        } else { renderPlayersPanel(); }
+        } else {
+          renderPlayersPanel();
+        }
       }
 
-      function updateRollState(){ const rbtn = document.getElementById('btn-roll'); if(!rbtn) return; rbtn.disabled = !(state.started && !state.animating); }
+      function updateRollState(){
+        const rbtn = document.getElementById('btn-roll');
+        if(!rbtn) return;
+        rbtn.disabled = !(state.started && !state.animating);
+      }
+
       function isGameFinished(){ return state.players.length>0 && state.players.every(p=>p.finished); }
 
       function showFinalResults(){
+        // compute simple score and sort
         const results = state.players.map(p=>{
           const score = ((p.learning||0)*0.30 + (p.rating||0)*0.30 + (p.motivation||0)*0.20 + (p.responsibility||0)*0.15 + (p.mental||0)*0.05);
           return {...p, score: Math.round(score*100)/100};
         }).sort((a,b)=> b.score - a.score);
+        // build html
         let body = "最終結果\n\n";
         body += "順位\t名前\t学び\t評価\tメンタル\tモチベ\t責任\tスコア\n";
-        results.forEach((r, idx)=>{ body += `${idx+1}\t${r.name}\t${r.learning}\t${r.rating}\t${r.mental}\t${r.motivation}\t${r.responsibility}\t${r.score}\n`; });
+        results.forEach((r, idx)=>{
+          body += `${idx+1}\t${r.name}\t${r.learning}\t${r.rating}\t${r.mental}\t${r.motivation}\t${r.responsibility}\t${r.score}\n`;
+        });
         removeFallbacks();
         const overlay = document.createElement('div'); overlay.className='modal-fallback';
         const card = document.createElement('div'); card.className='card';
@@ -530,14 +614,54 @@
         card.appendChild(h); card.appendChild(pre); card.appendChild(actions); overlay.appendChild(card); document.body.appendChild(overlay);
       }
 
-      function checkAllFinishedAndShowResults(){ if(isGameFinished()){ setTimeout(()=> showFinalResults(), 200); } }
+      function checkAllFinishedAndShowResults(){
+        if(isGameFinished()){
+          setTimeout(()=> showFinalResults(), 200);
+        }
+      }
 
-      async function rollTurn(){ if(!state.started || state.animating) return; const current = state.currentPlayerIndex; const val = Math.floor(Math.random()*6)+1; if(diceEl) diceEl.textContent = String(val); pushLog(`${state.players[current].name} がサイコロを振りました`); await animateMove(current, val); nextPlayerTurn(); }
+      async function rollTurn(){
+        if(!state.started || state.animating) return;
+        const current = state.currentPlayerIndex;
+        const val = Math.floor(Math.random()*6)+1;
+        if(diceEl) diceEl.textContent = String(val);
+        pushLog(`${state.players[current].name} がサイコロを振りました`);
+        await animateMove(current, val);
+        nextPlayerTurn();
+      }
 
-      function nextPlayerTurn(){ const total = state.players.length; if(total === 0) return; let i = state.currentPlayerIndex; for(let c=0;c<total;c++){ i = (i+1) % total; const cand = state.players[i]; if(!cand) continue; if(cand.finished) continue; state.currentPlayerIndex = i; statCurrentEl.textContent = state.players[state.currentPlayerIndex].name; highlightActive(); return; } statCurrentEl.textContent = "-"; }
+      function nextPlayerTurn(){
+        const total = state.players.length;
+        if(total === 0) return;
+        let i = state.currentPlayerIndex;
+        for(let c=0;c<total;c++){
+          i = (i+1) % total;
+          const cand = state.players[i];
+          if(!cand) continue;
+          if(cand.finished) continue;
+          state.currentPlayerIndex = i;
+          statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
+          highlightActive();
+          return;
+        }
+        statCurrentEl.textContent = "-";
+      }
 
-      function highlightActive(){ Array.from(playersPanelEl.children).forEach((row, idx)=>{ if(idx === state.currentPlayerIndex) row.style.boxShadow = "0 0 0 3px rgba(134,187,39,0.12) inset"; else row.style.boxShadow = ""; }); highlightActiveToken(); }
-      function highlightActiveToken(){ state.players.forEach((pl,i)=>{ const t = document.getElementById(`token-${i}`); if(!t) return; if(i === state.currentPlayerIndex) t.style.outline = "3px solid rgba(0,0,0,0.08)"; else t.style.outline = "none"; }); }
+      function highlightActive(){
+        Array.from(playersPanelEl.children).forEach((row, idx)=>{
+          if(idx === state.currentPlayerIndex) row.style.boxShadow = "0 0 0 3px rgba(134,187,39,0.12) inset";
+          else row.style.boxShadow = "";
+        });
+        highlightActiveToken();
+      }
+      function highlightActiveToken(){
+        state.players.forEach((pl,i)=>{
+          const t = document.getElementById(`token-${i}`);
+          if(!t) return;
+          if(i === state.currentPlayerIndex) t.style.outline = "3px solid rgba(0,0,0,0.08)";
+          else t.style.outline = "none";
+        });
+      }
 
       function renderPlayersPanel(){
         playersPanelEl.innerHTML = "";
@@ -545,7 +669,7 @@
           const row = document.createElement("div"); row.className = "player-row";
           const left = document.createElement("div"); left.style.display = "flex"; left.style.alignItems = "center"; left.style.gap = "8px";
           const badge = document.createElement("div"); badge.style.width = "18px"; badge.style.height = "18px"; badge.style.borderRadius = "50%";
-          badge.style.background = (["#86BB27","#DFF3C6","#C4C4C4","#2B2B2B"][i % 4]) || "#86BB27";
+          badge.style.background = (["#86BB27","#DFF3C6","#C4C4C4","#000000"][i % 4]) || "#86BB27";
           left.appendChild(badge);
           const name = document.createElement("div"); name.textContent = pl.name;
           left.appendChild(name);
@@ -559,16 +683,31 @@
       function startGame(){
         if(state.started) return;
         const names = getPlayerNames();
-        state.players = names.map((n,i)=>({ name: n, position: 0, learning: 50, rating: 50, mental: 50, motivation: 50, responsibility: 0, finished: false }));
-        state.started = true; state.turn = 1; state.currentPlayerIndex = 0; statTurnEl.textContent = String(state.turn); statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
+        state.players = names.map((n,i)=>({
+          name: n, position: 0, learning: 50, rating: 50, mental: 50, motivation: 50, responsibility: 0, finished: false
+        }));
+        state.started = true; state.turn = 1; state.currentPlayerIndex = 0;
+        statTurnEl.textContent = String(state.turn); statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
         layoutTiles(); renderPlayersPanel(); pushLog("ゲームを開始しました（プレイヤーはスタートマスに配置されます）", "ok"); updateRollState();
       }
 
-      function resetGame(){ state.started = false; state.turn = 0; state.currentPlayerIndex = 0; state.players = []; statTurnEl.textContent = "0"; statCurrentEl.textContent = "-"; board.querySelectorAll(".token").forEach(t=>t.remove()); playersPanelEl.innerHTML = ""; pushLog("ゲームをリセットしました", "ok"); updateRollState(); }
+      function resetGame(){
+        state.started = false; state.turn = 0; state.currentPlayerIndex = 0; state.players = [];
+        statTurnEl.textContent = "0"; statCurrentEl.textContent = "-"; board.querySelectorAll(".token").forEach(t=>t.remove()); playersPanelEl.innerHTML = "";
+        pushLog("ゲームをリセットしました", "ok"); updateRollState();
+      }
 
-      function attachHandlers(){ btnStart.addEventListener("click", ()=> startGame()); btnRoll.addEventListener("click", ()=> rollTurn()); btnReset.addEventListener("click", ()=> resetGame()); window.addEventListener("resize", ()=> layoutTiles()); window.addEventListener("keydown", (e)=>{ if((e.key === " " || e.key === "Enter") && state.started && !state.animating){ e.preventDefault(); rollTurn(); }}); }
+      function attachHandlers(){
+        btnStart.addEventListener("click", ()=> startGame());
+        btnRoll.addEventListener("click", ()=> rollTurn());
+        btnReset.addEventListener("click", ()=> resetGame());
+        window.addEventListener("resize", ()=> layoutTiles());
+        window.addEventListener("keydown", (e)=>{ if((e.key === " " || e.key === "Enter") && state.started && !state.animating){ e.preventDefault(); rollTurn(); }});
+      }
 
-      attachHandlers(); layoutTiles(); pushLog("UI ready — 中央を詰めてゴールをど真ん中に配置しました。重なりは起きないよう安全措置を入れています。");
+      attachHandlers();
+      layoutTiles();
+      pushLog("UI ready — 60マスのまま接続性を改善し、分岐は確率で失敗時に学び増・評価減の挙動を追加。全員ゴールで最終結果を表示します。");
     }
   })();
   </script>
