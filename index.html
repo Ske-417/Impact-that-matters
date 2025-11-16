@@ -7,13 +7,6 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <style>
     :root{
-      /* Allowed palette:
-         - #000000 (black)
-         - #FFFFFF (white)
-         - #86BB27 (green)
-         - #C4C4C4 (gray)
-         - #DFF3C6 (lightened 86BB27)
-      */
       --black: #000000;
       --white: #FFFFFF;
       --green: #86BB27;
@@ -34,10 +27,9 @@
       display:flex; flex-direction:column; align-items:stretch;
       font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,"Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic","Meiryo",sans-serif;
       color:var(--black); background:var(--white); min-height:100vh;
-      font-weight:700; /* all text bold as requested */
+      font-weight:700;
     }
 
-    /* App Bar */
     .appbar{
       position:sticky; top:0; z-index:1100; width:100%;
       display:flex; justify-content:center; background:var(--white);
@@ -57,11 +49,9 @@
     .player-names input { width:140px; padding:8px 10px; border-radius:10px; border:1px solid var(--gray); background:var(--white); color:var(--black); font-weight:900; transition: box-shadow .12s, border-color .12s }
     .player-names input:focus{outline:none; border-color:var(--green); box-shadow:0 0 0 6px rgba(134,187,39,0.08);}
 
-    /* Layout */
     .wrap{width:100%; padding:16px; display:grid; grid-template-columns:3fr 1.1fr; gap:12px; flex:1; align-items:start}
     @media (max-width:980px){ .wrap{grid-template-columns:1fr} }
 
-    /* Board */
     .board-wrap{display:flex; justify-content:center; align-items:flex-start; overflow:auto; width:100%; padding-bottom:8px; -webkit-overflow-scrolling:touch; z-index:1}
     .board{background:var(--white); border:2px solid var(--gray); border-radius:14px; padding:12px; position:relative; display:grid; gap:8px; grid-template-columns:repeat(var(--board-cols), var(--cell-size)); grid-auto-rows: var(--cell-size); justify-content:center; align-content:start; min-width:var(--board-max-width)}
     .cell{background:var(--white); border:1px solid var(--gray); border-radius:12px; padding:8px; display:grid; place-items:center; font-size:12px; position:relative; color:var(--black); font-weight:900}
@@ -71,12 +61,10 @@
     .cell.penalty{background:#FBFBFB; border-color:var(--gray)}
     .cell .idx{position:absolute; top:6px; left:8px; font-size:10px; color:var(--black)}
 
-    /* Tokens */
     .token{width:30px; height:30px; border-radius:50%; border:2px solid var(--black); display:grid; place-items:center; color:var(--white); font-size:12px; font-weight:900; box-shadow:0 8px 20px rgba(0,0,0,0.06)}
     .token.finished{opacity:.9; border-color:var(--gray)}
     .token.active{outline:3px solid rgba(0,0,0,0.08)}
 
-    /* Sidebar */
     .sidebar{background:var(--white); border:2px solid var(--gray); border-radius:14px; padding:14px; display:grid; gap:12px; height:fit-content; z-index:2}
     .stat{display:flex; justify-content:space-between; gap:8px; padding:10px 12px; background:var(--white); border-radius:12px}
     .players{display:grid; gap:10px; min-height:72px}
@@ -96,14 +84,12 @@
     .log p.ok{color:var(--green)}
     .log p.bad{color:var(--black)}
 
-    /* modal card */
     .card{padding:16px; border-radius:var(--card-radius); background:var(--white); box-shadow:var(--card-shadow); border:1px solid var(--gray)}
     .card h3{margin:0 0 8px; color:var(--black); font-weight:900}
     .card p{margin:0 0 8px; font-weight:900}
     .card .muted{color:var(--black); opacity:0.7; font-size:13px; font-weight:900}
     .card .actions{display:flex; justify-content:flex-end; gap:10px; margin-top:12px}
 
-    /* fallback overlay for environments without dialog support */
     .modal-fallback { position: fixed; inset: 0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.42); z-index:1600 }
     .modal-fallback .card { max-width:520px; width:calc(100% - 40px) }
 
@@ -193,7 +179,6 @@
     const PLAYER_COLORS = ["#86BB27","#DFF3C6","#C4C4C4","#000000","#86BB27"];
     const BRANCH_CHANCE = 0.36;
 
-    // Persistent history buffer (keeps logs even after reset)
     const HISTORY_KEY = "itmatters_history_v1";
     let state = {
       started:false, turn:0, currentPlayerIndex:0, players:[], finishedCount:0, animating:false,
@@ -201,7 +186,9 @@
       history: []
     };
 
-    // load history
+    // expose state for easier debugging and external fixes if needed
+    window.gameState = state;
+
     try{
       const saved = localStorage.getItem(HISTORY_KEY);
       if(saved){ state.history = JSON.parse(saved); }
@@ -266,7 +253,6 @@
     });
     if(btnHistory) btnHistory.addEventListener("click", showHistory);
 
-    // player name inputs
     function renderPlayerNameInputs(){
       const count = Math.max(1, parseInt(playersCountSel.value || "2"));
       playerNamesEl.innerHTML = "";
@@ -287,7 +273,6 @@
       return Array.from(inputs).map((inp, i) => inp.value.trim() || `プレイヤー${i+1}`);
     }
 
-    // board setup
     const cells = Array.from({length:TOTAL_CELLS},(_,i)=>({index:i,type:"none",label:""}));
     cells[0] = {index:0,type:"start",label:"スタート"};
     cells[TOTAL_CELLS-1] = {index:TOTAL_CELLS-1,type:"goal",label:"ゴール"};
@@ -324,7 +309,6 @@
         const {row,col} = indexToGrid(cell.index); div.style.gridRowStart = row+1; div.style.gridColumnStart = col+1;
         boardEl.appendChild(div);
       });
-      // tokens
       state.players.forEach((pl,i)=>{
         const token=document.createElement("div"); token.className="token"; token.id=tokenId(i); token.textContent=String(i+1);
         token.style.background = PLAYER_COLORS[i % PLAYER_COLORS.length];
@@ -369,39 +353,33 @@
       });
     }
 
-    // --- 改善済み: 次の手番を常に順番に進めるロジック（交互にならない） ---
     function nextPlayerTurn(){
       const total = state.players.length;
       if(total === 0) return;
-      // if game finished, clear display
       if(isGameFinished()){ statCurrentEl.textContent = "-"; return; }
 
       let i = state.currentPlayerIndex;
       for(let c = 0; c < total; c++){
-        i = (i + 1) % total; // advance by one in sequence
+        i = (i + 1) % total;
         const candidate = state.players[i];
         if(!candidate) continue;
-        if(candidate.finished) continue; // skip finished players
+        if(candidate.finished) continue;
         if(candidate.skipTurn){
-          // if they had skipTurn, consume it and log skip, then continue to next player
           candidate.skipTurn = false;
           pushLog(`${candidate.name} の手番は休みのためスキップされました`, "bad");
           continue;
         }
-        // found next valid player
         state.currentPlayerIndex = i;
         highlightActiveToken();
         renderPlayersPanel();
         statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
         return;
       }
-      // fallback: if no valid next player found (all finished?), set display
       statCurrentEl.textContent = "-";
     }
 
     const isGameFinished = ()=> state.finishedCount === state.players.length;
 
-    // Robust modal helpers with fallback
     function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
     function showCard(title, text, sub, {timeout = 30000} = {}) {
@@ -443,7 +421,6 @@
           cleanup();
         }
 
-        // fallback overlay
         const overlay = document.createElement("div"); overlay.className = "modal-fallback";
         const card = document.createElement("div"); card.className = "card";
         card.innerHTML = `<h3>${escapeHtml(title||"")}</h3><div style="white-space:normal">${escapeHtml(text||"")}</div><div class="muted" style="margin-top:8px">${escapeHtml(sub||"")}</div>`;
@@ -522,7 +499,6 @@
           cleanup();
         }
 
-        // fallback overlay with choices
         const overlay = document.createElement("div"); overlay.className = "modal-fallback";
         const card = document.createElement("div"); card.className = "card";
         const h = document.createElement("h3"); h.textContent = "案件分岐 (提案)";
@@ -598,10 +574,12 @@
       const rank = RANKS.find(r => score >= r.min && score <= r.max) || RANKS[0];
       const modifier = 1 + Math.min(0.5, (p.responsibility||0) / 200) + Math.min(0.3, (p.rating||0) / 400);
       const estimated = Math.round(rank.base * modifier / 1000) * 1000;
-      return { rank: rank.key, baseSalary: rank.base, estimatedSalary: estimated, score: Math.round(score) };    }
+      return { rank: rank.key, baseSalary: rank.base, estimatedSalary: estimated, score: Math.round(score) };
+    }
 
-    // movement and control
+    // movement and control with debug-friendly behavior
     function rollDice(){ const n = Math.floor(state.rng()*6)+1; if(diceEl) diceEl.textContent = n; return n; }
+
     async function animateMove(playerIndex, steps){
       const pl = state.players[playerIndex]; if(!pl || pl.finished) return;
       state.animating = true; updateRollState();
@@ -644,8 +622,10 @@
         }
         state.started = true; state.turn = 1; state.currentPlayerIndex = 0; state.finishedCount = 0; state.rng = Math.random;
         renderBoard(); renderPlayersPanel(); statTurnEl.textContent = String(state.turn); statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
-        pushLog("ゲームを開始しました","ok"); updateRollState();
-        // Only disable start after successful init
+        pushLog("ゲームを開始しました","ok");
+        // explicit safety: enable roll button after successful start
+        if(btnRoll){ btnRoll.disabled = false; btnRoll.removeAttribute('aria-disabled'); }
+        updateRollState();
         if(btnStart) btnStart.disabled = true;
       }catch(e){
         console.error("startGame error:", e);
@@ -653,16 +633,26 @@
       }
     }
 
+    // stronger debug/logging in rollTurn and ensure handler attached
     async function rollTurn(){
-      if(!state.started || state.animating) return;
-      if(state.players.length === 0){ pushLog("プレイヤーが設定されていません"); return; }
-      const current = state.currentPlayerIndex;
-      const val = rollDice();
-      await animateMove(current, val);
-      const wasLast = (function(){ const active = state.players.map((p,i)=>({i,active:!p.finished})); const indices = active.filter(a=>a.active).map(a=>a.i); if(indices.length===0) return false; return current === indices[indices.length-1]; })();
-      nextPlayerTurn();
-      if(wasLast){ state.turn = (state.turn || 1) + 1; statTurnEl.textContent = String(state.turn); }
-      updateRollState();
+      try{
+        console.debug("rollTurn called", {started: state.started, animating: state.animating});
+        if(!state.started || state.animating){ console.debug("rollTurn aborted: not started or animating"); return; }
+        if(state.players.length === 0){ pushLog("プレイヤーが設定されていません"); return; }
+        const current = state.currentPlayerIndex;
+        const val = rollDice();
+        pushLog(`${state.players[current].name} が ${val} を出しました`);
+        await animateMove(current, val);
+        const wasLast = (function(){ const active = state.players.map((p,i)=>({i,active:!p.finished})); const indices = active.filter(a=>a.active).map(a=>a.i); if(indices.length===0) return false; return current === indices[indices.length-1]; })();
+        nextPlayerTurn();
+        if(wasLast){ state.turn = (state.turn || 1) + 1; statTurnEl.textContent = String(state.turn); }
+        updateRollState();
+      }catch(err){
+        console.error("rollTurn error:", err);
+        // make sure UI isn't locked
+        state.animating = false;
+        updateRollState();
+      }
     }
 
     function resetGame(){
@@ -673,26 +663,50 @@
       updateRollState();
     }
 
-    // event wiring
+    // Attach robust event listeners with debug logs
     if(btnStart) btnStart.addEventListener("click", ()=> startGame());
-    if(btnRoll) btnRoll.addEventListener("click", ()=> { rollTurn().catch(e=>console.error(e)); });
+    if(btnRoll) {
+      // replace previous listener with a debug-friendly one
+      btnRoll.addEventListener("click", ()=> {
+        console.debug("btn-roll clicked", {started: state.started, animating: state.animating});
+        rollTurn().catch(e=>console.error(e));
+      });
+    }
     if(btnReset) btnReset.addEventListener("click", ()=> resetGame());
     if(btnZoomIn) btnZoomIn.addEventListener('click', ()=> { document.documentElement.style.fontSize = 'calc(100% + 8px)'; });
     if(btnZoomOut) btnZoomOut.addEventListener('click', ()=> { document.documentElement.style.fontSize = '100%'; });
+
+    // keyboard shortcut: Space / Enter to roll (if game started and not animating)
+    window.addEventListener('keydown', function (ev) {
+      if ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey) {
+        if (ev.key === '+' || ev.key === '=') { ev.preventDefault(); document.getElementById('btn-zoom-in')?.click(); }
+        if (ev.key === '-') { ev.preventDefault(); document.getElementById('btn-zoom-out')?.click(); }
+        return;
+      }
+      if (!ev.ctrlKey && !ev.metaKey) {
+        if ((ev.key === ' ' || ev.key === 'Enter') && state.started && !state.animating) {
+          ev.preventDefault();
+          rollTurn().catch(e=>console.error(e));
+        }
+        if (ev.key === 'f' || ev.key === 'F') { ev.preventDefault(); /* fitBoard not implemented, reserved */ }
+      }
+    });
 
     // init
     try{ state.history.forEach(it => appendLogToDom(it)); }catch(e){}
     renderBoard(); renderPlayersPanel(); updateRollState(); window.dispatchEvent(new CustomEvent('app-ready'));
 
-    // ensure UI healthy (remove stray overlays and ensure start button isn't stuck disabled)
+    // final UI health: remove stray overlays and ensure buttons are in usable state
     (function ensureUIHealthy(){
       try{ document.querySelectorAll('.modal-fallback').forEach(e=>e.remove()); }catch(e){}
       try{
         if(btnStart){ btnStart.disabled = false; btnStart.removeAttribute('aria-disabled'); }
-        if(btnRoll && window.state){ btnRoll.disabled = !(window.state.started && !window.state.animating); }
+        if(btnRoll){ btnRoll.disabled = !(state.started && !state.animating); }
       }catch(e){ console.error('ensureUIHealthy error', e); }
     })();
 
+    // expose state globally for debugging convenience (read-only use)
+    window.__gameStateDebug = state;
   })();
   </script>
 </body>
