@@ -126,8 +126,46 @@
       renderPlayerNameInputs();
       function getPlayerNames(){ return Array.from(playerNamesWrap.querySelectorAll("input")).map((el,idx)=> el.value.trim() || `プレイヤー${idx+1}`); }
 
-      // events abbreviated (same templates as before)
-      const EVENT_TEMPLATES = {/* ...omitted for brevity in this snippet; same event definitions as before... */};
+      // --- Event templates (same as before) ---
+      const EVENT_TEMPLATES = {
+        junior: [
+          { title:"デロイトに入社、念願のコンサル職！", body:"入社し念願のコンサル職に就けた！思ったよりも温かみのあるオフィスで安心して発言できた！", changes:{ learning:0, motivation:10, rating:3, mental:0, responsibility:0 } },
+          { title:"初めての長期プロジェクト配属", body:"初めて長期プロジェクトに配属された！2年かかる予定のなかなかない機会だ。しっかり頑張ろう！", changes:{ learning:0, motivation:5, rating:0, mental:0, responsibility:5 } },
+          { title:"1年で昇進！", body:"入社から一年が経過して職務にも慣れてきた。実績が評価されアナリストからコンサルタントに昇進した！", changes:{ learning:0, motivation:0, rating:5, mental:0, responsibility:5 } },
+          { title:"有名企業からの直案件（相談）", body:"有名企業の社長から直々に案件が！1ヶ月で意味あるインパクトを起こせるか問われる。受注しますか？", choices:[
+            { label:"受注する（挑戦）", probGood:0.65, success:{ learning:5, rating:5, motivation:4, responsibility:5, mental:0 }, failure:{ learning:4, rating:-2, motivation:1, responsibility:2, mental:0 }, resultTextSuccess:"受注成功！評価と責任が大きく伸びた。", resultTextFailure:"挑戦は失敗したが多くを学んだ。次に活かそう。" },
+            { label:"見送る（慎重）", probGood:1.0, success:{ learning:1, rating:1, motivation:1, responsibility:0, mental:0 }, resultTextSuccess:"今回は見送った。安定を取り次に備える判断だった。" }
+          ]},
+          { title:"打ち合わせで学んだ", body:"打ち合わせでミスがあったが、反省して学びに変えた。次に活かそう。", changes:{ learning:5, mental:3, motivation:0, rating:1, responsibility:0 } },
+          { title:"先輩との飲み会で得たアドバイス", body:"シニアマネジャーの先輩と意気投合して飲みに行った。貴重なアドバイスをもらえた。", changes:{ learning:3, motivation:8, rating:0, mental:0, responsibility:0 } },
+          { title:"友人に羨ましがられる", body:"大学時代の友達に高給与が羨ましがられた。やりがいを再確認できた。", changes:{ learning:0, motivation:3, rating:0, mental:0, responsibility:0 } },
+          { title:"休日のセルフケア", body:"ネイルサロンや趣味でリフレッシュ。良い休息は翌週のパフォーマンスに繋がる。", changes:{ learning:0, motivation:3, mental:2, rating:0, responsibility:0 } },
+          { title:"オンライン勉強会で新知見を獲得", body:"自習会で新しい手法を学んだ。小さな積み重ねが大きな差になる。", changes:{ learning:4, motivation:2, rating:0, mental:0, responsibility:0 } },
+          { title:"社内プロジェクトで小さな勝ち", body:"改善提案が採用され、プロジェクトがスムーズに。自信がついた。", changes:{ learning:2, motivation:4, rating:2, mental:0, responsibility:0 } }
+        ],
+        mid: [
+          { title:"大規模案件の主要メンバーに抜擢", body:"中堅として大規模案件に主要メンバーで参加。チームを率いる経験が得られる。", changes:{ learning:6, motivation:6, rating:4, mental:0, responsibility:4 } },
+          { title:"社内表彰で評価される", body:"プロジェクトの成果が評価され社内で表彰された。認められるのは嬉しい。", changes:{ learning:2, motivation:4, rating:5, mental:0, responsibility:2 } },
+          { title:"勉強会で登壇", body:"社内勉強会で登壇し、伝えることで自分も成長した。", changes:{ learning:5, motivation:3, rating:2, mental:0, responsibility:0 } },
+          { title:"重要クライアントの短期案件（相談）", body:"有名クライアントから短期集中案件が舞い込む。受注判断が問われる。", choices:[
+            { label:"受注（チャレンジ）", probGood:0.7, success:{ learning:6, rating:6, motivation:4, responsibility:6, mental:0 }, failure:{ learning:5, rating:-2, motivation:1, responsibility:3, mental:0 }, resultTextSuccess:"短期案件を成功させ、高評価を得た。", resultTextFailure:"苦い結果だが得た学びは大きい。次に活かせる。" },
+            { label:"見送り（慎重）", probGood:1.0, success:{ learning:1, motivation:1, rating:1, responsibility:0, mental:0 }, resultTextSuccess:"見送りでリスク管理に成功。次の機会に備える。" }
+          ] },
+          { title:"部下の指導で学び倍増", body:"後輩育成を通して自分の理解が深まった。教育は力だ。", changes:{ learning:6, motivation:2, rating:1, mental:0, responsibility:2 } },
+          { title:"国内外の出張で視野が広がる", body:"海外出張で異文化の現場を経験。提案の幅が増えた。", changes:{ learning:5, motivation:4, rating:2, mental:0, responsibility:1 } },
+          { title:"社内講師を担当", body:"新人向け研修の講師を担当。教えることで信頼も高まる。", changes:{ learning:3, motivation:3, rating:3, mental:0, responsibility:2 } }
+        ],
+        senior: [
+          { title:"チームを率いて大きな成果", body:"ベテランとしてチームを牽引し、クライアントに大きなインパクトを提供した。信頼が高まる。", changes:{ learning:8, motivation:6, rating:6, mental:0, responsibility:8 } },
+          { title:"業界賞や表彰を受賞", body:"成果が認められ、表彰を受けた。キャリアの大きな栄誉だ。", changes:{ learning:4, motivation:8, rating:8, mental:0, responsibility:3 } },
+          { title:"経営層と提案の機会（大勝負）", body:"経営層に重要提案を任される。成功すれば組織に大きな影響を与えられる。", choices:[
+            { label:"受注（大勝負）", probGood:0.6, success:{ learning:6, rating:8, motivation:6, responsibility:10, mental:0 }, failure:{ learning:6, rating:-3, motivation:2, responsibility:5, mental:0 }, resultTextSuccess:"大勝負に成功し、評判がさらに向上！", resultTextFailure:"失敗したが重要な学びを得た。組織には好意的な評価も残った。" },
+            { label:"見送り（戦略判断）", probGood:1.0, success:{ learning:2, motivation:2, rating:2, responsibility:1, mental:0 }, resultTextSuccess:"戦略的な判断で組織に安定をもたらした。" }
+          ] },
+          { title:"後進育成で組織強化", body:"若手の育成に注力し、自身の経験が組織の力になる実感を得た。", changes:{ learning:3, motivation:5, rating:2, mental:0, responsibility:3 } },
+          { title:"業界カンファレンスで基調講演", body:"業界カンファレンスで経験を共有。社外での評価が高まりネットワークも広がった。", changes:{ learning:5, motivation:6, rating:6, mental:0, responsibility:2 } }
+        ]
+      };
 
       function eventStageForPlayer(pl){
         const pos = typeof pl.position === "number" ? pl.position : 0;
@@ -139,10 +177,23 @@
         const pl = state.players[playerIndex];
         if(!pl) return null;
         const stage = eventStageForPlayer(pl);
-        const pool = (EVENT_TEMPLATES[stage] && EVENT_TEMPLATES[stage].length) ? EVENT_TEMPLATES[stage] : [
-          { title:"案件イベント", body:"前向きな出来事がありました。", changes:{ learning:3, motivation:3 } }
-        ];
-        return pool[Math.floor(state.rng()*pool.length)];
+        const pool = EVENT_TEMPLATES[stage] || EVENT_TEMPLATES.junior;
+        const weights = pool.map(c => {
+          let w = 1;
+          const ch = c.changes || {};
+          if((pl.learning||0) < 40 && (ch.learning || 0) > 0) w += 1.6;
+          if((pl.motivation||0) < 40 && (ch.motivation || 0) > 0) w += 1.4;
+          if((pl.rating||0) < 40 && (ch.rating || 0) > 0) w += 1.2;
+          if(c.choices) w += 0.3;
+          return w;
+        });
+        const total = weights.reduce((a,b)=>a+b,0);
+        let r = state.rng() * total;
+        for(let i=0;i<pool.length;i++){
+          r -= weights[i];
+          if(r <= 0) return pool[i];
+        }
+        return pool[pool.length-1];
       }
 
       function removeFallbacks(){ document.querySelectorAll('.modal-fallback').forEach(e=>e.remove()); }
@@ -199,7 +250,6 @@
         overlay.appendChild(card); document.body.appendChild(overlay); ok.focus();
       }
 
-      // Choice modal with probabilistic success/failure kept as before
       async function showChoiceModal(playerIndex, tmpl){
         removeFallbacks();
         const overlay = document.createElement('div'); overlay.className='modal-fallback';
@@ -241,11 +291,11 @@
         if(tmpl.choices && Array.isArray(tmpl.choices)) await showChoiceModal(playerIndex, tmpl); else await showEventModal(playerIndex, tmpl);
       }
 
-      /* Controlled-variance spiral on grid: guarantees no overlaps while keeping organic feel
-         - We place tiles on a regular grid (cell = tile + gap) to guarantee center distances.
-         - Then we apply a bounded jitter (<= jitterMax) that is small enough to never cause overlap.
-         - JitterMax = min(gap*0.45, tileSize*0.18, 12) so it's visible but safe.
-         - This keeps a spiral traversal order while adding organic randomness.
+      /* Controlled spiral w/ jitter + reserved center:
+         - generate spiral on grid,
+         - apply small safe jitter for organic look,
+         - then reserve a clear central radius and move any tiles inside it outward,
+         - finally ensure last tile (goal) is exactly centered.
       */
       function buildSpiralGridWithJitter(N, containerW, containerH, tileSize, gap){
         const cell = tileSize + gap;
@@ -269,7 +319,6 @@
         cols = Math.max(cols, 3);
         rows = Math.max(rows, 3);
 
-        // spiral traversal generation (same as before)
         const coordsGrid = [];
         const totalCells = cols * rows;
         const needed = Math.min(N, totalCells);
@@ -291,42 +340,61 @@
           }
         }
 
-        // compute jitter max so we never reduce center-to-center below tileSize + safeMargin
-        const safeMargin = 4; // keep extra safety pixels
+        // jitter limit calculation (safe)
+        const safeMargin = 4;
         const minCenter = tileSize + safeMargin;
-        // cell >= tileSize + gap ensures base distance; jitter must be < (cell - minCenter)/2
         const jitterLimit = Math.max(0, (cell - minCenter) / 2);
         const jitterMax = Math.min(jitterLimit, Math.min(gap*0.45, tileSize*0.18, 12));
 
-        // map to pixel centers and apply bounded jitter (preserve guarantee)
         const startX = margin;
         const startY = margin;
         const pixelCoords = coordsGrid.slice(0, N).map((p, idx) => {
           const baseX = startX + p.col * cell;
           const baseY = startY + p.row * cell;
-          // apply small jitter biased by ring index to make inner rings slightly tighter visually
-          // bias factor: earlier coords (outer) get slightly less jitter, inner coords more (but still bounded)
-          const ringBias = Math.min(1, Math.max(0, (idx / N)));
-          const jitterX = (Math.random()*2 -1) * jitterMax * (0.5 + 0.8 * (1 - ringBias)); // outer slightly more, inner slightly less
-          const jitterY = (Math.random()*2 -1) * jitterMax * (0.5 + 0.8 * (1 - ringBias));
-          // small rotation angle for organic feel
+          // add jitter: tuned so outer/inner vary but never break min distance
+          const jitterFactor = 0.9;
+          const jitterX = (Math.random()*2 -1) * jitterMax * jitterFactor;
+          const jitterY = (Math.random()*2 -1) * jitterMax * jitterFactor;
           const ang = (Math.random()*2 -1) * 6;
           return { x: Math.round(baseX + jitterX), y: Math.round(baseY + jitterY), ang, col: p.col, row: p.row };
         });
 
-        // Final safety pass: ensure pairwise center distances >= minCenter.
-        // Because jitterMax was chosen conservatively, conflicts should be rare; but check and nudge if needed.
+        // reserve center: goal will be exactly centered
+        const centerX = Math.round(containerW / 2);
+        const centerY = Math.round(containerH / 2);
+        const reserveRadius = Math.max(tileSize * 1.8, minCenter * 1.15); // ensure a spacious central area
+
+        // move goal to center (last tile)
+        if(pixelCoords.length >= N){
+          pixelCoords[N-1] = { x: centerX, y: centerY, ang: 0, col: -1, row: -1 };
+        }
+
+        // push any tiles that fall inside reserveRadius outward
+        for(let i=0;i<pixelCoords.length;i++){
+          if(i === N-1) continue; // skip goal
+          const p = pixelCoords[i];
+          const dx = p.x - centerX, dy = p.y - centerY;
+          const d = Math.hypot(dx, dy);
+          if(d < reserveRadius){
+            // push out to reserveRadius + small jitter
+            const need = reserveRadius - d + (Math.random()*6 + 4);
+            const ux = d === 0 ? (Math.random()>.5?1:0) : dx / d;
+            const uy = d === 0 ? (Math.random()>.5?0:1) : dy / d;
+            p.x = Math.round(p.x + ux * need);
+            p.y = Math.round(p.y + uy * need);
+          }
+        }
+
+        // final safety pass to enforce pairwise min center distance
         for(let i=0;i<pixelCoords.length;i++){
           for(let j=i+1;j<pixelCoords.length;j++){
             const a = pixelCoords[i], b = pixelCoords[j];
             const dx = b.x - a.x, dy = b.y - a.y;
             const d = Math.hypot(dx,dy);
             if(d < minCenter){
-              // push them apart along vector connecting them, splitting adjustment
               const need = (minCenter - d) / 2 + 0.5;
               const ux = dx === 0 && dy === 0 ? (Math.random()>.5?1:0) : dx / (d || 1);
               const uy = dx === 0 && dy === 0 ? (Math.random()>.5?0:1) : dy / (d || 1);
-              // nudge both points (clamp nudges so we don't create new collisions), smaller nudge for stable layout
               a.x = Math.round(a.x - ux * need);
               a.y = Math.round(a.y - uy * need);
               b.x = Math.round(b.x + ux * need);
@@ -335,7 +403,7 @@
           }
         }
 
-        // clamp to board bounds with margins
+        // clamp to board bounds
         for(const c of pixelCoords){
           c.x = Math.max(tileSize/2 + 6, Math.min(containerW - (tileSize/2 + 6), c.x));
           c.y = Math.max(tileSize/2 + 6, Math.min(containerH - (tileSize/2 + 6), c.y));
@@ -344,11 +412,10 @@
         return pixelCoords;
       }
 
-      // layout using controlled-variance spiral
       function layoutTiles(){
         board.querySelectorAll(".tile").forEach(n=>n.remove());
         const rect = board.getBoundingClientRect();
-        const coords = buildSpiralGridWithJitterSafeFallback(NUM_TILES, rect.width, rect.height, TILE_SIZE, GAP);
+        const coords = buildSpiralGridWithJitter(NUM_TILES, rect.width, rect.height, TILE_SIZE, GAP);
         tileCoords = coords;
         coords.forEach((c, idx)=>{
           const div = document.createElement("div");
@@ -361,12 +428,10 @@
           else if(idx % 5 === 0){ div.classList.add("bonus"); }
           else if(idx % 7 === 0){ div.classList.add("penalty"); }
           div.style.left = `${c.x}px`; div.style.top = `${c.y}px`;
-          // apply small rotation stored in ang (keeps organic look but no collision change)
           div.style.transform = `translate(-50%,-50%) rotate(${c.ang || 0}deg)`;
           board.appendChild(div);
         });
 
-        // align START_MARKER to tile 0
         if(tileCoords && tileCoords[0]){
           const t0 = tileCoords[0];
           START_MARKER.style.left = `${t0.x}px`;
@@ -379,32 +444,7 @@
         placeAllTokens();
       }
 
-      // safe wrapper: try spiral+jit, fallback to strict grid if something unexpected occurs
-      function buildSpiralGridWithJitterSafeFallback(N, w, h, tileSize, gap){
-        try{
-          return buildSpiralGridWithJitter(N, w, h, tileSize, gap);
-        }catch(e){
-          console.warn("spiralWithJitter failed, falling back to deterministic grid:", e);
-          // fallback deterministic grid (no jitter)
-          const cell = tileSize + gap;
-          const margin = Math.max(tileSize/2 + 12, 12);
-          const cols = Math.max(3, Math.floor((w - margin*2) / cell));
-          const rows = Math.max(3, Math.floor((h - margin*2) / cell));
-          const coords = [];
-          let idx = 0;
-          for(let r=0;r<rows && idx<N;r++){
-            for(let c=0;c<cols && idx<N;c++){
-              coords.push({ x: margin + c*cell, y: margin + r*cell, ang:0});
-              idx++;
-            }
-          }
-          // pad if needed with center
-          while(coords.length < N) coords.push({ x: w/2, y: h/2, ang:0});
-          return coords;
-        }
-      }
-
-      // token helpers: set background and readable text color
+      // token helpers
       function ensureToken(i){
         let t = document.getElementById(`token-${i}`);
         if(!t){ t = document.createElement("div"); t.className = "token"; t.id = `token-${i}`; t.textContent = String(i+1); board.appendChild(t); }
@@ -565,7 +605,7 @@
 
       function attachHandlers(){ btnStart.addEventListener("click", ()=> startGame()); btnRoll.addEventListener("click", ()=> rollTurn()); btnReset.addEventListener("click", ()=> resetGame()); window.addEventListener("resize", ()=> layoutTiles()); window.addEventListener("keydown", (e)=>{ if((e.key === " " || e.key === "Enter") && state.started && !state.animating){ e.preventDefault(); rollTurn(); }}); }
 
-      attachHandlers(); layoutTiles(); pushLog("UI ready — 螺旋を意識したグリッド＋制御ジッターで「被らない」かつほどよく崩したレイアウトにしました。");
+      attachHandlers(); layoutTiles(); pushLog("UI ready — 中央を広くあけてゴールをど真ん中に配置し、マスが散りばめられるよう調整しました。");
     }
   })();
   </script>
