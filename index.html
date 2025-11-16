@@ -13,7 +13,7 @@
       --tile-gap: 16px; /* baseline gap */
       --board-padding: 24px;
       --token-size:30px;
-      --token-move-ms:120ms; /* per-tile move duration */
+      --token-move-ms:140ms; /* per-tile move duration */
     }
     *{box-sizing:border-box}
     html,body{height:100%; margin:0}
@@ -43,13 +43,13 @@
       position:relative; width:100%; height:820px; touch-action:none; /* slightly taller */
     }
 
-    /* tiles: normal tiles have thin grey border, eventish tiles green border */
+    /* tiles */
     .tile{
       position:absolute;
       width:var(--tile-size);
       height:var(--tile-size);
       background:var(--white);
-      border:1px solid var(--gray); /* normal */
+      border:1px solid var(--gray);
       border-radius:6px;
       transform: translate(-50%,-50%);
       display:grid; place-items:center;
@@ -57,18 +57,19 @@
       box-shadow: 0 6px 18px rgba(0,0,0,0.03);
       transition: transform 120ms linear;
       z-index:2;
+      font-size:12px;
     }
     .tile.event,
     .tile.client,
     .tile.workshop,
     .tile.bonus,
     .tile.penalty {
-      border:2px solid var(--green); /* unified green for event tiles */
-      background: #fbfff6;
+      border:2px solid var(--green);
+      background:#fbfff6;
     }
     .tile.goal{ background: var(--green); color: #fff; border-color: var(--green) }
 
-    /* START_MARKER: will be positioned dynamically to match tile 0 */
+    /* START_MARKER aligned to tile0 and placed slightly above */
     .start-marker{
       position:absolute;
       width:calc(var(--tile-size) * 0.9);
@@ -77,7 +78,7 @@
       border-radius:6px; border:1px solid rgba(0,0,0,0.08);
       color:var(--black); font-weight:900; background:rgba(134,187,39,0.08);
       z-index:6;
-      transform: translate(-50%,-125%); /* place slightly above the tile */
+      transform: translate(-50%,-125%); /* positioned above the tile */
       pointer-events:none;
       font-size:12px;
     }
@@ -96,8 +97,9 @@
     .sidebar{border:2px solid var(--gray); border-radius:14px; padding:14px}
     .stat{display:flex; justify-content:space-between; padding:10px; border-radius:10px}
     .players{margin-top:10px}
-    .player-row{display:flex; justify-content:space-between; gap:8px; padding:8px; border-radius:10px; border:1px solid var(--gray); align-items:center}
-    .log{margin-top:12px; border:1px solid var(--gray); border-radius:10px; padding:10px; max-height:300px; overflow:auto}
+    .player-row{display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:8px; border-radius:10px; border:1px solid var(--gray); align-items:center}
+    .attr-list{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; font-weight:700}
+    .log{margin-top:12px; border:1px solid var(--gray); border-radius:10px; padding:10px; max-height:300px; overflow:auto; font-size:13px}
 
     .modal-fallback{position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.42); z-index:9999}
     .modal-fallback .card{background:#fff; padding:16px; border-radius:10px; box-shadow:0 12px 30px rgba(0,0,0,0.12)}
@@ -155,7 +157,7 @@
     const NUM_TILES = 60; // last is goal
     const BASE_JITTER = 12;
     const GAP = Number(getComputedStyle(document.documentElement).getPropertyValue('--tile-gap')) || 16;
-    const TOKEN_MOVE_MS = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--token-move-ms')) || 120;
+    const TOKEN_MOVE_MS = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--token-move-ms')) || 140;
 
     let tileCoords = [];
     let state = {
@@ -168,7 +170,7 @@
       history: []
     };
 
-    // player name UI
+    // UI: player name inputs
     function renderPlayerNameInputs(){
       playerNamesWrap.innerHTML = "";
       const count = Math.max(1, Number(playersCountSel.value) || 2);
@@ -187,7 +189,7 @@
       return Array.from(playerNamesWrap.querySelectorAll("input")).map((el,idx)=> el.value.trim() || `プレイヤー${idx+1}`);
     }
 
-    // Build connected path (rings + connectors)
+    // Build connected path (rings+connectors). Choose start tile near top-left corner.
     function buildConnectedPath(N, containerW, containerH, tileSize, gap){
       const cx = containerW/2, cy = containerH/2;
       const coords = [];
@@ -238,10 +240,11 @@
           }
           startIdx = best;
         } else {
+          // choose point closest to top-left corner of ring to make tile 0 be top-left
           let best = 0, bestD = Infinity;
-          const topCenter = {x:(ring.l+ring.r)/2, y:ring.t};
+          const topLeft = {x: ring.l + 6, y: ring.t + 6}; // small inset to avoid exact corner
           for(let k=0;k<pts.length;k++){
-            const dx = pts[k].x - topCenter.x, dy = pts[k].y - topCenter.y;
+            const dx = pts[k].x - topLeft.x, dy = pts[k].y - topLeft.y;
             const d = Math.hypot(dx,dy);
             if(d < bestD){ best = k; bestD = d; }
           }
@@ -298,16 +301,22 @@
         div.dataset.pathIndex = String(idx);
         if(idx === NUM_TILES - 1){
           div.classList.add("goal");
+          div.textContent = "GOAL";
         } else if(idx % 11 === 0){
           div.classList.add("client");
+          div.textContent = "客";
         } else if(idx % 13 === 0){
           div.classList.add("workshop");
+          div.textContent = "研";
         } else if(idx % 6 === 0){
           div.classList.add("event");
+          div.textContent = "EV";
         } else if(idx % 5 === 0){
           div.classList.add("bonus");
+          div.textContent = "+";
         } else if(idx % 7 === 0){
           div.classList.add("penalty");
+          div.textContent = "−";
         }
         div.style.left = `${c.x}px`;
         div.style.top = `${c.y}px`;
@@ -329,6 +338,7 @@
       placeAllTokens();
     }
 
+    // ensure token element exists
     function ensureToken(i){
       let t = document.getElementById(`token-${i}`);
       if(!t){
@@ -340,6 +350,7 @@
       return t;
     }
 
+    // position tokens, offset when sharing same tile
     function placeAllTokens(){
       const groups = new Map();
       state.players.forEach((pl,i)=>{
@@ -405,6 +416,7 @@
       logEl.scrollTop = logEl.scrollHeight;
     }
 
+    // per-tile movement
     function moveTokenStep(playerIndex, pos){
       return new Promise(resolve=>{
         const t = ensureToken(playerIndex);
@@ -427,7 +439,7 @@
           setTimeout(()=> resolve(), 20);
         }
         t.addEventListener('transitionend', onEnd);
-        setTimeout(()=>{ if(!finished){ finished=true; t.removeEventListener('transitionend', onEnd); resolve(); } }, TOKEN_MOVE_MS + 200);
+        setTimeout(()=>{ if(!finished){ finished=true; t.removeEventListener('transitionend', onEnd); resolve(); } }, TOKEN_MOVE_MS + 220);
         t.style.transform = `translate(${c.x}px, ${c.y}px)`;
       });
     }
@@ -458,6 +470,8 @@
       finally{ state.animating = false; updateRollState(); }
     }
 
+    // resolve cell effects modifying 5 attributes:
+    // 学び (learning), 評価 (rating), メンタル (mental), モチベ (motivation), 責任 (responsibility)
     async function resolveCell(playerIndex, pathIndex){
       const pl = state.players[playerIndex];
       if(pl == null) return;
@@ -468,32 +482,48 @@
         pushLog(`${pl.name}: ゴール！`, "ok");
         await showCard("ゴール", `${pl.name} がゴールしました`);
       } else if(tileEl.classList.contains("event")){
-        pl.learning = (pl.learning || 0) + 3;
-        pushLog(`${pl.name}: イベント（学び+3）`, "ok");
+        // event: 学び+3, メンタル-1, モチベ+1, 評価+1
+        pl.learning = (pl.learning||0) + 3;
+        pl.mental = Math.max(0, (pl.mental||0) - 1);
+        pl.motivation = (pl.motivation||0) + 1;
+        pl.rating = (pl.rating||0) + 1;
+        pushLog(`${pl.name}: 案件イベント（学び+3, メンタル-1, モチベ+1）`, "ok");
         await showCard("案件イベント", `${pl.name} が案件イベントに遭遇しました`);
       } else if(tileEl.classList.contains("bonus")){
-        pl.learning = (pl.learning || 0) + 2;
-        pushLog(`${pl.name}: ボーナス（学び+2）`, "ok");
+        // bonus: 学び+2, モチベ+2
+        pl.learning = (pl.learning||0) + 2;
+        pl.motivation = (pl.motivation||0) + 2;
+        pushLog(`${pl.name}: ボーナス（学び+2, モチベ+2）`, "ok");
       } else if(tileEl.classList.contains("penalty")){
-        pl.learning = Math.max(0,(pl.learning || 0)-2);
-        pushLog(`${pl.name}: コスト（学び-2）`, "bad");
+        // penalty: メンタル-2, モチベ-2
+        pl.mental = Math.max(0, (pl.mental||0) - 2);
+        pl.motivation = Math.max(0, (pl.motivation||0) - 2);
+        pushLog(`${pl.name}: コスト（メンタル-2, モチベ-2）`, "bad");
       } else if(tileEl.classList.contains("client")){
+        // client: success/failure
         const base = 0.55;
         const repBonus = ((pl.rating||50)-50)/200;
         const prob = Math.max(0.05, Math.min(0.95, base + repBonus));
         const success = state.rng() < prob;
         if(success){
-          pl.learning = Math.max(0, pl.learning + 4); pl.rating = Math.max(0, pl.rating + 3);
-          pushLog(`${pl.name}: クライアント成功`, "ok");
+          pl.learning = Math.max(0, (pl.learning||0) + 4);
+          pl.rating = Math.max(0, (pl.rating||0) + 3);
+          pl.motivation = Math.max(0, (pl.motivation||0) + 2);
+          pl.responsibility = Math.max(0, (pl.responsibility||0) + 1);
+          pushLog(`${pl.name}: クライアント成功（学び+4, 評価+3, モチベ+2, 責任+1）`, "ok");
         } else {
-          pl.mental = Math.max(0, (pl.mental||50) - 3); pl.rating = Math.max(0, (pl.rating||50) - 1);
-          pushLog(`${pl.name}: クライアント不調`, "bad");
+          pl.mental = Math.max(0, (pl.mental||0) - 3);
+          pl.rating = Math.max(0, (pl.rating||0) - 1);
+          pl.motivation = Math.max(0, (pl.motivation||0) - 2);
+          pushLog(`${pl.name}: クライアント不調（メンタル-3, 評価-1, モチベ-2）`, "bad");
         }
         await showCard("クライアント面談", `${pl.name} の面談が終了しました`);
       } else if(tileEl.classList.contains("workshop")){
         const gain = [1,2,3,5][Math.floor(state.rng()*4)];
-        pl.learning = Math.max(0,(pl.learning||0) + gain); pl.rating = Math.max(0,(pl.rating||0)+1);
-        pushLog(`${pl.name}: ワークショップで学び+${gain}`, "ok");
+        pl.learning = Math.max(0,(pl.learning||0) + gain);
+        pl.motivation = Math.max(0,(pl.motivation||0) + 1);
+        pl.rating = Math.max(0,(pl.rating||0) + 1);
+        pushLog(`${pl.name}: ワークショップ（学び+${gain}, モチベ+1, 評価+1）`, "ok");
         await showCard("ワークショップ", `${pl.name} がワークショップに参加しました`);
       }
       renderPlayersPanel();
@@ -551,6 +581,7 @@
       });
     }
 
+    // render players panel showing 5 attributes
     function renderPlayersPanel(){
       playersPanelEl.innerHTML = "";
       state.players.forEach((pl, i)=>{
@@ -564,23 +595,26 @@
         left.appendChild(badge);
         const name = document.createElement("div"); name.textContent = pl.name;
         left.appendChild(name);
-        const right = document.createElement("div"); right.style.textAlign = "right";
-        right.innerHTML = `<div>学び: ${pl.learning}</div><div>評価: ${pl.rating}</div>`;
+        const right = document.createElement("div"); right.className = "attr-list";
+        right.innerHTML = `<div>学び:${pl.learning}</div><div>評価:${pl.rating}</div><div>メンタル:${pl.mental}</div><div>モチベ:${pl.motivation}</div><div>責任:${pl.responsibility}</div>`;
         row.appendChild(left); row.appendChild(right);
         playersPanelEl.appendChild(row);
       });
       highlightActive();
     }
 
+    // start/reset handlers: players start on tile 0 (start tile)
     function startGame(){
       if(state.started) return;
       const names = getPlayerNames();
-      // set initial positions to 0 (start tile) so players "start" immediately on the start tile
       state.players = names.map((n,i)=>({
         name: n,
         position: 0, // start at tile 0
         learning: 50,
         rating: 50,
+        mental: 50,
+        motivation: 50,
+        responsibility: 0,
         finished: false
       }));
       state.started = true;
@@ -639,7 +673,7 @@
 
     attachHandlers();
     layoutTiles();
-    pushLog("UI ready — スタートマス調整済み。開始でプレイヤーがスタートマスに配置されます。");
+    pushLog("UI ready — スタートマスを左上寄せに調整し、評価項目を5つに拡張しました。");
 
   })();
   </script>
