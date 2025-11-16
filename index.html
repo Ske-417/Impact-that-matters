@@ -152,15 +152,11 @@
     <div class="toolbar" role="group" aria-label="ゲーム設定">
       <div class="title" id="app-title">人生ゲーム ver-15</div>
 
-      <!-- FIRST COLUMN (kept as-is) -->
+      <!-- FIRST COLUMN (kept as-is except removed seed/speed/overshoot UI) -->
       <div class="group"><label for="players-count">人数</label><select id="players-count"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></div>
       <div class="group"><label for="initial-money">初期資金</label><input id="initial-money" type="number" value="50000" min="0" step="1000" /></div>
 
-      <!-- removed: rng-seed, speed control, overshoot select (UI and user-config) per request -->
-      <!-- keep remaining first-column controls -->
-      <div class="group"><label for="speed">速度</label><span class="tiny">固定</span></div>
-
-      <div class="group"><label for="overshoot">ゴール超過</label><span class="tiny">反射無効（止まる）</span></div>
+      <!-- seed/speed/overshoot inputs removed from UI per request (speed fixed and overshoot fixed to 'clamp') -->
 
       <div class="dice" id="dice" aria-live="polite" aria-atomic="true">-</div>
 
@@ -168,23 +164,7 @@
       <button id="btn-roll" disabled type="button">サイコロ</button>
       <button id="btn-reset" type="button">リセット</button>
 
-      <div class="group">
-        <label>保存スロット</label>
-        <select id="save-slot" class="slot-select">
-          <option value="1">Slot 1</option>
-          <option value="2">Slot 2</option>
-          <option value="3">Slot 3</option>
-        </select>
-        <button id="btn-save-slot" class="tiny" type="button">保存</button>
-        <button id="btn-load-slot" class="tiny" type="button">読込</button>
-        <button id="btn-delete-slot" class="tiny" type="button">削除</button>
-      </div>
-
-      <button id="btn-save" title="ローカルに保存" type="button">保存（手動）</button>
-      <button id="btn-load" title="保存から読込" type="button">読込</button>
-      <button id="btn-export" title="JSONエクスポート" type="button">Export</button>
-      <input id="file-import" type="file" accept="application/json" hidden />
-      <button id="btn-import" title="JSONインポート" type="button">Import</button>
+      <!-- SAVE/LOAD UI removed per request -->
 
       <button id="btn-settings" title="プレイヤー設定" type="button">設定</button>
       <button id="btn-import-personas" title="ペルソナJSONを読み込む" type="button">ペルソナ読み込み</button>
@@ -216,7 +196,7 @@
   <!-- Tooltip -->
   <div id="tooltip" role="tooltip" aria-hidden="true"></div>
 
-  <!-- History Modal -->
+  <!-- Modals kept as before -->
   <dialog class="modal" id="history-modal" aria-labelledby="history-title">
     <div class="card">
       <h3 id="history-title">イベント履歴</h3>
@@ -228,14 +208,13 @@
     </div>
   </dialog>
 
-  <!-- Shortcuts Modal -->
   <dialog class="modal" id="shortcuts-modal" aria-labelledby="shortcuts-title">
     <div class="card">
       <h3 id="shortcuts-title">操作ショートカット</h3>
       <div class="help-list">
         Space / Enter: サイコロを振る<br>
-        S: 保存スロットをクイック保存<br>
-        L: 保存スロットをクイック読込<br>
+        S: 保存スロットをクイック保存（機能削除済）<br>
+        L: 保存スロットをクイック読込（機能削除済）<br>
         H: このヘルプを開く/閉じる<br>
         Z / Shift+Z: ズームイン / ズームアウト<br>
         F: 盤面を画面にフィット<br>
@@ -244,7 +223,6 @@
     </div>
   </dialog>
 
-  <!-- Settings Modal -->
   <dialog class="modal" id="settings-modal" aria-labelledby="settings-title">
     <div class="card">
       <h3 id="settings-title">プレイヤー設定</h3>
@@ -257,7 +235,6 @@
     </div>
   </dialog>
 
-  <!-- Persona Manager Modal -->
   <dialog class="modal" id="persona-modal" aria-labelledby="persona-title">
     <div class="card">
       <h3 id="persona-title">ペルソナ管理</h3>
@@ -275,7 +252,6 @@
     </div>
   </dialog>
 
-  <!-- Branch Editor Modal (rich) -->
   <dialog class="modal" id="branch-editor-modal" aria-labelledby="branch-editor-title">
     <div class="card">
       <h3 id="branch-editor-title">分岐イベントエディタ</h3>
@@ -297,7 +273,6 @@
     </div>
   </dialog>
 
-  <!-- Generic Event Modal -->
   <dialog class="modal" id="modal" aria-labelledby="modal-title">
     <div class="card">
       <h3 id="modal-title">イベント</h3>
@@ -309,7 +284,6 @@
     </div>
   </dialog>
 
-  <!-- Result Modal -->
   <dialog class="modal" id="result" aria-labelledby="result-title">
     <div class="card">
       <h3 id="result-title">結果発表</h3>
@@ -318,7 +292,6 @@
     </div>
   </dialog>
 
-  <!-- Achievements Modal -->
   <dialog class="modal" id="achievements-modal" aria-labelledby="achievements-title">
     <div class="card">
       <h3 id="achievements-title">実績</h3>
@@ -333,10 +306,10 @@
   <script>
   // ===========================
   // 編集:
-  // - シード機能（rng-seed入力）を削除（シードは使用しない）
-  // - 速度のユーザー設定を削除し、速度は固定（state.speed）にしました
-  // - ゴール跳ね返り（bounce）の選択を削除し、デフォルトで反射無効（止まる / 'clamp'）
-  // 既存の他のUIは維持しています。スクリプト内で該当フォーム要素を参照しないよう修正しています。
+  // - シード入力 UI を表示しない（機能自体は使わない）
+  // - 速度調整 UI を表示しない -> speed は固定 (state.speed)
+  // - ゴール跳ね返り選択 UI を表示しない -> overshoot 固定 'clamp' (止まる)
+  // - 保存/読み込み関連の UI と機能をすべて削除（表示も機能も無くしました）
   // ===========================
   (function(){
     const $ = s => document.querySelector(s);
@@ -344,12 +317,11 @@
     const statTurnEl = $("#stat-turn"), statCurrentEl = $("#stat-current");
     const playersPanelEl = $("#players-panel");
     const btnStart = $("#btn-start"), btnRoll = $("#btn-roll"), btnReset = $("#btn-reset");
-    const btnSave = $("#btn-save"), btnLoad = $("#btn-load"), btnExport = $("#btn-export"), btnImport = $("#btn-import"), fileImport = $("#file-import");
+    // removed save/load related elements and references
     const playersCountSel = $("#players-count"), initialMoneyInput = $("#initial-money");
-    // removed: rngSeedInput, speedInput, overshootSel (no user inputs)
-    const btnZoomIn = $("#btn-zoom-in"), btnZoomOut = $("#btn-zoom-out"), btnFit = $("#btn-fit");
+    // seed/speed/overshoot inputs removed from the DOM and not referenced
+    const btnZoomIn = $("#btn-zoom-in"), btnZoomOut = $("#btn-zoom-out");
     const tooltip = $("#tooltip");
-    const saveSlotSel = $("#save-slot"), btnSaveSlot = $("#btn-save-slot"), btnLoadSlot = $("#btn-load-slot"), btnDeleteSlot = $("#btn-delete-slot");
     const btnHistory = $("#btn-history"), historyModal = $("#history-modal"), historyBody = $("#history-body"), historyClose = $("#history-close"), historyClear = $("#history-clear");
     const btnShortcuts = $("#btn-shortcuts"), shortcutsModal = $("#shortcuts-modal"), shortcutsClose = $("#shortcuts-close");
     const settingsBtn = $("#btn-settings"), settingsModal = $("#settings-modal"), settingsListEl = $("#settings-list");
@@ -408,7 +380,7 @@
       syncStoresFromPersonasList(DEFAULT_PERSONAS);
     })();
 
-    // RNG (seedable) - function kept for compatibility but NOT used (seed feature removed)
+    // RNG (seedable) - function kept for compatibility but seed feature is removed (not used)
     function createRNG(seed){
       if(!seed) return Math.random;
       let h = 2166136261 >>> 0;
@@ -450,9 +422,10 @@
 
     // state
     // speed is fixed here (ユーザー設定を無くしたため固定値)
+    // overshoot fixed to 'clamp' (止まる)
     let state = {
       started:false, turn:0, currentPlayerIndex:0, players:[], finishedCount:0, animating:false,
-      rng: Math.random, seed:"", speed:180, overshoot:"clamp", // overshoot fixed to 'clamp' (止まる)
+      rng: Math.random, seed:"", speed:180, overshoot:"clamp",
       playerSettings: []
     };
 
@@ -508,6 +481,7 @@
 
     // Achievements modal update
     function updateAchievementsModal(){
+      if(!achListEl) return;
       achListEl.innerHTML = "";
       ACHIEVEMENTS.forEach(a=>{
         const div = document.createElement("div"); div.className = "ach-row";
@@ -523,7 +497,7 @@
         achListEl.appendChild(div);
       });
     }
-    if (achClose) achClose.addEventListener("click", ()=> achModal.close());
+    if (achClose) achClose.addEventListener("click", ()=> { try{ achModal.close(); }catch(e){} });
     if (achReset) achReset.addEventListener("click", ()=> {
       if(!confirm("全実績をリセットしますか？（プレイヤーデータは残ります）")) return;
       state.players.forEach(p => { p.achievements = []; p.bonusCount = 0; p.branchSuccessCount = 0; p.maxMoneyReached = p.money; p.highestSingleGain = 0; p.turnsToGoal = null; p.penaltyCount = 0; });
@@ -561,6 +535,7 @@
     }
 
     function renderBoard(){
+      if(!boardEl) return;
       boardEl.innerHTML = "";
       cells.forEach(cell=>{
         const div = document.createElement("div");
@@ -623,6 +598,7 @@
 
     function moneyId(i){return `money-${i}`}
     function renderPlayersPanel(){
+      if(!playersPanelEl) return;
       playersPanelEl.innerHTML="";
       state.players.forEach((pl,i)=>{
         const row=document.createElement("div"); row.className="player-row"+(i===state.currentPlayerIndex?" active":"");
@@ -643,8 +619,9 @@
     function flashMoney(i,delta){ const el=$("#"+moneyId(i)); if(!el) return; const cls=delta>=0?"flash-plus":"flash-minus"; el.classList.add(cls); setTimeout(()=>el.classList.remove(cls), 400) }
 
     // history & log
-    function pushLog(text, kind){ const p=document.createElement("p"); p.textContent=text; if(kind) p.classList.add(kind); logEl.appendChild(p); logEl.scrollTop = logEl.scrollHeight; }
+    function pushLog(text, kind){ if(!logEl) return; const p=document.createElement("p"); p.textContent=text; if(kind) p.classList.add(kind); logEl.appendChild(p); logEl.scrollTop = logEl.scrollHeight; }
     function showHistory(){
+      if(!historyBody) return;
       historyBody.innerHTML = "";
       const items = Array.from(logEl.querySelectorAll("p")).slice(-200);
       if(items.length===0) historyBody.textContent = "履歴がありません";
@@ -652,10 +629,11 @@
       if(historyModal && historyModal.showModal) historyModal.showModal();
     }
     if(historyClose) historyClose.addEventListener("click", ()=> { try{ historyModal.close(); }catch(e){} });
-    if(historyClear) historyClear.addEventListener("click", ()=> { if(!confirm("履歴をクリアしますか？")) return; logEl.innerHTML=""; historyBody.innerHTML=""; pushLog("履歴をクリアしました"); });
+    if(historyClear) historyClear.addEventListener("click", ()=> { if(!confirm("履歴をクリアしますか？")) return; if(logEl) logEl.innerHTML=""; if(historyBody) historyBody.innerHTML=""; pushLog("履歴をクリアしました"); });
 
     // Tooltip
     function showCellTooltip(cell, e){
+      if(!tooltip) return;
       const info = [];
       info.push(`マス #${cell.index}`);
       if(cell.type) info.push(`タイプ: ${cell.type}`);
@@ -667,6 +645,7 @@
       moveTooltip(e);
     }
     function showPlayerTooltip(pl, e){
+      if(!tooltip) return;
       const info = [];
       info.push(`${pl.name}`);
       info.push(`所持金: ${yen(pl.money)}`);
@@ -679,14 +658,16 @@
       moveTooltip(e);
     }
     function moveTooltip(e){
+      if(!tooltip) return;
       const pad = 12;
       tooltip.style.left = (e.clientX + pad) + "px";
       tooltip.style.top = Math.min(window.innerHeight - 80, e.clientY + pad) + "px";
     }
-    function hideTooltip(){ tooltip.style.display = "none"; }
+    function hideTooltip(){ if(tooltip) tooltip.style.display = "none"; }
 
     // ===== Modal helpers =====
     function showCard(title, text, sub){
+      if(!genericTitle || !genericModal) return;
       genericTitle.textContent = title;
       if(typeof text === "string" && /<\/?[a-z][\s\S]*>/i.test(text)){
         genericText.innerHTML = text;
@@ -696,13 +677,14 @@
       genericSub.textContent = sub || "";
       genericActions.innerHTML = "";
       const ok = document.createElement("button"); ok.className = "primary"; ok.textContent = "OK"; ok.type = "button";
-      ok.addEventListener("click", ()=> genericModal.close());
+      ok.addEventListener("click", ()=> { try{ genericModal.close(); }catch(e){} });
       genericActions.appendChild(ok);
       if(genericModal && genericModal.showModal) genericModal.showModal();
     }
 
     // Branch modal adjusted for consulting: success probability influenced by reputation
     function showBranchModal(branchEv, playerIndex){
+      if(!genericModal) return;
       genericTitle.textContent = "案件分岐 (提案)";
       genericText.textContent = branchEv.text;
       genericSub.textContent = `あなた: ${state.players[playerIndex].name}`;
@@ -712,12 +694,10 @@
         b.addEventListener("click", async ()=>{
           const baseProb = (typeof choice.probGood === "number") ? choice.probGood : 1.0;
           const pl = state.players[playerIndex];
-          // reputation modifies probability (clamped)
-          const repBonus = Math.max(-0.3, Math.min(0.3, (pl.reputation || 0) / 200)); // reputation 0..100 maps to -0.3..+0.3
+          const repBonus = Math.max(-0.3, Math.min(0.3, (pl.reputation || 0) / 200));
           const prob = Math.max(0.05, Math.min(0.95, baseProb + repBonus));
           const success = state.rng() < prob;
           const res = success ? (choice.success||{}) : (choice.failure||{});
-          // apply money and reputation
           if(typeof res.money === "number" && res.money !== 0){
             const delta = res.money;
             pl.money += delta;
@@ -727,11 +707,9 @@
           }
           if(typeof res.rep === "number") pl.reputation = Math.max(0, Math.min(100, (pl.reputation || 50) + res.rep));
           if(typeof res.csat === "number") pl.clientSatisfaction = Math.max(0, Math.min(100, (pl.clientSatisfaction || 50) + res.csat));
-          // success increases branchSuccessCount
           if(success) pl.branchSuccessCount = (pl.branchSuccessCount || 0) + 1;
           const text = success ? (res.text || `${choice.label} → 受注成功`) : (res.text || `${choice.label} → 失注`);
           pushLog(`${pl.name}: ${text} ${res.money ? `(${res.money>0?'+':''}${yen(res.money)})` : ""}`, success ? "ok" : "bad");
-          // moves
           if(typeof res.move === "number" && res.move !== 0){
             if(res.move > 0) await animateMove(playerIndex, res.move);
             else { pl.position = Math.max(0, pl.position + res.move); placeAllTokens(); resolveCell(playerIndex, pl.position); }
@@ -739,11 +717,11 @@
             renderPlayersPanel();
           }
           evaluatePlayerAchievements(playerIndex);
-          genericModal.close();
+          try{ genericModal.close(); }catch(e){}
         });
         genericActions.appendChild(b);
       });
-      const cancel = document.createElement("button"); cancel.type = "button"; cancel.textContent = "やめる"; cancel.addEventListener("click", ()=> genericModal.close());
+      const cancel = document.createElement("button"); cancel.type = "button"; cancel.textContent = "やめる"; cancel.addEventListener("click", ()=> { try{ genericModal.close(); }catch(e){} });
       genericActions.appendChild(cancel);
       if(genericModal && genericModal.showModal) genericModal.showModal();
     }
@@ -756,7 +734,6 @@
       d.addEventListener('close', updateRollState);
       d.addEventListener('cancel', updateRollState);
       d.addEventListener('click', (e) => {
-        // prevent clicks on backdrop from interacting with underlying elements
         if(e.target === d) e.stopPropagation();
       });
     });
@@ -797,7 +774,6 @@
           break;
         }
         case "client":{
-          // client meeting: chance influenced by reputation
           const base = 0.55;
           const repBonus = ((pl.reputation||50) - 50) / 200;
           const prob = Math.max(0.05, Math.min(0.95, base + repBonus));
@@ -819,7 +795,6 @@
           break;
         }
         case "workshop":{
-          // skill/workshop: increases reputation and small money or small cost
           const gain = randPick(state.rng, [0,5000,10000]);
           pl.money += gain; flashMoney(playerIndex, gain);
           pl.reputation = Math.min(100, (pl.reputation||50) + randPick(state.rng, [1,2,3]));
@@ -829,7 +804,6 @@
           break;
         }
         case "event":{
-          // Branch possibility
           if(state.rng() < BRANCH_CHANCE){
             const pb = personaBranchMap[pl.name];
             if(pb && pb.length>0){ const be = randPick(state.rng, pb); showBranchModal(be, playerIndex); return; }
@@ -839,7 +813,6 @@
             ]};
             showBranchModal(defaultBranch, playerIndex); return;
           }
-          // persona-specific event or generic event
           const personaEvents = personaEventMap[pl.name];
           if(personaEvents && personaEvents.length>0 && state.rng() < 0.7){
             const ev = randPick(state.rng, personaEvents);
@@ -876,7 +849,7 @@
     async function animateMove(playerIndex, steps){
       const pl = state.players[playerIndex]; if(!pl || pl.finished) return;
       state.animating = true; updateRollState();
-      // speed is fixed in state.speed (user cannot change)
+      // speed is fixed in state.speed
       const delay = Number(state.speed || 180);
       let pos = pl.position;
       let dir = 1;
@@ -918,7 +891,6 @@
     function nextPlayerTurn(){
       const total = state.players.length; let i = state.currentPlayerIndex;
       for(let c=0;c<total;c++){ i=(i+1)%total; const p=state.players[i]; if(!p.finished){ state.currentPlayerIndex=i; break; } }
-      // consume skip if present
       if(state.players[state.currentPlayerIndex] && state.players[state.currentPlayerIndex].skipTurn){
         const skipped = state.players[state.currentPlayerIndex];
         skipped.skipTurn = false;
@@ -936,69 +908,11 @@
     }
     const isGameFinished = ()=> state.finishedCount === state.players.length;
 
-    // Save / Load slots
-    const SAVE_SLOT_PREFIX = "life-game-slot-";
-    function snapshot(){ return JSON.stringify({
-      started:state.started, turn:state.turn, currentPlayerIndex:state.currentPlayerIndex, finishedCount:state.finishedCount,
-      players:state.players, seed:"", overshoot:state.overshoot, speed:state.speed,
-      playerSettings: state.playerSettings, personas: personasStore
-    }); }
-    function restore(json){
-      try{
-        const d = JSON.parse(json);
-        state.started = !!d.started; state.turn = d.turn||0; state.currentPlayerIndex = d.currentPlayerIndex||0; state.finishedCount = d.finishedCount||0;
-        state.players = d.players || []; state.seed = ""; state.overshoot = "clamp"; state.rng = Math.random; // force default RNG and overshoot
-        state.speed = typeof d.speed === "number" ? d.speed : state.speed; // keep fixed unless snapshot has a number (backwards compat)
-        state.playerSettings = d.playerSettings || [];
-        if(Array.isArray(d.personas)) { syncStoresFromPersonasList(d.personas); try { localStorage.setItem("imported-personas", JSON.stringify({ personas: personasStore })); } catch(e){} }
-        renderBoard(); renderPlayersPanel(); statTurnEl.textContent = String(state.turn); statCurrentEl.textContent = state.players[state.currentPlayerIndex]?.name || "-";
-        pushLog("保存データを読み込みました。", "ok");
-      }catch(e){ alert("読み込みに失敗しました"); console.error(e); }
-    }
+    // Save/Load functionality removed entirely as requested.
+    // No snapshot/restore, no localStorage game-save usage.
 
-    if(btnSave) btnSave.addEventListener("click", ()=>{ try { localStorage.setItem("life-game-save", snapshot()); pushLog("保存しました", "ok"); } catch(e){ alert("保存に失敗しました"); } });
-    if(btnLoad) btnLoad.addEventListener("click", ()=>{ const s=localStorage.getItem("life-game-save"); if(!s) return alert("保存がありません"); restore(s); });
-    if(btnExport) btnExport.addEventListener("click", ()=>{
-      const blob = new Blob([snapshot()], {type:"application/json"});
-      const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href=url; a.download="life-game-save.json"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-    });
-
-    if(btnSaveSlot) btnSaveSlot.addEventListener("click", ()=> {
-      const slot = saveSlotSel.value;
-      try { localStorage.setItem(SAVE_SLOT_PREFIX + slot, snapshot()); pushLog(`スロット ${slot} に保存しました`); }
-      catch(e){ alert("保存に失敗しました"); }
-    });
-    if(btnLoadSlot) btnLoadSlot.addEventListener("click", ()=> {
-      const slot = saveSlotSel.value;
-      const s = localStorage.getItem(SAVE_SLOT_PREFIX + slot);
-      if(!s) return alert("スロットに保存がありません");
-      restore(s);
-    });
-    if(btnDeleteSlot) btnDeleteSlot.addEventListener("click", ()=> {
-      const slot = saveSlotSel.value;
-      if(!confirm(`スロット ${slot} を削除しますか？`)) return;
-      localStorage.removeItem(SAVE_SLOT_PREFIX + slot);
-      pushLog(`スロット ${slot} を削除しました`);
-    });
-
-    // Import/Export save file
-    if($("#btn-import")) $("#btn-import").addEventListener("click", ()=> fileImport.click());
-    if(fileImport) fileImport.addEventListener("change", async (e) => {
-      const f = e.target.files?.[0];
-      if(!f) return;
-      try{
-        const txt = await f.text();
-        restore(txt);
-      }catch(err){
-        console.error(err);
-        alert("読み込みに失敗しました（JSONの形式を確認してください）");
-      } finally {
-        fileImport.value = "";
-      }
-    });
-
-    // Persona JSON import
-    if($("#btn-import-personas")) $("#btn-import-personas").addEventListener("click", ()=> filePersonas.click());
+    // Persona JSON import (kept)
+    if($("#btn-import-personas")) $("#btn-import-personas").addEventListener("click", ()=> { const el = $("#file-personas"); if(el) el.click(); });
     if(filePersonas) filePersonas.addEventListener("change", async (e) => {
       const f = e.target.files?.[0];
       if(!f) return;
@@ -1019,7 +933,6 @@
     // Zoom button handlers
     if(btnZoomIn) btnZoomIn.addEventListener('click', ()=> zoomIn());
     if(btnZoomOut) btnZoomOut.addEventListener('click', ()=> zoomOut());
-    // keyboard shortcuts for zoom and fit
     window.addEventListener('keydown', function (ev) {
       if ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey) {
         if (ev.key === '+' || ev.key === '=') { ev.preventDefault(); zoomIn(); }
@@ -1038,8 +951,11 @@
 
     // simple demo: click on board to move player 0 by +1
     if(boardEl) boardEl.addEventListener('click', ()=>{
-      const p = state.players[0] || { name: 'A', color: PLAYER_COLORS[0], position: 0, money: 50000 };
-      if(!state.players[0]) state.players[0] = p;
+      if(!state.players[0]) {
+        ensurePlayerSettings(2);
+        state.players[0] = { name: 'A', color: PLAYER_COLORS[0], position: 0, money: 50000 };
+      }
+      const p = state.players[0];
       p.position = Math.min(TOTAL_CELLS-1, (p.position || 0) + 1);
       placeAllTokens();
       pushLog(`${p.name} が 1 マス進みました (${p.position})`);
