@@ -7,9 +7,26 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <style>
     :root{
+      /* Allowed palette:
+         - #000000 (black)
+         - #FFFFFF (white)
+         - #86BB27 (green)
+         - #C4C4C4 (gray)
+         - #DFF3C6 (lightened 86BB27)
+      */
+      --black: #000000;
+      --white: #FFFFFF;
+      --green: #86BB27;
+      --green-light: #DFF3C6; /* 86BB27 を薄めた色 */
+      --gray: #C4C4C4;
+
       --board-cols:10; --board-rows:6; --cell-size:68px;
-      --accent:#ff6b6b; --bg:#fffaf0; --text:#222; --active:#4c9aff;
-      --ok:#00c853; --warn:#ff8f00; --bad:#e53935; --muted:#94a3b8;
+      --accent: var(--green);
+      --bg: var(--white);
+      --text: var(--black);
+      --active: rgba(0,0,0,0.08); /* subtle active outline using black with low opacity */
+      --ok: var(--green);
+      --muted: var(--gray);
       --zoom-step:8px;
       --board-max-width: calc(var(--cell-size) * var(--board-cols) + 32px);
     }
@@ -26,27 +43,27 @@
     .appbar{
       position:sticky; top:0; z-index:1100; width:100%;
       display:flex; justify-content:center;
-      background:linear-gradient(180deg, rgba(255,250,240,.98), rgba(255,250,240,.9));
-      backdrop-filter:saturate(0.9); border-bottom:1px solid rgba(0,0,0,0.02);
+      background:linear-gradient(180deg, rgba(255,255,255,.98), rgba(255,255,255,.95));
+      backdrop-filter:saturate(0.9); border-bottom:1px solid rgba(0,0,0,0.06);
       pointer-events:auto;
     }
     .toolbar{width:100%; padding:8px 10px; display:flex; flex-wrap:wrap; align-items:center; gap:8px}
-    .title{font-weight:800; font-size:16px; color:#111; letter-spacing:.02em; white-space:nowrap; margin-right:auto}
+    .title{font-weight:800; font-size:16px; color:var(--black); letter-spacing:.02em; white-space:nowrap; margin-right:auto}
 
-    .group{display:flex; align-items:center; gap:6px; padding:6px 8px; background:#fff; border:1px solid #e6e8eb; border-radius:10px}
-    label{font-size:12px; color:#555}
-    select,input[type="number"],input[type="text"],input[type="range"],textarea,select{padding:6px 8px; border-radius:8px; border:1px solid #ddd}
+    .group{display:flex; align-items:center; gap:6px; padding:6px 8px; background:var(--white); border:1px solid var(--gray); border-radius:10px}
+    label{font-size:12px; color:var(--black)}
+    select,input[type="number"],input[type="text"],input[type="range"],textarea,select{padding:6px 8px; border-radius:8px; border:1px solid var(--gray); background:var(--white); color:var(--black)}
     input[type="range"]{width:120px}
-    button{padding:8px 10px; border-radius:10px; border:1px solid #ddd; background:#fff; cursor:pointer; font-weight:600}
-    button.primary{background:var(--accent); color:#fff; border-color:transparent}
-    button:disabled{opacity:.5; cursor:not-allowed}
-    .dice{width:40px; height:40px; display:grid; place-items:center; border-radius:8px; border:1px solid #e2e8f0; background:#fff; font-weight:800}
+    button{padding:8px 10px; border-radius:10px; border:1px solid var(--gray); background:var(--white); cursor:pointer; font-weight:600; color:var(--black)}
+    button.primary{background:var(--green); color:var(--black); border-color:transparent}
+    button:disabled{opacity:.45; cursor:not-allowed}
+    .dice{width:40px; height:40px; display:grid; place-items:center; border-radius:8px; border:1px solid var(--gray); background:var(--white); font-weight:800; color:var(--black)}
     .dice.spin{animation:spin .6s ease}
     @keyframes spin{0%{transform:rotate(0)}50%{transform:rotate(180deg) scale(1.05)}100%{transform:rotate(360deg)}}
 
     /* player name inputs */
     .player-names { display:flex; gap:8px; align-items:center; }
-    .player-names input { width:140px; padding:6px 8px; border-radius:8px; border:1px solid #ddd; }
+    .player-names input { width:140px; padding:6px 8px; border-radius:8px; border:1px solid var(--gray); background:var(--white); color:var(--black) }
 
     /* ===== Layout ===== */
     .wrap{width:100%; padding:12px; display:grid; grid-template-columns:3fr 1.1fr; gap:10px; flex:1; align-items:start}
@@ -62,7 +79,7 @@
       z-index:1;
     }
     .board{
-      background:#fff; border:2px solid #eee; border-radius:12px; padding:8px; position:relative; display:grid; gap:6px;
+      background:var(--white); border:2px solid var(--gray); border-radius:12px; padding:8px; position:relative; display:grid; gap:6px;
       grid-template-columns:repeat(var(--board-cols), var(--cell-size));
       grid-auto-rows: var(--cell-size);
       justify-content:center; align-content:start;
@@ -70,50 +87,50 @@
       max-width: none;
       box-shadow: none;
     }
-    .cell{background:#f9fafb; border:1px solid #e6e8eb; border-radius:10px; padding:6px; display:grid; place-items:center; font-size:12px; position:relative; cursor:default}
-    .cell.start{background:#d1f7c4}
-    .cell.goal{background:#cde7ff}
-    .cell.event{background:#fff4cc}
-    .cell.penalty{background:#ffe0e0}
-    .cell.bonus{background:#e8ffea}
-    .cell.client{background:linear-gradient(135deg,#d9f0ff,#fff)}
-    .cell.workshop{background:linear-gradient(135deg,#f0f9d9,#fff)}
-    .cell .idx{position:absolute; top:4px; left:6px; font-size:10px; color:#999}
+    .cell{background:var(--white); border:1px solid var(--gray); border-radius:10px; padding:6px; display:grid; place-items:center; font-size:12px; position:relative; cursor:default; color:var(--black)}
+    .cell.start{background:linear-gradient(180deg,var(--green-light),var(--white))}
+    .cell.goal{background:linear-gradient(180deg,var(--green),var(--green-light))}
+    .cell.event{background:linear-gradient(180deg,var(--green-light),var(--white))}
+    .cell.penalty{background:linear-gradient(180deg,#F7F7F7,var(--white))}
+    .cell.bonus{background:linear-gradient(180deg,var(--green-light),#F7FFF3)}
+    .cell.client{background:linear-gradient(180deg,var(--green-light),var(--white))}
+    .cell.workshop{background:linear-gradient(180deg,var(--green-light),var(--white))}
+    .cell .idx{position:absolute; top:4px; left:6px; font-size:10px; color:var(--black)}
 
     /* ===== Tokens ===== */
-    .token{width:28px; height:28px; border-radius:50%; border:2px solid #333; display:grid; place-items:center; color:#fff; font-size:12px; font-weight:700; box-shadow:0 4px 10px rgba(0,0,0,.15)}
-    .token.finished{opacity:.6; border-color:#777}
-    .token.active{outline:3px solid rgba(76,154,255,.5)}
+    .token{width:28px; height:28px; border-radius:50%; border:2px solid var(--black); display:grid; place-items:center; color:var(--white); font-size:12px; font-weight:700; box-shadow:0 4px 10px rgba(0,0,0,.08)}
+    .token.finished{opacity:.8; border-color:var(--gray)}
+    .token.active{outline:3px solid rgba(134,187,39,0.18)}
 
     /* ===== Sidebar ===== */
-    .sidebar{background:#fff; border:2px solid #eee; border-radius:12px; padding:12px; display:grid; gap:12px; height:fit-content; z-index:2}
-    .stat{display:flex; justify-content:space-between; gap:8px; padding:8px 10px; background:#f5f7fa; border-radius:10px}
+    .sidebar{background:var(--white); border:2px solid var(--gray); border-radius:12px; padding:12px; display:grid; gap:12px; height:fit-content; z-index:2}
+    .stat{display:flex; justify-content:space-between; gap:8px; padding:8px 10px; background:linear-gradient(180deg,var(--white),#FBFBFB); border-radius:10px}
     .players{display:grid; gap:8px}
     /* compact two-column player row */
-    .player-row{display:grid; grid-template-columns:1fr 1fr; gap:8px; align-items:center; padding:8px 10px; background:#fafcff; border:1px solid #eee; border-radius:10px}
-    .player-row.active{border-color:var(--active); box-shadow:0 0 0 2px rgba(76,154,255,.2) inset}
-    .badge{width:18px; height:18px; border-radius:50%; border:2px solid #333; display:inline-block; margin-right:8px}
+    .player-row{display:grid; grid-template-columns:1fr 1fr; gap:8px; align-items:center; padding:8px 10px; background:var(--white); border:1px solid var(--gray); border-radius:10px}
+    .player-row.active{border-color:rgba(0,0,0,0.12); box-shadow:0 0 0 2px rgba(134,187,39,0.06) inset}
+    .badge{width:18px; height:18px; border-radius:50%; border:2px solid var(--black); display:inline-block; margin-right:8px}
 
     .left-col{display:flex; align-items:center; gap:8px}
     .name-wrap{display:flex; flex-direction:column}
-    .rank{font-weight:800; color:#111}
-    .salary{font-weight:700; color:#333; font-size:13px}
+    .rank{font-weight:800; color:var(--black)}
+    .salary{font-weight:700; color:var(--black); font-size:13px}
 
     .attr-list{display:flex; gap:8px; justify-content:flex-end; align-items:center}
-    .attr{font-size:12px; background:#fff; padding:4px 8px; border-radius:8px; border:1px solid #eee; min-width:86px; text-align:center}
+    .attr{font-size:12px; background:var(--white); padding:4px 8px; border-radius:8px; border:1px solid var(--gray); min-width:86px; text-align:center; color:var(--black)}
 
-    .log{border:1px solid #eee; border-radius:10px; background:#fafcff; padding:10px; max-height:300px; overflow:auto; font-size:13px; line-height:1.4}
+    .log{border:1px solid var(--gray); border-radius:10px; background:linear-gradient(180deg,var(--white),#FBFBFB); padding:10px; max-height:300px; overflow:auto; font-size:13px; line-height:1.4}
     .log p{margin:0 0 6px}
-    .log p.ok{color:var(--ok)}
-    .log p.bad{color:var(--bad)}
-    .footer{font-size:12px; color:#777}
+    .log p.ok{color:var(--green)}
+    .log p.bad{color:var(--black)}
+    .footer{font-size:12px; color:var(--black)}
 
     /* nice little flash for attribute changes */
     .flash-attr { animation: flashAttr 520ms ease; }
     @keyframes flashAttr {
-      0% { transform: scale(1); background: #fff; }
-      50% { transform: scale(1.05); background: #f0fff4; }
-      100% { transform: scale(1); background: #fff; }
+      0% { transform: scale(1); background: var(--white); }
+      50% { transform: scale(1.05); background: var(--green-light); }
+      100% { transform: scale(1); background: var(--white); }
     }
 
     /* ensure dialog buttons clickable */
@@ -132,9 +149,9 @@
         </select>
       </div>
 
-      <div class="group"><label for="initial-money">初期資金(未使用)</label><input id="initial-money" type="number" value="50000" min="0" step="1000" /></div>
+      <div class="group"><label for="initial-money">初期(未使用)</label><input id="initial-money" type="number" value="50000" min="0" step="1000" /></div>
 
-      <!-- Player name inputs replace persona features -->
+      <!-- Player name inputs -->
       <div class="group player-names" id="player-names"></div>
 
       <div class="dice" id="dice" aria-live="polite" aria-atomic="true">-</div>
@@ -171,10 +188,10 @@
 
   <!-- Modals -->
   <dialog class="modal" id="modal" aria-labelledby="modal-title">
-    <div class="card">
-      <h3 id="modal-title">イベント</h3>
-      <div id="modal-text" style="white-space:normal;"></div>
-      <div class="muted" id="modal-sub"></div>
+    <div class="card" style="background:var(--white); border:1px solid var(--gray);">
+      <h3 id="modal-title" style="color:var(--black)">イベント</h3>
+      <div id="modal-text" style="white-space:normal; color:var(--black)"></div>
+      <div class="muted" id="modal-sub" style="color:var(--black)"></div>
       <div class="actions" id="modal-actions"></div>
     </div>
   </dialog>
@@ -211,17 +228,6 @@
     </div>
   </dialog>
 
-  <dialog class="modal" id="achievements-modal" aria-labelledby="achievements-title">
-    <div class="card">
-      <h3 id="achievements-title">実績</h3>
-      <div class="ach-list" id="ach-list"></div>
-      <div class="actions">
-        <button id="ach-close" class="primary" type="button">閉じる</button>
-        <button id="ach-reset" type="button">リセット</button>
-      </div>
-    </div>
-  </dialog>
-
   <script>
   (function(){
     const $ = s => document.querySelector(s);
@@ -238,10 +244,11 @@
     const resultDlg = $("#result"), resultBody = $("#result-body");
 
     const BOARD_COLS = 10, BOARD_ROWS = 6, TOTAL_CELLS = BOARD_COLS * BOARD_ROWS;
-    const PLAYER_COLORS = ["#ff6b6b", "#4c9aff", "#00c853", "#ff8f00", "#9c27b0", "#00acc1"];
+    // token colors restricted to allowed palette (green, light green, gray, black)
+    const PLAYER_COLORS = ["#86BB27", "#DFF3C6", "#C4C4C4", "#000000", "#86BB27"];
     const BRANCH_CHANCE = 0.36;
 
-    // events now give four attributes: learning, mental, rating, responsibility
+    // events: attribute deltas
     const eventTable = [
       { text:"短期支援入り", learning:+6, mental:+2, rating:+3, responsibility:+1 },
       { text:"見積り漏れでトラブル", learning:+2, mental:-6, rating:-1, responsibility:0 },
@@ -255,7 +262,6 @@
       { text:"内部調整で停滞", learning:0, mental:-1, rating:0, responsibility:0 }
     ];
 
-    // ranking logic and RANKS
     const RANKS = [
       { key: "アナリスト", min: -Infinity, max: 59.999, base: 5000000 },
       { key: "コンサルタント", min: 60, max: 84.999, base: 8500000 },
@@ -305,6 +311,16 @@
     function randPick(rng, arr){ return arr[Math.floor(rng()*arr.length)]; }
     function tokenId(i){ return `token-${i}` }
     function yen(n){ return "¥" + Number(n).toLocaleString("ja-JP"); }
+    function flashAttr(playerIndex, attrName){
+      try{
+        const idKey = attrName === 'responsibility' ? 'responsibility' : attrName;
+        const el = document.getElementById(`${idKey}-${playerIndex}`);
+        if(!el) return;
+        el.classList.add('flash-attr');
+        setTimeout(()=> el.classList.remove('flash-attr'), 520);
+        // text updated where attribute is modified
+      }catch(e){}
+    }
 
     // board setup
     const cells = Array.from({length:TOTAL_CELLS},(_,i)=>({index:i,type:"none",label:""}));
@@ -345,7 +361,9 @@
       });
       // tokens
       state.players.forEach((pl,i)=>{
-        const token=document.createElement("div"); token.className="token"; token.id=tokenId(i); token.textContent=String(i+1); token.style.background=pl.color; if(pl.finished) token.classList.add("finished");
+        const token=document.createElement("div"); token.className="token"; token.id=tokenId(i); token.textContent=String(i+1);
+        token.style.background = PLAYER_COLORS[i % PLAYER_COLORS.length];
+        if(pl.finished) token.classList.add("finished");
         token.style.position = "absolute"; token.style.left = "0px"; token.style.top = "0px";
         token.addEventListener("mouseenter", e=> showPlayerTooltip(pl, e));
         token.addEventListener("mousemove", e=> moveTooltip(e));
@@ -418,17 +436,7 @@
       });
     }
 
-    function flashAttr(playerIndex, attrName){
-      try{
-        const el = document.getElementById(`${attrName}-${playerIndex}`);
-        if(!el) return;
-        el.classList.add('flash-attr');
-        setTimeout(()=> el.classList.remove('flash-attr'), 520);
-        // text updated where attribute is modified
-      }catch(e){}
-    }
-
-    // history & log
+    // history & log helpers
     function pushLog(text, kind){ if(!logEl) return; const p=document.createElement("p"); p.textContent=text; if(kind) p.classList.add(kind); logEl.appendChild(p); logEl.scrollTop = logEl.scrollHeight; }
     function showHistory(){
       if(!historyBody) return;
@@ -462,7 +470,7 @@
     }
     function hideTooltip(){ if(tooltip) tooltip.style.display = "none"; }
 
-    // Robust modal helpers (resolve also on dialog close/cancel)
+    // Robust modal helpers
     function showCard(title, text, sub){
       return new Promise(resolve => {
         if(!genericModal){ resolve(); return; }
@@ -472,18 +480,19 @@
         genericActions.innerHTML = "";
         const ok = document.createElement("button"); ok.className = "primary"; ok.textContent = "OK"; ok.type = "button";
 
-        function cleanup(){
-          ok.removeEventListener("click", onOk);
+        let finished = false;
+        function finish(){
+          if(finished) return;
+          finished = true;
           genericModal.removeEventListener("close", onClose);
           try{ genericModal.close(); }catch(e){}
+          resolve();
         }
-        function onOk(){ cleanup(); resolve(); }
-        function onClose(){ cleanup(); resolve(); }
-
-        ok.addEventListener("click", onOk);
+        function onClose(){ finish(); }
+        ok.addEventListener("click", finish);
         genericModal.addEventListener("close", onClose);
         genericActions.appendChild(ok);
-        try{ genericModal.showModal(); ok.focus(); }catch(e){ /* ignore */ }
+        try{ genericModal.showModal(); ok.focus(); }catch(e){}
       });
     }
 
@@ -520,7 +529,6 @@
                 pl[k] = Math.max(0, Math.round((pl[k]||0) + res[k]));
               }
             });
-            // flash attributes
             ["learning","mental","rating","responsibility"].forEach(k=> flashAttr(playerIndex, k));
             pushLog(`${pl.name}: ${success ? (res.text || choice.label + " → 成功") : (res.text || choice.label + " → 失敗")}`, success ? "ok" : "bad");
             finish({choice, res, success});
@@ -536,7 +544,7 @@
       });
     }
 
-    // resolveCell handles attribute updates; waits for modals safely
+    // resolveCell
     async function resolveCell(playerIndex, index){
       const pl = state.players[playerIndex]; const cell = cells[index]; if(!cell||!pl) return;
       switch(cell.type){
@@ -826,7 +834,7 @@
     updateRollState();
     window.dispatchEvent(new CustomEvent('app-ready'));
 
-    // expose helpers used above
+    // helpers exposed
     function estimateScore(p){
       return ( (p.learning||0) * 0.35 + (p.rating||0) * 0.35 + (p.responsibility||0) * 0.2 + (p.mental||0) * 0.1 );
     }
