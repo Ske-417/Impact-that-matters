@@ -406,7 +406,7 @@
     // boilerplate helpers
     function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
-    // Robust modal helpers with fallback
+    // Robust modal helpers with fallback (same as above)
     function showCard(title, text, sub, {timeout = 30000} = {}) {
       return new Promise(resolve => {
         if(!genericModal){ resolve(); return; }
@@ -574,75 +574,6 @@
       }catch(e){}
     }
 
-    // resolveCell
-    async function resolveCell(playerIndex, index){
-      const pl = state.players[playerIndex]; const cell = cells[index]; if(!cell||!pl) return;
-      switch(cell.type){
-        case "start": pushLog(`${pl.name}: スタート`, "ok"); break;
-        case "goal":
-          if(!pl.finished){
-            pl.finished = true; state.finishedCount += 1; $("#"+tokenId(playerIndex))?.classList.add("finished");
-            pl.turnsToGoal = state.turn;
-            pushLog(`${pl.name}: ゴール！`);
-            const { rank, estimatedSalary } = getRankAndSalary(pl);
-            await showCard("ゴール（プロジェクト完了）", `ランク: ${rank} / 推定年収: ${yen(estimatedSalary)}`, `${pl.name}`);
-            if(isGameFinished()) showResult();
-          }
-          break;
-        case "bonus":{
-          const ev = eventTable[2];
-          ["learning","mental","rating","responsibility"].forEach(k=>{ if(typeof ev[k] === "number"){ pl[k] = Math.max(0, Math.round((pl[k]||0)+ev[k])); flashAttr(playerIndex,k); }});
-          pushLog(`${pl.name}: ボーナスイベント（属性上昇）`, "ok");
-          break;
-        }
-        case "penalty":{
-          const ev = eventTable[1];
-          ["learning","mental","rating","responsibility"].forEach(k=>{ if(typeof ev[k] === "number"){ pl[k] = Math.max(0, Math.round((pl[k]||0)+ev[k])); flashAttr(playerIndex,k); }});
-          pushLog(`${pl.name}: コスト（属性変動）`, "bad");
-          break;
-        }
-        case "client":{
-          const base = 0.55;
-          const repBonus = ((pl.rating||50)-50)/200;
-          const prob = Math.max(0.05, Math.min(0.95, base+repBonus));
-          const success = state.rng() < prob;
-          if(success){ pl.learning = Math.max(0, pl.learning+4); pl.mental = Math.max(0, pl.mental+2); pl.rating = Math.max(0, pl.rating+3); flashAttr(playerIndex,"learning"); flashAttr(playerIndex,"mental"); flashAttr(playerIndex,"rating"); pushLog(`${pl.name}: クライアント成功`, "ok"); }
-          else { pl.mental = Math.max(0, pl.mental-3); pl.rating = Math.max(0, pl.rating-1); flashAttr(playerIndex,"mental"); flashAttr(playerIndex,"rating"); pushLog(`${pl.name}: クライアント不調`, "bad"); }
-          await showCard("クライアント面談", `学び: ${pl.learning} / メンタル: ${pl.mental}`, `${pl.name}`);
-          break;
-        }
-        case "workshop":{
-          const gain = randPick(state.rng,[1,2,3,5]);
-          pl.learning = Math.max(0, pl.learning+gain); pl.rating = Math.max(0, pl.rating+1); flashAttr(playerIndex,"learning"); flashAttr(playerIndex,"rating");
-          pushLog(`${pl.name}: ワークショップで学び+${gain}`, "ok");
-          await showCard("ワークショップ", `学び +${gain}`, `${pl.name}`);
-          break;
-        }
-        case "event":{
-          if(state.rng() < BRANCH_CHANCE){
-            const defaultBranch = { text: "クライアントへの提案機会", choices:[
-              { label:"攻めの提案", probGood:0.5, success:{learning:+3,mental:+1,rating:+4,responsibility:+2,move:1,text:"提案受注！"}, failure:{learning:+1,mental:-2,rating:-1,responsibility:0,move:0,text:"提案失敗"} },
-              { label:"守りの提案", probGood:0.8, success:{learning:+1,mental:+1,rating:+1,responsibility:+0,move:0,text:"小さな案件獲得"}, failure:{learning:0,mental:0,rating:0,responsibility:0,move:0,text:"何もしない"} }
-            ]};
-            try{
-              const res = await showBranchModal(defaultBranch, playerIndex);
-              if(res && res.res && typeof res.res.move === "number" && res.res.move !== 0){
-                if(res.res.move > 0) { await animateMove(playerIndex, res.res.move); }
-                else { pl.position = Math.max(0, pl.position + res.res.move); placeAllTokens(); await resolveCell(playerIndex, pl.position); }
-              } else { renderPlayersPanel(); }
-            }catch(e){ console.error(e); renderPlayersPanel(); }
-            return;
-          }
-          const ev2 = randPick(state.rng, eventTable);
-          ["learning","mental","rating","responsibility"].forEach(k=>{ if(typeof ev2[k] === "number"){ pl[k] = Math.max(0, Math.round((pl[k]||0)+ev2[k])); flashAttr(playerIndex,k); }});
-          pushLog(`${pl.name}: ${ev2.text}（属性変動）`, ev2.learning>=0?"ok":"bad");
-          await showCard("案件イベント", ev2.text, `${pl.name}`);
-          break;
-        }
-      }
-      renderPlayersPanel();
-    }
-
     const eventTable = [
       { text:"短期支援入り", learning:+6, mental:+2, rating:+3, responsibility:+1 },
       { text:"見積り漏れでトラブル", learning:+2, mental:-6, rating:-1, responsibility:0 },
@@ -721,7 +652,7 @@
         if(btnStart) btnStart.disabled = true;
       }catch(e){
         console.error("startGame error:", e);
-        state.started = false; updateRollState(); if(btnStart) btnStart.disabled = false; pushLog("ゲーム開始に失敗しました（コンソール確認）","bad");
+        state.started = false; updateRollState(); if(btnStart) btnStart.disabled = false; pushLog("ゲーム開始に失敗しました","bad");
       }
     }
 
