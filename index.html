@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <style>
     :root{
-      --black:#000000; --white:#FFFFFF; --green:#86BB27; --green-light:#DFF3C6; --gray:#C4C4C4;
+      --black:#000000; --white:#FFFFFF; --green:#86BB27; --gray:#C4C4C4;
       --cell-size:68px;
       --tile-size: var(--cell-size);
       --tile-gap: 16px;
@@ -168,7 +168,7 @@
       renderPlayerNameInputs();
       function getPlayerNames(){ return Array.from(playerNamesWrap.querySelectorAll("input")).map((el,idx)=> el.value.trim() || `プレイヤー${idx+1}`); }
 
-      // events (kept same as before; omitted here for brevity in this snippet but present in file)
+      // events templates omitted in snippet for brevity (kept same as before in file)
       const EVENT_TEMPLATES = {
         junior: [ /* ... */ ],
         mid: [ /* ... */ ],
@@ -250,7 +250,7 @@
         const h = document.createElement('div'); h.className='event-title'; h.textContent = tmpl.title;
         const b = document.createElement('div'); b.className='event-body'; b.textContent = tmpl.body;
         const actions = document.createElement('div'); actions.style.display='flex'; actions.style.justifyContent='flex-end'; actions.style.gap='8px';
-        tmpl.choices.forEach(choice=>{
+        tmpl.choices && tmpl.choices.forEach(choice=>{
           const btn = document.createElement('button'); btn.type='button'; btn.className='choice-btn'; btn.textContent = choice.label;
           btn.addEventListener('click', async ()=> {
             const baseProb = (typeof choice.probGood === 'number') ? choice.probGood : 1.0;
@@ -284,23 +284,40 @@
         if(tmpl.choices && Array.isArray(tmpl.choices)) await showChoiceModal(playerIndex, tmpl); else await showEventModal(playerIndex, tmpl);
       }
 
-      /* Spiral-based path generator with even spacing + preserved connectivity + no-overlap */
+      /* Spiral-based path generator.
+         Changes: increase radial growth selectively so 1->2, 2->3 loop gaps are larger,
+         while sampling keeps approximately even center-to-center spacing to preserve connectivity.
+      */
       function buildConnectedPath(N, containerW, containerH, tileSize, gap){
         const cx = containerW/2, cy = containerH/2;
         const coords = [];
-        const spacing = Math.max(tileSize + Math.round(gap*0.7), tileSize + 8); // desired center-to-center
+        // target spacing between consecutive picked centers
+        const targetSpacing = Math.max(tileSize + Math.round(gap * 0.6), tileSize + 8);
+        // spiral parameters
+        const a = tileSize * 0.5; // base inner radius
+        const baseB = targetSpacing / (2 * Math.PI) * 0.95; // base radial growth per radian
         const maxR = Math.min(containerW, containerH) * 0.45;
-        const a = tileSize * 0.5; // spiral start radius
-        const b = spacing / (2 * Math.PI) * 0.95; // radial growth per radian (tuned for spacing)
-        const step = 0.08; // theta step for sampling
-        // compute thetaMax so r(thetaMax) ~ maxR
-        const thetaMax = Math.max(4 * Math.PI, (maxR - a) / b);
-        // generate points from outer -> inward so tile0 is outermost and last is center (goal)
+        // sampling resolution
+        const dTheta = 0.08;
+        // compute thetaMax so that r(thetaMax) approx maxR using baseB (we'll apply multipliers later)
+        let thetaMax = Math.max(4 * Math.PI, (maxR - a) / baseB);
+
+        // gap multipliers: stronger multiplier in outer/mid bands to widen 1->2 and 2->3 gaps
+        const outerMultiplier = 1.30; // increases spacing on outermost turns
+        const midMultiplier = 1.15;   // moderate increase for mid turns
+        // generate from outer -> inner so tile0 is outermost
         let theta = thetaMax;
         let last = null;
         while(coords.length < N - 1 && theta > 0){
-          const r = a + b * theta;
-          const angle = theta - Math.PI/2; // rotate spiral so it enters from top-ish
+          // determine multiplier by normalized position along theta
+          const tnorm = theta / thetaMax; // 1 at outermost, 0 at innermost
+          let bandMult = 1.0;
+          if(tnorm > 0.70) bandMult = outerMultiplier;
+          else if(tnorm > 0.40) bandMult = midMultiplier;
+          // local radial growth
+          const bLocal = baseB * bandMult;
+          const r = a + bLocal * theta;
+          const angle = theta - Math.PI/2; // rotate a bit so start/top alignment looks natural
           const x = Math.round(cx + Math.cos(angle) * r);
           const y = Math.round(cy + Math.sin(angle) * r);
           if(!last){
@@ -309,33 +326,37 @@
           } else {
             const dx = x - last.x, dy = y - last.y;
             const d = Math.hypot(dx,dy);
-            if(d >= spacing * 0.85){ // allow slight relaxation for smooth curve
+            // relax acceptance threshold slightly to keep smooth curve while preserving connectivity
+            if(d >= targetSpacing * 0.78){
               coords.push({x,y,ang:(Math.random()*2-1)*6});
               last = {x,y};
             }
           }
-          theta -= step;
+          theta -= dTheta;
         }
-        // if not enough points, fill intermediate circular bands outward-to-inward
+
+        // if not enough points, add intermediate circular placements biased toward outer bands
         if(coords.length < N - 1){
           let i = coords.length;
           while(coords.length < N - 1){
-            const t = (i / Math.max(1, N - 1)) * Math.PI * 2;
-            const r = maxR * (0.6 + 0.4 * (Math.random()*0.6));
-            const x = Math.round(cx + Math.cos(t) * r);
-            const y = Math.round(cy + Math.sin(t) * r);
+            const ratio = i / Math.max(1, N - 1);
+            const r = maxR * (0.55 + 0.45 * (1 - ratio) * 0.9); // bias to outer/mid so connectivity persists
+            const ang = (i / Math.max(1, N - 1)) * Math.PI * 2;
+            const x = Math.round(cx + Math.cos(ang) * r);
+            const y = Math.round(cy + Math.sin(ang) * r);
             coords.push({x,y,ang:(Math.random()*2-1)*6});
             i++;
           }
         }
-        // push center as final (goal)
+
+        // final goal in center
         coords.push({x: Math.round(cx), y: Math.round(cy), ang:0});
 
-        // enforce no-overlap conservatively (keep spiral connectivity)
+        // enforce no-overlap while preserving spiral connectivity feel
         const minCenter = tileSize + 6;
         enforceNoOverlap(coords, minCenter, containerW, containerH, tileSize);
 
-        // clamp
+        // clamp to bounds
         const clampMargin = tileSize;
         for(const c of coords){
           c.x = Math.max(clampMargin, Math.min(containerW - clampMargin, c.x));
@@ -345,7 +366,7 @@
         return coords;
       }
 
-      // repulsion routine: conservative iterative nudging while preserving center goal
+      // conservative repulsion routine (same idea as before)
       function enforceNoOverlap(points, minD, w, h, tileSize){
         if(!Array.isArray(points)) return;
         const maxPasses = 80;
@@ -359,7 +380,6 @@
               let dx = b.x - a.x, dy = b.y - a.y;
               let d = Math.hypot(dx, dy);
               if(d === 0){
-                // small random jitter
                 dx = (Math.random() - 0.5) * 2;
                 dy = (Math.random() - 0.5) * 2;
                 d = Math.hypot(dx, dy);
@@ -369,11 +389,9 @@
                 const ux = dx / d, uy = dy / d;
                 const move = Math.max(0.6, overlap / 2);
                 if(i === centerIdx){
-                  // move b only
                   b.x = Math.round(b.x + ux * move * 1.02);
                   b.y = Math.round(b.y + uy * move * 1.02);
                 } else if(j === centerIdx){
-                  // move a only
                   a.x = Math.round(a.x - ux * move * 1.02);
                   a.y = Math.round(a.y - uy * move * 1.02);
                 } else {
@@ -382,7 +400,6 @@
                   b.x = Math.round(b.x + ux * move * 0.95);
                   b.y = Math.round(b.y + uy * move * 0.95);
                 }
-                // clamp after nudging
                 const margin = tileSize/2 + 6;
                 a.x = Math.max(margin, Math.min(w - margin, a.x));
                 a.y = Math.max(margin, Math.min(h - margin, a.y));
@@ -393,13 +410,12 @@
             }
           }
           if(!moved) break;
-          // gentle relaxation if stuck
           if(pass > 60){
             minD *= 0.997;
           }
         }
 
-        // final safety: if still too close, fallback grid spiral
+        // final safety fallback
         for(let i=0;i<points.length;i++){
           for(let j=i+1;j<points.length;j++){
             const dx = points[j].x - points[i].x, dy = points[j].y - points[i].y;
@@ -484,7 +500,6 @@
           t.style.background = (["#86BB27","#DFF3C6","#C4C4C4","#000000"][i % 4]) || "#86BB27";
           board.appendChild(t);
         }
-        // set readable text color
         const rgb = hexToRgb(t.style.background || "#86BB27");
         const lum = (0.2126 * linearize(rgb.r/255) + 0.7152 * linearize(rgb.g/255) + 0.0722 * linearize(rgb.b/255));
         t.style.color = (lum > 0.6) ? "#000" : "#fff";
@@ -558,7 +573,7 @@
         logEl.scrollTop = logEl.scrollHeight;
       }
 
-      // movement / game loop (unchanged)
+      // movement/game loop unchanged...
       function moveTokenStep(playerIndex, pos){
         return new Promise(resolve=>{
           const t = ensureToken(playerIndex);
@@ -751,7 +766,7 @@
 
       attachHandlers();
       layoutTiles();
-      pushLog("UI ready — 間隔を均等に保ちつつ螺旋感のある並びを作り、重なりを禁止するロジックを入れました。");
+      pushLog("UI ready — 1周→2周、2周→3周の間隔をやや広げ、螺旋の導線を滑らかに保つよう調整しました。");
     }
   })();
   </script>
