@@ -7,12 +7,11 @@
   <style>
     :root{
       --black:#000000; --white:#FFFFFF; --green:#86BB27; --green-light:#DFF3C6; --gray:#C4C4C4;
-      --board-cols:10;
-      --board-rows:6;
-      --cell-size:68px; /* tile size (kept same) */
+      --cell-size:68px; /* tile size */
       --tile-size: var(--cell-size);
-      --tile-gap: 16px; /* increased gap as baseline */
+      --tile-gap: 16px; /* baseline gap */
       --board-padding: 24px;
+      --token-size:30px;
     }
     *{box-sizing:border-box}
     html,body{height:100%; margin:0}
@@ -22,6 +21,7 @@
       color:var(--black); background:var(--white); font-weight:900;
     }
 
+    /* Appbar */
     .appbar{position:sticky; top:0; z-index:1100; background:var(--white); border-bottom:1px solid rgba(0,0,0,0.06); display:flex; justify-content:center}
     .toolbar{width:100%; max-width:1200px; display:flex; gap:10px; align-items:center; padding:8px}
     .title{font-weight:900; font-size:15px; margin-right:auto; color:var(--black)}
@@ -37,47 +37,43 @@
 
     .board-wrap{background:var(--white); border:2px solid var(--gray); border-radius:14px; padding:var(--board-padding); position:relative; overflow:hidden; min-height:480px}
     .board{
-      position:relative; width:100%; height:760px; touch-action:none;
+      position:relative; width:100%; height:780px; touch-action:none;
     }
 
-    /* default (normal) tile: thin light-gray border */
+    /* tiles: normal tiles have thin grey border, eventish tiles green border */
     .tile{
       position:absolute;
       width:var(--tile-size);
       height:var(--tile-size);
       background:var(--white);
-      border:1px solid var(--gray); /* changed: thin gray for normal tiles */
+      border:1px solid var(--gray); /* normal */
       border-radius:6px;
       transform: translate(-50%,-50%);
-      display:grid;
-      place-items:center;
-      font-weight:900;
-      color:var(--black);
+      display:grid; place-items:center;
+      font-weight:900; color:var(--black);
       box-shadow: 0 6px 18px rgba(0,0,0,0.03);
       transition: transform 160ms linear;
+      z-index:2;
     }
-
-    /* event tiles: green border (per request) */
     .tile.event,
     .tile.client,
     .tile.workshop,
     .tile.bonus,
     .tile.penalty {
-      border:2px solid var(--green); /* unified green border for eventish tiles */
+      border:2px solid var(--green); /* unified green for event tiles */
       background: #fbfff6;
     }
-
     .tile.goal{ background: var(--green); color: #fff; border-color: var(--green) }
 
     .start-marker{
-      position:absolute; left:20px; top:20px; width:calc(var(--tile-size) * 1.1); height:calc(var(--tile-size) * 1.1);
+      position:absolute; left:18px; top:18px; width:calc(var(--tile-size) * 1.05); height:calc(var(--tile-size) * 1.05);
       display:grid; place-items:center; border-radius:10px; border:2px dashed var(--gray); color:var(--black); font-weight:900; background:#fff;
-      z-index:5;
+      z-index:6;
     }
 
     .token{
       position:absolute;
-      width:30px; height:30px; border-radius:50%; display:grid; place-items:center; color:#fff; font-weight:900;
+      width:var(--token-size); height:var(--token-size); border-radius:50%; display:grid; place-items:center; color:#fff; font-weight:900;
       border:2px solid #000; transform: translate(-50%,-50%); z-index:20;
       box-shadow:0 8px 20px rgba(0,0,0,0.06);
       pointer-events:none;
@@ -144,8 +140,8 @@
     const START_MARKER = $("#start-marker");
 
     const TILE_SIZE = Number(getComputedStyle(document.documentElement).getPropertyValue('--tile-size')) || 68;
-    const NUM_TILES = 60; // user requested, center included as last tile (A)
-    const BASE_JITTER = 14;
+    const NUM_TILES = 60; // per user: 60 tiles; last will be goal (center)
+    const BASE_JITTER = 12;
     const MIN_GAP = TILE_SIZE + (Number(getComputedStyle(document.documentElement).getPropertyValue('--tile-gap')) || 16);
 
     let tileCoords = [];
@@ -177,102 +173,121 @@
       return Array.from(playerNamesWrap.querySelectorAll("input")).map((i,idx)=> i.value.trim() || `プレイヤー${idx+1}`);
     }
 
-    // Build spiral coordinates with an extra "turn" to give more room and avoid center crowding
-    function buildSpiralCoords(N, containerW, containerH, tileSize){
-      const cx = containerW / 2, cy = containerH / 2;
-      const margin = tileSize * 1.8;
-      // increase Rmax to give more room (expand outer radius)
-      let Rmax = Math.min(containerW, containerH) / 2 - margin;
-      Rmax *= 1.18; // slightly larger outer radius to reduce overlaps
-      const Rmin = Math.max(tileSize * 0.8, 18);
-      // add an extra turn compared to prior version
-      let approxTurns = Math.max(1.2, Math.min(8, (N / 22))); // increased baseline to produce more turns (3rd loop effect)
-      approxTurns = approxTurns + 1.0; // explicitly add one more turn to create extra spiral loop
-      const maxTheta = approxTurns * 2 * Math.PI;
+    // NEW layout: place tiles on concentric rectangular rings (manhattan-style perimeters).
+    // This avoids overlaps by design: each ring is inset from previous by tileSize + gap + padding.
+    function buildRingCoords(N, containerW, containerH, tileSize, gap){
+      const coords = [];
+      const cx = containerW/2, cy = containerH/2;
+      // we'll compute rings from outer to inner, each ring is a rectangle perimeter
+      // start with an outer rectangle that fills much of container with margin
+      const margin = Math.max(tileSize*1.4, 24);
+      let left = margin, top = margin, right = containerW - margin, bottom = containerH - margin;
+      // keep shrinking by ringInset each time; ringInset ensures rings won't overlap:
+      const ringInset = tileSize + gap + Math.round(tileSize*0.2); // extra spacing between rings
+      // function to generate perimeter points for current rectangle
+      function perimeterPoints(l,t,r,b, desiredSpacing){
+        const w = Math.max(1, r - l);
+        const h = Math.max(1, b - t);
+        const perim = 2*(w + h);
+        const count = Math.max(4, Math.floor(perim / desiredSpacing));
+        const pts = [];
+        // distribute along four edges proportionally
+        const edgeCounts = [
+          Math.max(1, Math.round(count * (w / perim))), // top
+          Math.max(1, Math.round(count * (h / perim))), // right
+          Math.max(1, Math.round(count * (w / perim))), // bottom
+          Math.max(1, Math.round(count * (h / perim)))  // left
+        ];
+        // adjust to ensure total equals count
+        let sum = edgeCounts.reduce((a,b)=>a+b,0);
+        let idxAdjust = 0;
+        while(sum < count){ edgeCounts[idxAdjust%4]++; sum++; idxAdjust++; }
+        while(sum > count){ edgeCounts[idxAdjust%4] = Math.max(1, edgeCounts[idxAdjust%4]-1); sum--; idxAdjust++; }
 
-      // create base coords
-      let coords = [];
-      for(let i=0;i<N;i++){
-        const t = i / Math.max(1, N - 1);
-        const theta = t * maxTheta;
-        // map theta to radius but bias so inner area isn't too squeezed
-        // use a slightly nonlinear radial interpolation to keep inner radius larger
-        const u = theta / maxTheta;
-        let r = Rmax - (Rmax - Rmin) * Math.pow(u, 0.85); // power <1 keeps more room inside
-        // angle: start at -90deg (top) and proceed clockwise
-        const angle = -Math.PI/2 + theta;
-        // jitter radial and perpendicular
-        const radialJitter = (Math.random()*2 -1) * (tileSize * 0.06);
-        r = Math.max(Rmin, r + radialJitter);
-        let x = cx + r * Math.cos(angle);
-        let y = cy + r * Math.sin(angle);
-        // perpendicular jitter larger to add irregularity
-        const jitterAngle = angle + Math.PI/2;
-        const jitter = (Math.random()*2 - 1) * BASE_JITTER * (0.6 + 0.8 * (1 - u)); // slightly more jitter toward outer, scaled
-        x += Math.cos(jitterAngle) * jitter;
-        y += Math.sin(jitterAngle) * jitter;
-        // small angular offset
-        const angOff = (Math.random()*2 -1) * (Math.PI/180 * 8);
-        coords.push({x,y,angle:angle+angOff,r,theta,i});
-      }
-
-      // measure closest adjacent distances and if too small, scale radial distances outward
-      function minAdjDist(arr){
-        let min = Infinity;
-        for(let i=1;i<arr.length;i++){
-          const a = arr[i-1], b = arr[i];
-          const dx = a.x - b.x, dy = a.y - b.y;
-          const d = Math.hypot(dx,dy);
-          if(d < min) min = d;
+        // top edge left->right
+        for(let i=0;i<edgeCounts[0];i++){
+          const x = l + (i+0.5) * (w / edgeCounts[0]);
+          const y = t;
+          pts.push({x,y});
         }
-        return min;
-      }
-      let minDist = minAdjDist(coords);
-      const desired = MIN_GAP;
-      if(minDist < desired){
-        const scale = Math.min(3.0, desired / Math.max(1e-3, minDist));
-        // gently push points outward relative to center
-        coords = coords.map(c=>{
-          const vx = c.x - cx, vy = c.y - cy;
-          return { ...c, x: cx + vx * scale, y: cy + vy * scale, r: c.r * scale };
-        });
-        minDist = minAdjDist(coords);
+        // right edge top->bottom
+        for(let i=0;i<edgeCounts[1];i++){
+          const x = r;
+          const y = t + (i+0.5) * (h / edgeCounts[1]);
+          pts.push({x,y});
+        }
+        // bottom edge right->left
+        for(let i=0;i<edgeCounts[2];i++){
+          const x = r - (i+0.5) * (w / edgeCounts[2]);
+          const y = b;
+          pts.push({x,y});
+        }
+        // left edge bottom->top
+        for(let i=0;i<edgeCounts[3];i++){
+          const x = l;
+          const y = b - (i+0.5) * (h / edgeCounts[3]);
+          pts.push({x,y});
+        }
+        return pts;
       }
 
-      // push a handful of inner points outward more to avoid center crowding
-      const innerBoostCount = Math.max(5, Math.floor(N * 0.18)); // more than before
-      for(let k=1;k<=innerBoostCount;k++){
-        const idx = N - k;
-        if(idx >= 0 && idx < coords.length){
-          const c = coords[idx];
-          const vx = c.x - cx, vy = c.y - cy;
-          const factor = 1 + (0.28 * (innerBoostCount - (k-1)) / innerBoostCount);
-          coords[idx].x = cx + vx * factor;
-          coords[idx].y = cy + vy * factor;
+      // desired spacing along perimeter: try tileSize + gap
+      const desiredSpacing = tileSize + gap;
+      // generate rings until we collected N-1 (reserve center)
+      let attempts = 0;
+      while(coords.length < N - 1 && (right - left > tileSize && bottom - top > tileSize) && attempts < 20){
+        const pts = perimeterPoints(left, top, right, bottom, desiredSpacing);
+        // add jitter and small rotations but ensure not too large to cause overlaps
+        for(const p of pts){
+          if(coords.length >= N - 1) break;
+          const jitterX = (Math.random()*2 -1) * (BASE_JITTER * 0.75);
+          const jitterY = (Math.random()*2 -1) * (BASE_JITTER * 0.75);
+          coords.push({x: p.x + jitterX, y: p.y + jitterY, ang: (Math.random()*2-1)*8});
+        }
+        // inset for next ring
+        left += ringInset;
+        top += ringInset;
+        right -= ringInset;
+        bottom -= ringInset;
+        attempts++;
+      }
+
+      // if we still need more tiles, fill remaining by interpolating additional points along last rectangle center lines without overlapping
+      if(coords.length < N - 1){
+        const remaining = (N - 1) - coords.length;
+        const centerX = cx, centerY = cy;
+        for(let i=0;i<remaining;i++){
+          const angle = (i/remaining) * Math.PI * 2;
+          const radius = Math.min(containerW, containerH) * 0.12 + (i%3) * (tileSize*0.4);
+          const x = centerX + Math.cos(angle) * radius + (Math.random()*2-1)*BASE_JITTER;
+          const y = centerY + Math.sin(angle) * radius + (Math.random()*2-1)*BASE_JITTER;
+          coords.push({x,y,ang:(Math.random()*2-1)*8});
         }
       }
 
-      // clamp inside board bounds leaving margin
-      const clampMargin = tileSize;
-      coords = coords.map(c=>{
-        const nx = Math.max(clampMargin, Math.min(containerW - clampMargin, c.x));
-        const ny = Math.max(clampMargin, Math.min(containerH - clampMargin, c.y));
-        return {...c, x:nx, y:ny};
-      });
+      // append center tile as last (goal)
+      const centerX = cx, centerY = cy;
+      coords.push({x:centerX, y:centerY, ang:0});
 
+      // final clamp to keep inside board with margin
+      const marginClamp = tileSize;
+      for(const c of coords){
+        c.x = Math.max(marginClamp, Math.min(containerW - marginClamp, c.x));
+        c.y = Math.max(marginClamp, Math.min(containerH - marginClamp, c.y));
+      }
       return coords;
     }
 
     function layoutTiles(){
       board.querySelectorAll(".tile").forEach(n=>n.remove());
       const rect = board.getBoundingClientRect();
-      const coords = buildSpiralCoords(NUM_TILES, rect.width, rect.height, TILE_SIZE);
+      const coords = buildRingCoords(NUM_TILES, rect.width, rect.height, TILE_SIZE, Number(getComputedStyle(document.documentElement).getPropertyValue('--tile-gap')) || 16);
       tileCoords = coords;
       coords.forEach((c, idx)=>{
         const div = document.createElement("div");
         div.className = "tile";
         div.dataset.pathIndex = String(idx);
-        // deterministic event assignment by idx modulo to recreate game-like distribution
+        // event assignment deterministic by idx modulo (keeps gameplay logic)
         if(idx === NUM_TILES - 1){
           div.classList.add("goal");
         } else if(idx % 11 === 0){
@@ -286,9 +301,10 @@
         } else if(idx % 7 === 0){
           div.classList.add("penalty");
         }
-        const rot = (Math.random()*2 - 1) * 8; // up to +/-8deg for more randomness
         div.style.left = `${c.x}px`;
         div.style.top = `${c.y}px`;
+        // rotate a little for organic feel
+        const rot = c.ang || ((Math.random()*2-1)*8);
         div.style.transform = `translate(-50%,-50%) rotate(${rot}deg)`;
         board.appendChild(div);
       });
@@ -539,7 +555,7 @@
 
     attachHandlers();
     layoutTiles();
-    pushLog("UI ready — 3周め(追加ループ)を考慮して拡げ、イベントタイルを緑に統一しました。");
+    pushLog("UI ready — リング（複数周）方式で内径を小さく、重なり回避を最優先に配置しました。");
 
   })();
   </script>
