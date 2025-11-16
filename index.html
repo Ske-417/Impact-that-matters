@@ -34,54 +34,12 @@
     @media (max-width:980px){ .wrap{grid-template-columns:1fr} }
     .board-wrap{background:var(--white); border:2px solid var(--gray); border-radius:14px; padding:var(--board-padding); position:relative; overflow:auto; min-height:520px}
     .board{position:relative; width:100%; height:860px; touch-action:none; background: linear-gradient(180deg, rgba(0,0,0,0.01), rgba(0,0,0,0.00));}
-    .tile{
-      position:absolute;
-      width:var(--tile-size);
-      height:var(--tile-size);
-      background:#f6f8fb;
-      border:2px solid rgba(0,0,0,0.06);
-      border-radius:8px;
-      transform: translate(-50%,-50%);
-      display:grid; place-items:center;
-      font-weight:900; color:var(--black);
-      box-shadow: 0 6px 14px rgba(14,20,25,0.06);
-      transition: transform 120ms linear;
-      z-index:2;
-      font-size:12px;
-    }
+    .tile{position:absolute; width:var(--tile-size); height:var(--tile-size); background:#f6f8fb; border:2px solid rgba(0,0,0,0.06); border-radius:8px; transform: translate(-50%,-50%); display:grid; place-items:center; font-weight:900; color:var(--black); box-shadow: 0 6px 14px rgba(14,20,25,0.06); transition: transform 120ms linear; z-index:2; font-size:12px;}
     .tile:hover{ box-shadow: 0 10px 26px rgba(14,20,25,0.12); }
-    .tile.event, .tile.client, .tile.workshop, .tile.bonus, .tile.penalty {
-      border:3px solid var(--green);
-      background:#f7fff6;
-    }
-    .tile.goal{
-      background: var(--green);
-      color: #fff;
-      border-color: var(--green);
-      font-weight:900;
-      box-shadow: 0 10px 30px rgba(134,187,39,0.18);
-    }
-    .start-marker{
-      position:absolute;
-      width:calc(var(--tile-size) * 0.9);
-      height:calc(var(--tile-size) * 0.28);
-      display:grid; place-items:center;
-      border-radius:6px; border:1px solid rgba(0,0,0,0.08);
-      color:var(--black); font-weight:900; background:rgba(134,187,39,0.08);
-      z-index:6;
-      transform: translate(-50%,-125%);
-      pointer-events:none;
-      font-size:12px;
-    }
-    .token{
-      position:absolute;
-      width:var(--token-size); height:var(--token-size); border-radius:50%; display:grid; place-items:center; color:#fff; font-weight:900;
-      border:2px solid #000; transform: translate(-50%,-50%);
-      box-shadow:0 8px 20px rgba(0,0,0,0.08);
-      pointer-events:none;
-      transition: transform var(--token-move-ms) linear;
-      z-index:30;
-    }
+    .tile.event, .tile.client, .tile.workshop, .tile.bonus, .tile.penalty { border:3px solid var(--green); background:#f7fff6; }
+    .tile.goal{ background: var(--green); color: #fff; border-color: var(--green); font-weight:900; box-shadow: 0 10px 30px rgba(134,187,39,0.18); }
+    .start-marker{position:absolute; width:calc(var(--tile-size) * 0.9); height:calc(var(--tile-size) * 0.28); display:grid; place-items:center; border-radius:6px; border:1px solid rgba(0,0,0,0.08); color:var(--black); font-weight:900; background:rgba(134,187,39,0.08); z-index:6; transform: translate(-50%,-125%); pointer-events:none; font-size:12px;}
+    .token{position:absolute; width:var(--token-size); height:var(--token-size); border-radius:50%; display:grid; place-items:center; color:#fff; font-weight:900; border:2px solid #000; transform: translate(-50%,-50%); box-shadow:0 8px 20px rgba(0,0,0,0.08); pointer-events:none; transition: transform var(--token-move-ms) linear; z-index:30;}
     .token.finished{ opacity:0.85; border-color:var(--gray) }
     .sidebar{border:2px solid var(--gray); border-radius:14px; padding:14px}
     .stat{display:flex; justify-content:space-between; padding:10px; border-radius:10px}
@@ -169,13 +127,12 @@
       renderPlayerNameInputs();
       function getPlayerNames(){ return Array.from(playerNamesWrap.querySelectorAll("input")).map((el,idx)=> el.value.trim() || `プレイヤー${idx+1}`); }
 
-      // Expanded event templates with probabilistic choices (success/failure)
+      // Event templates (kept same as prior).
       const EVENT_TEMPLATES = {
         junior: [
           { title:"デロイトに入社、念願のコンサル職！", body:"入社し念願のコンサル職に就けた！思ったよりも温かみのあるオフィスで安心して発言できた！", changes:{ learning:0, motivation:10, rating:3, mental:0, responsibility:0 } },
           { title:"初めての長期プロジェクト配属", body:"初めて長期プロジェクトに配属された！2年かかる予定のなかなかない機会だ。しっかり頑張ろう！", changes:{ learning:0, motivation:5, rating:0, mental:0, responsibility:5 } },
           { title:"1年で昇進！", body:"入社から一年が経過して職務にも慣れてきた。実績が評価されアナリストからコンサルタントに昇進した！", changes:{ learning:0, motivation:0, rating:5, mental:0, responsibility:5 } },
-          // branching with probabilistic success
           { title:"有名企業からの直案件（相談）", body:"有名企業の社長から直々に案件が！1ヶ月で意味あるインパクトを起こせるか問われる。受注しますか？", choices:[
             { label:"受注する（挑戦）", probGood:0.65, success:{ learning:5, rating:5, motivation:4, responsibility:5, mental:0 }, failure:{ learning:4, rating:-2, motivation:1, responsibility:2, mental:0 }, resultTextSuccess:"受注成功！評価と責任が大きく伸びた。", resultTextFailure:"挑戦は失敗したが多くを学んだ。次に活かそう。" },
             { label:"見送る（慎重）", probGood:1.0, success:{ learning:1, rating:1, motivation:1, responsibility:0, mental:0 }, resultTextSuccess:"今回は見送った。安定を取り次に備える判断だった。" }
@@ -211,7 +168,6 @@
         ]
       };
 
-      // pick event based on stage and lightweight weighting
       function eventStageForPlayer(pl){
         const pos = typeof pl.position === "number" ? pl.position : 0;
         if(pos >= 30) return "senior";
@@ -241,7 +197,6 @@
         return pool[pool.length-1];
       }
 
-      // modal helpers
       function removeFallbacks(){ document.querySelectorAll('.modal-fallback').forEach(e=>e.remove()); }
       function showCard(title, body){
         return new Promise(resolve=>{
@@ -258,19 +213,16 @@
           ok.focus();
         });
       }
-
       function applyAttributeChanges(playerIndex, changes){
         const pl = state.players[playerIndex];
         if(!pl) return;
         const attrs = ['learning','rating','mental','motivation','responsibility'];
         attrs.forEach(a=>{
           if(typeof changes[a] === 'number'){
-            // apply positive or negative as provided (we added failure which can be negative)
             pl[a] = Math.round((pl[a]||0) + changes[a]);
             if(pl[a] < 0) pl[a] = 0;
           }
         });
-        // ensure attributes remain reasonable
         pushLog(`${pl.name}: 属性が変化しました → ${Object.entries(changes).filter(([k,v])=>v!==0).map(([k,v])=> `${k} ${v>0?'+':''}${v}`).join(', ')}`, "ok");
         renderPlayersPanel();
       }
@@ -292,14 +244,10 @@
         chg.textContent = parts.join('　');
         const actions = document.createElement('div'); actions.style.textAlign='right';
         const ok = document.createElement('button'); ok.className='primary'; ok.textContent='OK';
-        ok.addEventListener('click', ()=>{
-          applyAttributeChanges(playerIndex, changes);
-          overlay.remove();
-        });
+        ok.addEventListener('click', ()=>{ applyAttributeChanges(playerIndex, changes); overlay.remove(); });
         actions.appendChild(ok);
         card.appendChild(h); card.appendChild(b); card.appendChild(chg); card.appendChild(actions);
-        overlay.appendChild(card); document.body.appendChild(overlay);
-        ok.focus();
+        overlay.appendChild(card); document.body.appendChild(overlay); ok.focus();
       }
 
       async function showChoiceModal(playerIndex, tmpl){
@@ -312,10 +260,8 @@
         tmpl.choices.forEach(choice=>{
           const btn = document.createElement('button'); btn.type='button'; btn.className='choice-btn'; btn.textContent = choice.label;
           btn.addEventListener('click', async ()=> {
-            // compute success probability
             const baseProb = (typeof choice.probGood === 'number') ? choice.probGood : 1.0;
             const pl = state.players[playerIndex];
-            // small modifier: higher rating gives slightly more success chance
             const repBonus = Math.max(-0.2, Math.min(0.2, ((pl.rating||50)-50)/250));
             const prob = Math.max(0.02, Math.min(0.98, baseProb + repBonus));
             const success = state.rng() < prob;
@@ -325,7 +271,6 @@
               overlay.remove();
               await showCard("成功！", choice.resultTextSuccess || choice.resultText || "良い結果が得られました。");
             } else {
-              // failure path: apply failure changes if provided, else apply a default: learning up, rating down slightly
               const fail = choice.failure || { learning:4, rating:-2, motivation:1 };
               applyAttributeChanges(playerIndex, fail);
               overlay.remove();
@@ -343,21 +288,16 @@
       async function handleEventTile(playerIndex){
         const tmpl = pickEventForPlayer(playerIndex);
         if(!tmpl) return;
-        if(tmpl.choices && Array.isArray(tmpl.choices)){
-          await showChoiceModal(playerIndex, tmpl);
-        } else {
-          await showEventModal(playerIndex, tmpl);
-        }
+        if(tmpl.choices && Array.isArray(tmpl.choices)) await showChoiceModal(playerIndex, tmpl); else await showEventModal(playerIndex, tmpl);
       }
 
-      /* ----- Improved path generation: prefer axis-aligned connectors ----- */
+      /* Improved path generation: inner rings get smaller spacing (more points), connectors prefer axis alignment and avoid near overlaps */
       function buildConnectedPath(N, containerW, containerH, tileSize, gap){
         const cx = containerW/2, cy = containerH/2;
         const coords = [];
         const margin = Math.max(tileSize*1.6, 28);
         let left = margin, top = margin, right = containerW - margin, bottom = containerH - margin;
         const ringInset = tileSize + gap + Math.round(tileSize*0.4);
-
         function perimeterPoints(l,t,r,b, spacing){
           const w = Math.max(1, r - l), h = Math.max(1, b - t);
           const perim = 2*(w + h);
@@ -381,7 +321,11 @@
         const rings = [];
         let attempts = 0;
         while(coords.length < N - 1 && right - left > tileSize && bottom - top > tileSize && attempts < 24){
-          const pts = perimeterPoints(left, top, right, bottom, tileSize + gap);
+          // spacing: outer rings have slightly larger spacing, inner rings smaller (so inner rings get more points)
+          const ringIndex = attempts;
+          const spacingScale = (ringIndex >= 2) ? 0.72 : (ringIndex === 1 ? 0.92 : 1.08);
+          const spacing = Math.max(8, Math.round((tileSize + gap) * spacingScale));
+          const pts = perimeterPoints(left, top, right, bottom, spacing);
           rings.push({pts, l:left, t:top, r:right, b:bottom});
           left += ringInset; top += ringInset; right -= ringInset; bottom -= ringInset;
           attempts++;
@@ -393,21 +337,19 @@
           const pts = ring.pts.slice();
           let startIdx = 0;
           if(prevExit){
-            // choose candidate that minimizes distance minus axis alignment benefit
+            // choose candidate minimizing (dist - alignmentBias) but also ensure not too close to prevExit area
             let best = 0, bestScore = Infinity;
             for(let k=0;k<pts.length;k++){
               const dx = pts[k].x - prevExit.x, dy = pts[k].y - prevExit.y;
               const dist = Math.hypot(dx,dy);
               const absX = Math.abs(dx), absY = Math.abs(dy);
-              // alignment: 1 = perfectly axis-aligned, 0 = perfectly diagonal
               const alignment = Math.abs(absX - absY) / (absX + absY + 1e-6);
-              // score: prefer small dist and high alignment; adjust penalty factor empirically
-              const score = dist - (alignment * 48); // 48 px bias toward axis alignment
+              const score = dist - (alignment * 48);
               if(score < bestScore){ bestScore = score; best = k; }
             }
             startIdx = best;
           } else {
-            // first ring: pick point closest to top-left corner to make tile0 at top-left
+            // start near top-left for ring 0
             let best = 0, bestD = Infinity;
             const topLeft = {x: ring.l + 6, y: ring.t + 6};
             for(let k=0;k<pts.length;k++){
@@ -418,28 +360,51 @@
             startIdx = best;
           }
 
+          // if this ring's chosen start would make last points too close to previous ring points, shift startIdx
+          function minDistToPrev(startIndex){
+            if(!prevExit) return Infinity;
+            let minD = Infinity;
+            for(let kk=0; kk<pts.length; kk++){
+              const idx = (startIndex + kk) % pts.length;
+              const dx = pts[idx].x - prevExit.x, dy = pts[idx].y - prevExit.y;
+              const d = Math.hypot(dx,dy);
+              if(d < minD) minD = d;
+            }
+            return minD;
+          }
+          if(prevExit){
+            const minD = minDistToPrev(startIdx);
+            const threshold = TILE_SIZE * 1.05; // minimum comfortable distance
+            if(minD < threshold){
+              // shift startIdx by approx quarter to avoid clustering with previous ring
+              startIdx = (startIdx + Math.round(pts.length/4)) % pts.length;
+            }
+          }
+
           for(let k=0;k<pts.length && coords.length < N - 1;k++){
             const idx = (startIdx + k) % pts.length;
             const jitterX = (Math.random()*2 -1) * (BASE_JITTER * 0.35);
             const jitterY = (Math.random()*2 -1) * (BASE_JITTER * 0.35);
-            coords.push({x: pts[idx].x + jitterX, y: pts[idx].y + jitterY, ang: (Math.random()*2-1)*6});
+            coords.push({x: pts[idx].x + jitterX, y: pts[idx].y + jitterY, ang: (Math.random()*2-1)*6, ringIndex: ri});
           }
           prevExit = coords[coords.length-1];
           if(ri < rings.length - 1 && coords.length < N - 1){
             const inner = rings[ri+1];
             const innerCenter = {x: (inner.l + inner.r)/2, y: (inner.t + inner.b)/2};
-            // connector: prefer a point that lies horizontally or vertically nearer to prevExit
-            // compute a connector near 25% toward inner center but nudge to be axis-aligned
             let connX = prevExit.x + (innerCenter.x - prevExit.x) * 0.25;
             let connY = prevExit.y + (innerCenter.y - prevExit.y) * 0.25;
-            // nudge toward axis alignment: snap small fraction to either x or y of prevExit if close
             const dx = Math.abs(innerCenter.x - prevExit.x), dy = Math.abs(innerCenter.y - prevExit.y);
-            if(Math.abs(dx - dy) > 30){ // if one direction dominant, align more strongly
-              if(dx > dy) connY = prevExit.y; else connX = prevExit.x;
+            if(Math.abs(dx - dy) > 30){ if(dx > dy) connY = prevExit.y; else connX = prevExit.x; }
+            // small safety offset outward if connector is too close to any previous coords
+            const safetyMin = TILE_SIZE * 0.9;
+            const closeToAny = coords.some(pc => Math.hypot(pc.x - connX, pc.y - connY) < safetyMin);
+            if(closeToAny){
+              connX += (Math.random()*2-1) * TILE_SIZE * 0.6;
+              connY += (Math.random()*2-1) * TILE_SIZE * 0.6;
             }
             connX += (Math.random()*2-1)*(BASE_JITTER*0.6);
             connY += (Math.random()*2-1)*(BASE_JITTER*0.6);
-            coords.push({x: connX, y: connY, ang: (Math.random()*2-1)*6});
+            coords.push({x: connX, y: connY, ang: (Math.random()*2-1)*6, ringIndex: ri});
             prevExit = coords[coords.length-1];
           }
         }
@@ -451,18 +416,17 @@
             const radius = Math.min(containerW, containerH) * 0.11 + (i%3) * (tileSize*0.4);
             const x = cx + Math.cos(angle) * radius + (Math.random()*2-1)*BASE_JITTER;
             const y = cy + Math.sin(angle) * radius + (Math.random()*2-1)*BASE_JITTER;
-            coords.push({x,y,ang:(Math.random()*2-1)*8});
+            coords.push({x,y,ang:(Math.random()*2-1)*8, ringIndex: rings.length});
           }
         }
 
-        coords.push({x: cx, y: cy, ang:0});
+        coords.push({x: cx, y: cy, ang:0, ringIndex: rings.length});
         const clampMargin = tileSize;
         for(const c of coords){ c.x = Math.max(clampMargin, Math.min(containerW - clampMargin, c.x)); c.y = Math.max(clampMargin, Math.min(containerH - clampMargin, c.y)); }
         if(coords.length > N) coords.length = N;
         return coords;
       }
 
-      // tile layout and START align
       function layoutTiles(){
         board.querySelectorAll(".tile").forEach(n=>n.remove());
         const rect = board.getBoundingClientRect();
@@ -487,12 +451,32 @@
         placeAllTokens();
       }
 
-      // token helpers
+      // token helpers with auto text-color based on background brightness
       function ensureToken(i){
         let t = document.getElementById(`token-${i}`);
-        if(!t){ t = document.createElement("div"); t.className = "token"; t.id = `token-${i}`; t.textContent = String(i+1); t.style.background = (["#86BB27","#DFF3C6","#C4C4C4","#000000"][i % 4]) || "#86BB27"; board.appendChild(t); }
+        if(!t){
+          t = document.createElement("div"); t.className = "token"; t.id = `token-${i}`; t.textContent = String(i+1);
+          board.appendChild(t);
+        }
+        // color palette
+        const palette = ["#86BB27","#DFF3C6","#C4C4C4","#000000"];
+        const bg = palette[i % palette.length];
+        t.style.background = bg;
+        // set text color based on relative luminance
+        const rgb = hexToRgb(bg);
+        const lum = (0.2126 * linearize(rgb.r/255) + 0.7152 * linearize(rgb.g/255) + 0.0722 * linearize(rgb.b/255));
+        // threshold: if luminance > 0.6 use black, else white
+        t.style.color = (lum > 0.6) ? "#000" : "#fff";
         return t;
       }
+      function hexToRgb(hex){
+        hex = hex.replace('#','');
+        if(hex.length===3) hex = hex.split('').map(c=>c+c).join('');
+        const num = parseInt(hex,16);
+        return { r:(num>>16)&255, g:(num>>8)&255, b:num&255 };
+      }
+      function linearize(c){ return (c <= 0.03928) ? c/12.92 : Math.pow((c+0.055)/1.055, 2.4); }
+
       function placeAllTokens(){
         const groups = new Map();
         state.players.forEach((pl,i)=>{
@@ -524,9 +508,7 @@
         });
       }
 
-      function pushLog(text, kind){
-        const p = document.createElement("div"); p.textContent = `[${(new Date()).toLocaleTimeString()}] ${text}`; if(kind === "ok") p.style.color = "green"; if(kind === "bad") p.style.color = "#333"; logEl.appendChild(p); logEl.scrollTop = logEl.scrollHeight;
-      }
+      function pushLog(text, kind){ const p = document.createElement("div"); p.textContent = `[${(new Date()).toLocaleTimeString()}] ${text}`; if(kind === "ok") p.style.color = "green"; if(kind === "bad") p.style.color = "#333"; logEl.appendChild(p); logEl.scrollTop = logEl.scrollHeight; }
 
       function moveTokenStep(playerIndex, pos){
         return new Promise(resolve=>{
@@ -577,31 +559,21 @@
             await showCard("ゴール（完了）", `${pl.name} がゴールしました！`);
             checkAllFinishedAndShowResults();
           }
-        } else {
-          renderPlayersPanel();
-        }
+        } else { renderPlayersPanel(); }
       }
 
-      function updateRollState(){
-        const rbtn = document.getElementById('btn-roll');
-        if(!rbtn) return;
-        rbtn.disabled = !(state.started && !state.animating);
-      }
+      function updateRollState(){ const rbtn = document.getElementById('btn-roll'); if(!rbtn) return; rbtn.disabled = !(state.started && !state.animating); }
 
       function isGameFinished(){ return state.players.length>0 && state.players.every(p=>p.finished); }
 
       function showFinalResults(){
-        // compute simple score and sort
         const results = state.players.map(p=>{
           const score = ((p.learning||0)*0.30 + (p.rating||0)*0.30 + (p.motivation||0)*0.20 + (p.responsibility||0)*0.15 + (p.mental||0)*0.05);
           return {...p, score: Math.round(score*100)/100};
         }).sort((a,b)=> b.score - a.score);
-        // build html
         let body = "最終結果\n\n";
         body += "順位\t名前\t学び\t評価\tメンタル\tモチベ\t責任\tスコア\n";
-        results.forEach((r, idx)=>{
-          body += `${idx+1}\t${r.name}\t${r.learning}\t${r.rating}\t${r.mental}\t${r.motivation}\t${r.responsibility}\t${r.score}\n`;
-        });
+        results.forEach((r, idx)=>{ body += `${idx+1}\t${r.name}\t${r.learning}\t${r.rating}\t${r.mental}\t${r.motivation}\t${r.responsibility}\t${r.score}\n`; });
         removeFallbacks();
         const overlay = document.createElement('div'); overlay.className='modal-fallback';
         const card = document.createElement('div'); card.className='card';
@@ -614,54 +586,14 @@
         card.appendChild(h); card.appendChild(pre); card.appendChild(actions); overlay.appendChild(card); document.body.appendChild(overlay);
       }
 
-      function checkAllFinishedAndShowResults(){
-        if(isGameFinished()){
-          setTimeout(()=> showFinalResults(), 200);
-        }
-      }
+      function checkAllFinishedAndShowResults(){ if(isGameFinished()){ setTimeout(()=> showFinalResults(), 200); } }
 
-      async function rollTurn(){
-        if(!state.started || state.animating) return;
-        const current = state.currentPlayerIndex;
-        const val = Math.floor(Math.random()*6)+1;
-        if(diceEl) diceEl.textContent = String(val);
-        pushLog(`${state.players[current].name} がサイコロを振りました`);
-        await animateMove(current, val);
-        nextPlayerTurn();
-      }
+      async function rollTurn(){ if(!state.started || state.animating) return; const current = state.currentPlayerIndex; const val = Math.floor(Math.random()*6)+1; if(diceEl) diceEl.textContent = String(val); pushLog(`${state.players[current].name} がサイコロを振りました`); await animateMove(current, val); nextPlayerTurn(); }
 
-      function nextPlayerTurn(){
-        const total = state.players.length;
-        if(total === 0) return;
-        let i = state.currentPlayerIndex;
-        for(let c=0;c<total;c++){
-          i = (i+1) % total;
-          const cand = state.players[i];
-          if(!cand) continue;
-          if(cand.finished) continue;
-          state.currentPlayerIndex = i;
-          statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
-          highlightActive();
-          return;
-        }
-        statCurrentEl.textContent = "-";
-      }
+      function nextPlayerTurn(){ const total = state.players.length; if(total === 0) return; let i = state.currentPlayerIndex; for(let c=0;c<total;c++){ i = (i+1) % total; const cand = state.players[i]; if(!cand) continue; if(cand.finished) continue; state.currentPlayerIndex = i; statCurrentEl.textContent = state.players[state.currentPlayerIndex].name; highlightActive(); return; } statCurrentEl.textContent = "-"; }
 
-      function highlightActive(){
-        Array.from(playersPanelEl.children).forEach((row, idx)=>{
-          if(idx === state.currentPlayerIndex) row.style.boxShadow = "0 0 0 3px rgba(134,187,39,0.12) inset";
-          else row.style.boxShadow = "";
-        });
-        highlightActiveToken();
-      }
-      function highlightActiveToken(){
-        state.players.forEach((pl,i)=>{
-          const t = document.getElementById(`token-${i}`);
-          if(!t) return;
-          if(i === state.currentPlayerIndex) t.style.outline = "3px solid rgba(0,0,0,0.08)";
-          else t.style.outline = "none";
-        });
-      }
+      function highlightActive(){ Array.from(playersPanelEl.children).forEach((row, idx)=>{ if(idx === state.currentPlayerIndex) row.style.boxShadow = "0 0 0 3px rgba(134,187,39,0.12) inset"; else row.style.boxShadow = ""; }); highlightActiveToken(); }
+      function highlightActiveToken(){ state.players.forEach((pl,i)=>{ const t = document.getElementById(`token-${i}`); if(!t) return; if(i === state.currentPlayerIndex) t.style.outline = "3px solid rgba(0,0,0,0.08)"; else t.style.outline = "none"; }); }
 
       function renderPlayersPanel(){
         playersPanelEl.innerHTML = "";
@@ -683,31 +615,16 @@
       function startGame(){
         if(state.started) return;
         const names = getPlayerNames();
-        state.players = names.map((n,i)=>({
-          name: n, position: 0, learning: 50, rating: 50, mental: 50, motivation: 50, responsibility: 0, finished: false
-        }));
-        state.started = true; state.turn = 1; state.currentPlayerIndex = 0;
-        statTurnEl.textContent = String(state.turn); statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
+        state.players = names.map((n,i)=>({ name: n, position: 0, learning: 50, rating: 50, mental: 50, motivation: 50, responsibility: 0, finished: false }));
+        state.started = true; state.turn = 1; state.currentPlayerIndex = 0; statTurnEl.textContent = String(state.turn); statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
         layoutTiles(); renderPlayersPanel(); pushLog("ゲームを開始しました（プレイヤーはスタートマスに配置されます）", "ok"); updateRollState();
       }
 
-      function resetGame(){
-        state.started = false; state.turn = 0; state.currentPlayerIndex = 0; state.players = [];
-        statTurnEl.textContent = "0"; statCurrentEl.textContent = "-"; board.querySelectorAll(".token").forEach(t=>t.remove()); playersPanelEl.innerHTML = "";
-        pushLog("ゲームをリセットしました", "ok"); updateRollState();
-      }
+      function resetGame(){ state.started = false; state.turn = 0; state.currentPlayerIndex = 0; state.players = []; statTurnEl.textContent = "0"; statCurrentEl.textContent = "-"; board.querySelectorAll(".token").forEach(t=>t.remove()); playersPanelEl.innerHTML = ""; pushLog("ゲームをリセットしました", "ok"); updateRollState(); }
 
-      function attachHandlers(){
-        btnStart.addEventListener("click", ()=> startGame());
-        btnRoll.addEventListener("click", ()=> rollTurn());
-        btnReset.addEventListener("click", ()=> resetGame());
-        window.addEventListener("resize", ()=> layoutTiles());
-        window.addEventListener("keydown", (e)=>{ if((e.key === " " || e.key === "Enter") && state.started && !state.animating){ e.preventDefault(); rollTurn(); }});
-      }
+      function attachHandlers(){ btnStart.addEventListener("click", ()=> startGame()); btnRoll.addEventListener("click", ()=> rollTurn()); btnReset.addEventListener("click", ()=> resetGame()); window.addEventListener("resize", ()=> layoutTiles()); window.addEventListener("keydown", (e)=>{ if((e.key === " " || e.key === "Enter") && state.started && !state.animating){ e.preventDefault(); rollTurn(); }}); }
 
-      attachHandlers();
-      layoutTiles();
-      pushLog("UI ready — 60マスのまま接続性を改善し、分岐は確率で失敗時に学び増・評価減の挙動を追加。全員ゴールで最終結果を表示します。");
+      attachHandlers(); layoutTiles(); pushLog("UI ready — レイアウトを調整し、3周目をより引き込み、2周目終盤の被りを回避。トークン文字色は背景に合わせ自動で黒/白に切替。");
     }
   })();
   </script>
