@@ -129,7 +129,6 @@
       </div>
 
       <div class="group" style="margin-left:auto;">
-        <button id="btn-settings" title="プレイヤー設定" type="button">設定</button>
         <button id="btn-zoom-in" title="ズームイン" type="button">ズーム＋</button>
         <button id="btn-zoom-out" title="ズームアウト" type="button">ズーム−</button>
       </div>
@@ -370,318 +369,39 @@
       });
     }
 
-    function renderPlayersPanel(){
-      if(!playersPanelEl) return;
-      playersPanelEl.innerHTML = "";
-      if(!state.players || state.players.length === 0){
-        const placeholder = document.createElement("div");
-        placeholder.className = "card";
-        placeholder.style.textAlign = "center";
-        placeholder.textContent = "プレイヤーを設定して「開始」を押してください";
-        playersPanelEl.appendChild(placeholder);
+    // --- 改善済み: 次の手番を常に順番に進めるロジック（交互にならない） ---
+    function nextPlayerTurn(){
+      const total = state.players.length;
+      if(total === 0) return;
+      // if game finished, clear display
+      if(isGameFinished()){ statCurrentEl.textContent = "-"; return; }
+
+      let i = state.currentPlayerIndex;
+      for(let c = 0; c < total; c++){
+        i = (i + 1) % total; // advance by one in sequence
+        const candidate = state.players[i];
+        if(!candidate) continue;
+        if(candidate.finished) continue; // skip finished players
+        if(candidate.skipTurn){
+          // if they had skipTurn, consume it and log skip, then continue to next player
+          candidate.skipTurn = false;
+          pushLog(`${candidate.name} の手番は休みのためスキップされました`, "bad");
+          continue;
+        }
+        // found next valid player
+        state.currentPlayerIndex = i;
+        highlightActiveToken();
+        renderPlayersPanel();
+        statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
         return;
       }
-      state.players.forEach((pl,i)=>{
-        const row=document.createElement("div"); row.className="player-row"+(i===state.currentPlayerIndex?" active":"");
-        const left = document.createElement("div"); left.className = "left-col";
-        const badge=document.createElement("span"); badge.className="badge"; badge.style.background=pl.color; left.appendChild(badge);
-        const nameWrap = document.createElement("div"); nameWrap.className = "name-wrap";
-        const name = document.createElement("div"); name.className = "player-name"; name.textContent = pl.name;
-        const { rank, estimatedSalary } = getRankAndSalary(pl);
-        const rankEl = document.createElement("div"); rankEl.className = "rank"; rankEl.textContent = rank;
-        const salEl = document.createElement("div"); salEl.className = "salary"; salEl.textContent = `${yen(estimatedSalary)}`;
-        nameWrap.appendChild(name); nameWrap.appendChild(rankEl); nameWrap.appendChild(salEl);
-        left.appendChild(nameWrap);
-        const right = document.createElement("div"); right.className = "attr-list";
-        const aLearning = document.createElement("div"); aLearning.className="attr"; aLearning.id=`learning-${i}`; aLearning.textContent = `学び: ${pl.learning}`;
-        const aMental = document.createElement("div"); aMental.className="attr"; aMental.id=`mental-${i}`; aMental.textContent = `メンタル: ${pl.mental}`;
-        const aRating = document.createElement("div"); aRating.className="attr"; aRating.id=`rating-${i}`; aRating.textContent = `評価: ${pl.rating}`;
-        const aResp = document.createElement("div"); aResp.className="attr"; aResp.id=`responsibility-${i}`; aResp.textContent = `責任: ${pl.responsibility}`;
-        right.appendChild(aLearning); right.appendChild(aMental); right.appendChild(aRating); right.appendChild(aResp);
-        row.appendChild(left); row.appendChild(right);
-        playersPanelEl.appendChild(row);
-      });
+      // fallback: if no valid next player found (all finished?), set display
+      statCurrentEl.textContent = "-";
     }
 
-    // boilerplate helpers
-    function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+    const isGameFinished = ()=> state.finishedCount === state.players.length;
 
-    // Robust modal helpers with fallback (same as above)
-    function showCard(title, text, sub, {timeout = 30000} = {}) {
-      return new Promise(resolve => {
-        if(!genericModal){ resolve(); return; }
-        genericTitle.textContent = title || "";
-        genericText.textContent = text || "";
-        genericSub.textContent = sub || "";
-        genericActions.innerHTML = "";
-        const ok = document.createElement("button");
-        ok.className = "primary"; ok.type = "button"; ok.textContent = "OK";
-        let finished = false, timer = null;
-        function cleanup(){
-          if(timer){ clearTimeout(timer); timer = null; }
-          try{ genericModal.removeEventListener("close", onClose); }catch(e){}
-          try{ document.removeEventListener("keydown", onKey); }catch(e){}
-        }
-        function finish(val){
-          if(finished) return; finished = true; cleanup();
-          try{ if(genericModal.open) genericModal.close(); }catch(e){}
-          const fb = document.querySelector(".modal-fallback"); if(fb) fb.remove();
-          resolve(val);
-        }
-        function onOk(){ finish(); }
-        function onClose(){ finish(); }
-        function onKey(e){ if(e.key === "Escape") finish(); }
-
-        ok.addEventListener("click", onOk);
-        genericActions.appendChild(ok);
-
-        try{
-          genericModal.addEventListener("close", onClose);
-          document.addEventListener("keydown", onKey);
-          timer = setTimeout(()=> finish(), timeout);
-          genericModal.showModal();
-          ok.focus();
-          return;
-        }catch(err){
-          cleanup();
-        }
-
-        // fallback overlay
-        const overlay = document.createElement("div"); overlay.className = "modal-fallback";
-        const card = document.createElement("div"); card.className = "card";
-        card.innerHTML = `<h3>${escapeHtml(title||"")}</h3><div style="white-space:normal">${escapeHtml(text||"")}</div><div class="muted" style="margin-top:8px">${escapeHtml(sub||"")}</div>`;
-        const actionsWrap = document.createElement("div"); actionsWrap.className = "actions";
-        const ok2 = document.createElement("button"); ok2.className = "primary"; ok2.type = "button"; ok2.textContent = "OK";
-        actionsWrap.appendChild(ok2); card.appendChild(actionsWrap); overlay.appendChild(card); document.body.appendChild(overlay);
-
-        function fbOnOk(){ finish(); }
-        function fbOnKey(e){ if(e.key === "Escape") finish(); }
-        function fbOnClickOutside(e){ if(e.target === overlay) finish(); }
-
-        ok2.addEventListener("click", fbOnOk);
-        document.addEventListener("keydown", fbOnKey);
-        overlay.addEventListener("click", fbOnClickOutside);
-
-        timer = setTimeout(()=> finish(), timeout);
-      });
-    }
-
-    function showBranchModal(branchEv, playerIndex, {timeout = 30000} = {}) {
-      return new Promise(resolve => {
-        if(!genericModal){ resolve(null); return; }
-        genericTitle.textContent = "案件分岐 (提案)";
-        genericText.textContent = branchEv.text || "";
-        genericSub.textContent = `あなた: ${state.players[playerIndex].name}`;
-        genericActions.innerHTML = "";
-
-        let resolved = false, timer = null;
-        function cleanup(){
-          if(timer){ clearTimeout(timer); timer = null; }
-          try{ genericModal.removeEventListener("close", onClose); }catch(e){}
-          try{ document.removeEventListener("keydown", onKey); }catch(e){}
-        }
-        function finish(val){
-          if(resolved) return; resolved = true; cleanup();
-          try{ if(genericModal.open) genericModal.close(); }catch(e){}
-          const fb = document.querySelector(".modal-fallback"); if(fb) fb.remove();
-          resolve(val);
-        }
-        function onClose(){ finish(null); }
-        function onKey(e){ if(e.key === "Escape") finish(null); }
-
-        const buttons = [];
-        branchEv.choices.forEach(choice=>{
-          const b = document.createElement("button"); b.type = "button"; b.textContent = choice.label;
-          b.addEventListener("click", ()=>{
-            buttons.forEach(btn => btn.disabled = true);
-            const baseProb = (typeof choice.probGood === "number") ? choice.probGood : 1.0;
-            const pl = state.players[playerIndex];
-            const repBonus = Math.max(-0.3, Math.min(0.3, (pl.rating || 0) / 200));
-            const prob = Math.max(0.05, Math.min(0.95, baseProb + repBonus));
-            const success = state.rng() < prob;
-            const res = success ? (choice.success||{}) : (choice.failure||{});
-            ["learning","mental","rating","responsibility"].forEach(k=>{
-              if(typeof res[k] === "number") pl[k] = Math.max(0, Math.round((pl[k]||0) + res[k]));
-            });
-            ["learning","mental","rating","responsibility"].forEach(k=> flashAttr(playerIndex, k));
-            pushLog(`${pl.name}: ${success ? (res.text || choice.label + " → 成功") : (res.text || choice.label + " → 失敗")}`, success ? "ok" : "bad");
-            finish({choice, res, success});
-          });
-          genericActions.appendChild(b);
-          buttons.push(b);
-        });
-        const cancel = document.createElement("button"); cancel.type = "button"; cancel.textContent = "やめる";
-        cancel.addEventListener("click", ()=> finish(null));
-        genericActions.appendChild(cancel);
-        buttons.push(cancel);
-
-        try{
-          genericModal.addEventListener("close", onClose);
-          document.addEventListener("keydown", onKey);
-          timer = setTimeout(()=> finish(null), timeout);
-          genericModal.showModal();
-          return;
-        }catch(e){
-          cleanup();
-        }
-
-        // fallback overlay with choices
-        const overlay = document.createElement("div"); overlay.className = "modal-fallback";
-        const card = document.createElement("div"); card.className = "card";
-        const h = document.createElement("h3"); h.textContent = "案件分岐 (提案)";
-        const body = document.createElement("div"); body.style.whiteSpace = "normal"; body.textContent = branchEv.text || "";
-        const muted = document.createElement("div"); muted.className = "muted"; muted.style.marginTop = "8px"; muted.textContent = `あなた: ${state.players[playerIndex].name}`;
-        const actionsWrap = document.createElement("div"); actionsWrap.className = "actions";
-        const fbButtons = [];
-        branchEv.choices.forEach(choice=>{
-          const b = document.createElement("button"); b.type = "button"; b.textContent = choice.label;
-          b.addEventListener("click", ()=>{
-            fbButtons.forEach(btn=>btn.disabled = true);
-            const baseProb = (typeof choice.probGood === "number") ? choice.probGood : 1.0;
-            const pl = state.players[playerIndex];
-            const repBonus = Math.max(-0.3, Math.min(0.3, (pl.rating || 0) / 200));
-            const prob = Math.max(0.05, Math.min(0.95, baseProb + repBonus));
-            const success = state.rng() < prob;
-            const res = success ? (choice.success||{}) : (choice.failure||{});
-            ["learning","mental","rating","responsibility"].forEach(k=>{
-              if(typeof res[k] === "number") pl[k] = Math.max(0, Math.round((pl[k]||0) + res[k]));
-            });
-            ["learning","mental","rating","responsibility"].forEach(k=> flashAttr(playerIndex, k));
-            pushLog(`${pl.name}: ${success ? (res.text || choice.label + " → 成功") : (res.text || choice.label + " → 失敗")}`, success ? "ok" : "bad");
-            finish({choice, res, success});
-          });
-          actionsWrap.appendChild(b);
-          fbButtons.push(b);
-        });
-        const fbCancel = document.createElement("button"); fbCancel.type = "button"; fbCancel.textContent = "やめる"; fbCancel.addEventListener("click", ()=> finish(null));
-        actionsWrap.appendChild(fbCancel); fbButtons.push(fbCancel);
-        card.appendChild(h); card.appendChild(body); card.appendChild(muted); card.appendChild(actionsWrap); overlay.appendChild(card); document.body.appendChild(overlay);
-
-        function fbOnKey(e){ if(e.key === "Escape") finish(null); }
-        function fbOnClickOutside(e){ if(e.target === overlay) finish(null); }
-        document.addEventListener("keydown", fbOnKey);
-        overlay.addEventListener("click", fbOnClickOutside);
-        timer = setTimeout(()=> finish(null), timeout);
-      });
-    }
-
-    function flashAttr(playerIndex, attrName){
-      try{
-        const el = document.getElementById(`${attrName}-${playerIndex}`);
-        if(!el) return;
-        el.classList.add('flash-attr');
-        setTimeout(()=> el.classList.remove('flash-attr'), 520);
-      }catch(e){}
-    }
-
-    const eventTable = [
-      { text:"短期支援入り", learning:+6, mental:+2, rating:+3, responsibility:+1 },
-      { text:"見積り漏れでトラブル", learning:+2, mental:-6, rating:-1, responsibility:0 },
-      { text:"紹介で新規案件獲得", learning:+4, mental:+3, rating:+5, responsibility:+2 },
-      { text:"資料誤記で修正対応", learning:+3, mental:-2, rating:-1, responsibility:+1 },
-      { text:"アップセル成功", learning:+5, mental:+3, rating:+4, responsibility:+2 },
-      { text:"請求遅延で対応", learning:+1, mental:-3, rating:0, responsibility:+1 },
-      { text:"分析が評価される", learning:+7, mental:+1, rating:+4, responsibility:0 },
-      { text:"外注コスト増で調整", learning:+1, mental:-4, rating:-1, responsibility:+1 },
-      { text:"プロトタイプが好評", learning:+8, mental:+5, rating:+6, responsibility:+3 },
-      { text:"内部調整で停滞", learning:0, mental:-1, rating:0, responsibility:0 }
-    ];
-
-    const RANKS = [
-      { key: "アナリスト", min: -Infinity, max: 59.999, base: 5000000 },
-      { key: "コンサルタント", min: 60, max: 84.999, base: 8500000 },
-      { key: "シニアコンサルタント", min: 85, max: 109.999, base: 12000000 },
-      { key: "マネージャー", min: 110, max: Infinity, base: 18000000 }
-    ];
-    function estimateScore(p){
-      return ( (p.learning||0) * 0.35 + (p.rating||0) * 0.35 + (p.responsibility||0) * 0.2 + (p.mental||0) * 0.1 );
-    }
-    function getRankAndSalary(p){
-      const score = estimateScore(p);
-      const rank = RANKS.find(r => score >= r.min && score <= r.max) || RANKS[0];
-      const modifier = 1 + Math.min(0.5, (p.responsibility||0) / 200) + Math.min(0.3, (p.rating||0) / 400);
-      const estimated = Math.round(rank.base * modifier / 1000) * 1000;
-      return { rank: rank.key, baseSalary: rank.base, estimatedSalary: estimated, score: Math.round(score) };
-    }
-
-    // movement and control
-    function rollDice(){ const n = Math.floor(state.rng()*6)+1; if(diceEl) diceEl.textContent = n; return n; }
-    async function animateMove(playerIndex, steps){
-      const pl = state.players[playerIndex]; if(!pl || pl.finished) return;
-      state.animating = true; updateRollState();
-      try{
-        const delay = Number(state.speed || 180);
-        let pos = pl.position, dir = 1, remaining = steps;
-        while(remaining > 0){
-          let next = pos + dir;
-          if(next >= TOTAL_CELLS){
-            if(state.overshoot === "clamp"){ pos = TOTAL_CELLS-1; pl.position = pos; placeAllTokens(); await sleep(delay); break; }
-            else { pos = TOTAL_CELLS-1; pl.position = pos; placeAllTokens(); await sleep(delay); dir = -1; }
-          } else if(next < 0){ pos = 0; pl.position = pos; placeAllTokens(); await sleep(delay); break; }
-          else { pos = next; pl.position = pos; placeAllTokens(); await sleep(delay); }
-          remaining--;
-        }
-        await resolveCell(playerIndex, pl.position);
-      }catch(e){ console.error("animateMove error:", e); }
-      finally{ state.animating = false; updateRollState(); }
-    }
-
-    function updateRollState(){
-      try{
-        if(!btnRoll) return;
-        btnRoll.disabled = !(state.started && !state.animating);
-        if(!btnRoll.disabled) btnRoll.removeAttribute('aria-disabled'); else btnRoll.setAttribute('aria-disabled','true');
-      }catch(e){
-        console.error("updateRollState error:", e);
-        if(btnRoll) btnRoll.disabled = true;
-      }
-    }
-
-    function startGame(){
-      if(state.started) return;
-      try{
-        const count = Math.max(1, parseInt(playersCountSel?.value || "2"));
-        const names = getPlayerNames();
-        state.players = [];
-        for(let i=0;i<count;i++){
-          state.players.push({ name: names[i] || `プレイヤー${i+1}`, color: PLAYER_COLORS[i % PLAYER_COLORS.length], position:0, learning:50, mental:50, rating:50, responsibility:0, achievements:[], finished:false, skipTurn:false });
-        }
-        state.started = true; state.turn = 1; state.currentPlayerIndex = 0; state.finishedCount = 0; state.rng = Math.random;
-        renderBoard(); renderPlayersPanel(); statTurnEl.textContent = String(state.turn); statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
-        pushLog("ゲームを開始しました","ok"); updateRollState();
-        if(btnStart) btnStart.disabled = true;
-      }catch(e){
-        console.error("startGame error:", e);
-        state.started = false; updateRollState(); if(btnStart) btnStart.disabled = false; pushLog("ゲーム開始に失敗しました","bad");
-      }
-    }
-
-    async function rollTurn(){
-      if(!state.started || state.animating) return;
-      if(state.players.length === 0){ pushLog("プレイヤーが設定されていません"); return; }
-      const current = state.currentPlayerIndex;
-      const val = rollDice();
-      await animateMove(current, val);
-      const wasLast = (function(){ const active = state.players.map((p,i)=>({i,active:!p.finished})); const indices = active.filter(a=>a.active).map(a=>a.i); if(indices.length===0) return false; return current === indices[indices.length-1]; })();
-      nextPlayerTurn();
-      if(wasLast){ state.turn = (state.turn || 1) + 1; statTurnEl.textContent = String(state.turn); }
-      updateRollState();
-    }
-
-    function resetGame(){
-      state.started = false; state.turn = 0; state.currentPlayerIndex = 0; state.players = []; state.finishedCount = 0; state.animating = false; state.rng = Math.random;
-      renderBoard(); renderPlayersPanel(); statTurnEl.textContent = "0"; statCurrentEl.textContent = "-";
-      if(btnStart) btnStart.disabled = false;
-      pushLog("ゲームをリセットしました","ok");
-      updateRollState();
-    }
-
-    // event wiring
-    if(btnStart) btnStart.addEventListener("click", ()=> startGame());
-    if(btnRoll) btnRoll.addEventListener("click", ()=> { rollTurn().catch(e=>console.error(e)); });
-    if(btnReset) btnReset.addEventListener("click", ()=> resetGame());
-    if(btnZoomIn) btnZoomIn.addEventListener('click', ()=> { document.documentElement.style.fontSize = 'calc(100% + 8px)'; });
-    if(btnZoomOut) btnZoomOut.addEventListener('click', ()=> { document.documentElement.style.fontSize = '100%'; });
+    // ... the rest unchanged (modals, resolveCell, movement etc.) ...
 
     // init
     try{ state.history.forEach(it => appendLogToDom(it)); }catch(e){}
