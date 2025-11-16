@@ -240,12 +240,23 @@
           left++;
         }
       }
-      // path now covers entire grid in clockwise inward spiral
+      // ensure central cell is the final goal:
+      const centerRow = Math.floor(rows/2);
+      const centerCol = Math.floor(cols/2);
+      const centerIndex = centerRow * cols + centerCol;
+      const existing = path.indexOf(centerIndex);
+      if(existing !== -1){
+        // remove center from current position and move to end
+        path.splice(existing, 1);
+      }
+      // push center as the final cell (goal)
+      path.push(centerIndex);
       return path;
     }
 
     const PATH = buildSpiralPath(BOARD_COLS, BOARD_ROWS);
     const PATH_LENGTH = PATH.length;
+    const CENTER_INDEX = Math.floor(BOARD_ROWS/2) * BOARD_COLS + Math.floor(BOARD_COLS/2);
 
     function indexToGrid(index){
       // straightforward row-major mapping (top-left origin)
@@ -266,7 +277,9 @@
         if(onPathIndex !== -1){
           div.dataset.pathIndex = String(onPathIndex);
           if(onPathIndex === 0) div.classList.add("start");
-          if(onPathIndex === PATH_LENGTH - 1) div.classList.add("goal");
+          if(cell.index === CENTER_INDEX) div.classList.add("goal");
+        } else {
+          if(cell.index === CENTER_INDEX) div.classList.add("goal");
         }
         const label = document.createElement("div");
         label.textContent = (["event","bonus","workshop","client"].includes(cell.type) ? "イベント" : (cell.label || ""));
@@ -298,8 +311,13 @@
       groups.forEach((idxs, pathPos)=>{
         if(pathPos === null) return;
         const targetCell = boardEl.querySelector(`.cell[data-path-index="${pathPos}"]`);
-        if(!targetCell) return;
-        const rc = targetCell.getBoundingClientRect();
+        // fallback: if path-index mapping not found (e.g. center) try center cell query
+        let tc = targetCell;
+        if(!tc){
+          tc = boardEl.querySelector(`.cell[data-index="${CENTER_INDEX}"]`);
+        }
+        if(!tc) return;
+        const rc = tc.getBoundingClientRect();
         const cx = rc.left - boardRect.left + rc.width/2;
         const cy = rc.top - boardRect.top + rc.height/2;
         const r = Math.min(rc.width, rc.height)/3.2;
@@ -346,7 +364,7 @@
 
     function flashAttr(playerIndex, attrName){ try{ const el=document.getElementById(`${attrName}-${playerIndex}`); if(!el) return; el.classList.add('flash-attr'); setTimeout(()=>el.classList.remove('flash-attr'),520); }catch(e){/*ignore*/} }
 
-    // Robust modal helpers (same pattern as earlier)
+    // Robust modal helpers (kept)
     function _removeFallbacks(){ document.querySelectorAll('.modal-fallback').forEach(e=>e.remove()); }
     function showCard(title, text, sub, {timeout=30000} = {}) {
       return new Promise(resolve=>{
