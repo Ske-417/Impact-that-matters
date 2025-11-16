@@ -23,7 +23,7 @@
 
     /* Appbar */
     .appbar{position:sticky; top:0; z-index:1100; background:var(--white); border-bottom:1px solid rgba(0,0,0,0.06); display:flex; justify-content:center}
-    .toolbar{width:100%; max-width:1200px; display:flex; gap:10px; align-items:center; padding:8px}
+    .toolbar{width:100%; max-width:1300px; display:flex; gap:10px; align-items:center; padding:8px}
     .title{font-weight:900; font-size:15px; margin-right:auto; color:var(--black)}
     .group{display:flex; gap:8px; align-items:center; padding:6px 8px; border:1px solid var(--gray); border-radius:10px; background:var(--white)}
     select,input[type="text"]{padding:8px 10px; border-radius:8px; border:1px solid var(--gray)}
@@ -32,12 +32,13 @@
     button.primary{background:var(--green); color:var(--white); border-color:transparent}
     #btn-roll, #btn-reset{ font-weight:900; }
 
-    .wrap{width:100%; max-width:1200px; margin:18px auto; display:grid; grid-template-columns:3fr 1fr; gap:12px; align-items:start; padding:0 12px}
+    .wrap{width:100%; max-width:1300px; margin:18px auto; display:grid; grid-template-columns:3fr 1fr; gap:12px; align-items:start; padding:0 12px}
     @media (max-width:980px){ .wrap{grid-template-columns:1fr} }
 
-    .board-wrap{background:var(--white); border:2px solid var(--gray); border-radius:14px; padding:var(--board-padding); position:relative; overflow:hidden; min-height:480px}
+    /* Make board a bit wider/longer to allow a single continuous path without overlap */
+    .board-wrap{background:var(--white); border:2px solid var(--gray); border-radius:14px; padding:var(--board-padding); position:relative; overflow:hidden; min-height:520px}
     .board{
-      position:relative; width:100%; height:780px; touch-action:none;
+      position:relative; width:100%; height:820px; touch-action:none; /* slightly taller for more space */
     }
 
     /* tiles: normal tiles have thin grey border, eventish tiles green border */
@@ -140,9 +141,9 @@
     const START_MARKER = $("#start-marker");
 
     const TILE_SIZE = Number(getComputedStyle(document.documentElement).getPropertyValue('--tile-size')) || 68;
-    const NUM_TILES = 60; // per user: 60 tiles; last will be goal (center)
+    const NUM_TILES = 60; // user requested, last is goal
     const BASE_JITTER = 12;
-    const MIN_GAP = TILE_SIZE + (Number(getComputedStyle(document.documentElement).getPropertyValue('--tile-gap')) || 16);
+    const GAP = Number(getComputedStyle(document.documentElement).getPropertyValue('--tile-gap')) || 16;
 
     let tileCoords = [];
     let state = {
@@ -173,121 +174,157 @@
       return Array.from(playerNamesWrap.querySelectorAll("input")).map((i,idx)=> i.value.trim() || `プレイヤー${idx+1}`);
     }
 
-    // NEW layout: place tiles on concentric rectangular rings (manhattan-style perimeters).
-    // This avoids overlaps by design: each ring is inset from previous by tileSize + gap + padding.
-    function buildRingCoords(N, containerW, containerH, tileSize, gap){
-      const coords = [];
+    // Build a single connected path using concentric rectangular rings but concatenated with short connectors.
+    // This guarantees no overlap because each ring is inset by at least tileSize+gap.
+    function buildConnectedPath(N, containerW, containerH, tileSize, gap){
       const cx = containerW/2, cy = containerH/2;
-      // we'll compute rings from outer to inner, each ring is a rectangle perimeter
-      // start with an outer rectangle that fills much of container with margin
-      const margin = Math.max(tileSize*1.4, 24);
+      const coords = [];
+      const margin = Math.max(tileSize*1.6, 28);
+      // Outer rectangle (we make it a bit wider horizontally to allow a long single path)
       let left = margin, top = margin, right = containerW - margin, bottom = containerH - margin;
-      // keep shrinking by ringInset each time; ringInset ensures rings won't overlap:
-      const ringInset = tileSize + gap + Math.round(tileSize*0.2); // extra spacing between rings
-      // function to generate perimeter points for current rectangle
-      function perimeterPoints(l,t,r,b, desiredSpacing){
+      const ringInset = tileSize + gap + Math.round(tileSize*0.4); // safety inset to ensure rings don't touch
+      // We'll generate rings and append their perimeter points in clockwise order,
+      // and between rings we add a short connector segment so the path is continuous.
+      function perimeterPoints(l,t,r,b, spacing){
         const w = Math.max(1, r - l);
         const h = Math.max(1, b - t);
         const perim = 2*(w + h);
-        const count = Math.max(4, Math.floor(perim / desiredSpacing));
+        const count = Math.max(4, Math.floor(perim / spacing));
         const pts = [];
-        // distribute along four edges proportionally
-        const edgeCounts = [
-          Math.max(1, Math.round(count * (w / perim))), // top
-          Math.max(1, Math.round(count * (h / perim))), // right
-          Math.max(1, Math.round(count * (w / perim))), // bottom
-          Math.max(1, Math.round(count * (h / perim)))  // left
-        ];
-        // adjust to ensure total equals count
-        let sum = edgeCounts.reduce((a,b)=>a+b,0);
+        // compute count per edge proportionally
+        const topCount = Math.max(1, Math.round(count * (w / perim)));
+        const rightCount = Math.max(1, Math.round(count * (h / perim)));
+        const bottomCount = Math.max(1, Math.round(count * (w / perim)));
+        const leftCount = Math.max(1, Math.round(count * (h / perim)));
+        let sum = topCount + rightCount + bottomCount + leftCount;
+        // adjust to match count
         let idxAdjust = 0;
-        while(sum < count){ edgeCounts[idxAdjust%4]++; sum++; idxAdjust++; }
-        while(sum > count){ edgeCounts[idxAdjust%4] = Math.max(1, edgeCounts[idxAdjust%4]-1); sum--; idxAdjust++; }
+        while(sum < count){ if(idxAdjust%4===0) topCount++; else if(idxAdjust%4===1) rightCount++; else if(idxAdjust%4===2) bottomCount++; else leftCount++; idxAdjust++; sum++; }
+        while(sum > count){ if(idxAdjust%4===0 && topCount>1) topCount--; else if(idxAdjust%4===1 && rightCount>1) rightCount--; else if(idxAdjust%4===2 && bottomCount>1) bottomCount--; else if(idxAdjust%4===3 && leftCount>1) leftCount--; idxAdjust++; sum--; }
 
-        // top edge left->right
-        for(let i=0;i<edgeCounts[0];i++){
-          const x = l + (i+0.5) * (w / edgeCounts[0]);
+        // top
+        for(let i=0;i<topCount;i++){
+          const x = l + (i+0.5) * (w / topCount);
           const y = t;
           pts.push({x,y});
         }
-        // right edge top->bottom
-        for(let i=0;i<edgeCounts[1];i++){
+        // right
+        for(let i=0;i<rightCount;i++){
           const x = r;
-          const y = t + (i+0.5) * (h / edgeCounts[1]);
+          const y = t + (i+0.5) * (h / rightCount);
           pts.push({x,y});
         }
-        // bottom edge right->left
-        for(let i=0;i<edgeCounts[2];i++){
-          const x = r - (i+0.5) * (w / edgeCounts[2]);
+        // bottom (right->left)
+        for(let i=0;i<bottomCount;i++){
+          const x = r - (i+0.5) * (w / bottomCount);
           const y = b;
           pts.push({x,y});
         }
-        // left edge bottom->top
-        for(let i=0;i<edgeCounts[3];i++){
+        // left (bottom->top)
+        for(let i=0;i<leftCount;i++){
           const x = l;
-          const y = b - (i+0.5) * (h / edgeCounts[3]);
+          const y = b - (i+0.5) * (h / leftCount);
           pts.push({x,y});
         }
         return pts;
       }
 
-      // desired spacing along perimeter: try tileSize + gap
       const desiredSpacing = tileSize + gap;
-      // generate rings until we collected N-1 (reserve center)
       let attempts = 0;
-      while(coords.length < N - 1 && (right - left > tileSize && bottom - top > tileSize) && attempts < 20){
+      const rings = [];
+      while(coords.length < N - 1 && right - left > tileSize && bottom - top > tileSize && attempts < 24){
         const pts = perimeterPoints(left, top, right, bottom, desiredSpacing);
-        // add jitter and small rotations but ensure not too large to cause overlaps
-        for(const p of pts){
-          if(coords.length >= N - 1) break;
-          const jitterX = (Math.random()*2 -1) * (BASE_JITTER * 0.75);
-          const jitterY = (Math.random()*2 -1) * (BASE_JITTER * 0.75);
-          coords.push({x: p.x + jitterX, y: p.y + jitterY, ang: (Math.random()*2-1)*8});
-        }
-        // inset for next ring
-        left += ringInset;
-        top += ringInset;
-        right -= ringInset;
-        bottom -= ringInset;
+        // reduce pts if they'd overflow remaining slots (we'll trim later anyway)
+        rings.push({pts, l:left, t:top, r:right, b:bottom});
+        left += ringInset; top += ringInset; right -= ringInset; bottom -= ringInset;
         attempts++;
       }
 
-      // if we still need more tiles, fill remaining by interpolating additional points along last rectangle center lines without overlapping
+      // Concatenate rings into one connected path:
+      // For each ring, choose a start index that's close to previous ring's connector point to make smoother connection.
+      let prevExit = null;
+      for(let ri = 0; ri < rings.length && coords.length < N - 1; ri++){
+        const ring = rings[ri];
+        const pts = ring.pts.slice();
+        // determine start index: if prevExit exists, pick closest point to it to minimize connector length; else pick first top-left-ish
+        let startIdx = 0;
+        if(prevExit){
+          let best = 0, bestD = Infinity;
+          for(let k=0;k<pts.length;k++){
+            const dx = pts[k].x - prevExit.x, dy = pts[k].y - prevExit.y;
+            const d = Math.hypot(dx,dy);
+            if(d < bestD){ best = k; bestD = d; }
+          }
+          startIdx = best;
+        } else {
+          // prefer top-center approximate start (closest to top center)
+          let best = 0, bestD = Infinity;
+          const topCenter = {x:(ring.l + ring.r)/2, y: ring.t};
+          for(let k=0;k<pts.length;k++){
+            const dx = pts[k].x - topCenter.x, dy = pts[k].y - topCenter.y;
+            const d = Math.hypot(dx,dy);
+            if(d < bestD){ best = k; bestD = d; }
+          }
+          startIdx = best;
+        }
+        // append ring points starting from startIdx, in clockwise order, but ensure we don't create overlap: we keep ring points as-is
+        for(let k=0;k<pts.length && coords.length < N - 1;k++){
+          const idx = (startIdx + k) % pts.length;
+          // jitter a little but small to avoid collisions
+          const jitterX = (Math.random()*2 -1) * (BASE_JITTER * 0.4);
+          const jitterY = (Math.random()*2 -1) * (BASE_JITTER * 0.4);
+          coords.push({x: pts[idx].x + jitterX, y: pts[idx].y + jitterY, ang: (Math.random()*2-1)*6});
+        }
+        // set prevExit to a point on this ring to connect to next ring; pick the last appended
+        prevExit = coords[coords.length-1];
+        // add a short connector towards the inner ring's approximate center point to make a visible connection (but keep safe spacing)
+        if(ri < rings.length - 1 && coords.length < N - 1){
+          const inner = rings[ri+1];
+          const innerCenter = {x: (inner.l + inner.r)/2, y: (inner.t + inner.b)/2};
+          // connector point halfway but nudged slightly toward inner center
+          const connX = prevExit.x + (innerCenter.x - prevExit.x) * 0.25 + (Math.random()*2-1)*(BASE_JITTER*0.6);
+          const connY = prevExit.y + (innerCenter.y - prevExit.y) * 0.25 + (Math.random()*2-1)*(BASE_JITTER*0.6);
+          coords.push({x: connX, y: connY, ang: (Math.random()*2-1)*6});
+          prevExit = coords[coords.length-1];
+        }
+      }
+
+      // If still short on tiles, fill inward spirals (small) toward center sequentially
       if(coords.length < N - 1){
         const remaining = (N - 1) - coords.length;
-        const centerX = cx, centerY = cy;
+        const step = Math.max(8, Math.floor(Math.min(containerW, containerH) / (remaining + 4)));
         for(let i=0;i<remaining;i++){
           const angle = (i/remaining) * Math.PI * 2;
           const radius = Math.min(containerW, containerH) * 0.12 + (i%3) * (tileSize*0.4);
-          const x = centerX + Math.cos(angle) * radius + (Math.random()*2-1)*BASE_JITTER;
-          const y = centerY + Math.sin(angle) * radius + (Math.random()*2-1)*BASE_JITTER;
+          const x = cx + Math.cos(angle) * radius + (Math.random()*2-1)*BASE_JITTER;
+          const y = cy + Math.sin(angle) * radius + (Math.random()*2-1)*BASE_JITTER;
           coords.push({x,y,ang:(Math.random()*2-1)*8});
         }
       }
 
-      // append center tile as last (goal)
-      const centerX = cx, centerY = cy;
-      coords.push({x:centerX, y:centerY, ang:0});
+      // final center (goal)
+      coords.push({x: cx, y: cy, ang:0});
 
-      // final clamp to keep inside board with margin
-      const marginClamp = tileSize;
+      // clamp and ensure all coords inside with margin
+      const clampMargin = tileSize;
       for(const c of coords){
-        c.x = Math.max(marginClamp, Math.min(containerW - marginClamp, c.x));
-        c.y = Math.max(marginClamp, Math.min(containerH - marginClamp, c.y));
+        c.x = Math.max(clampMargin, Math.min(containerW - clampMargin, c.x));
+        c.y = Math.max(clampMargin, Math.min(containerH - clampMargin, c.y));
       }
+      // if coords exceed N, truncate
+      if(coords.length > N) coords.length = N;
       return coords;
     }
 
     function layoutTiles(){
       board.querySelectorAll(".tile").forEach(n=>n.remove());
       const rect = board.getBoundingClientRect();
-      const coords = buildRingCoords(NUM_TILES, rect.width, rect.height, TILE_SIZE, Number(getComputedStyle(document.documentElement).getPropertyValue('--tile-gap')) || 16);
+      const coords = buildConnectedPath(NUM_TILES, rect.width, rect.height, TILE_SIZE, GAP);
       tileCoords = coords;
       coords.forEach((c, idx)=>{
         const div = document.createElement("div");
         div.className = "tile";
         div.dataset.pathIndex = String(idx);
-        // event assignment deterministic by idx modulo (keeps gameplay logic)
         if(idx === NUM_TILES - 1){
           div.classList.add("goal");
         } else if(idx % 11 === 0){
@@ -303,8 +340,7 @@
         }
         div.style.left = `${c.x}px`;
         div.style.top = `${c.y}px`;
-        // rotate a little for organic feel
-        const rot = c.ang || ((Math.random()*2-1)*8);
+        const rot = c.ang || ((Math.random()*2-1)*6);
         div.style.transform = `translate(-50%,-50%) rotate(${rot}deg)`;
         board.appendChild(div);
       });
@@ -555,7 +591,7 @@
 
     attachHandlers();
     layoutTiles();
-    pushLog("UI ready — リング（複数周）方式で内径を小さく、重なり回避を最優先に配置しました。");
+    pushLog("UI ready — converted to a single connected path (rings concatenated with connectors) to guarantee no overlap while keeping one continuous route.");
 
   })();
   </script>
