@@ -9,9 +9,9 @@
       --black:#000000; --white:#FFFFFF; --green:#86BB27; --green-light:#DFF3C6; --gray:#C4C4C4;
       --board-cols:10;
       --board-rows:6;
-      --cell-size:68px; /* tile size (kept same as before) */
+      --cell-size:68px; /* tile size (kept same) */
       --tile-size: var(--cell-size);
-      --tile-gap: 12px; /* increase default gap */
+      --tile-gap: 16px; /* increased gap as baseline */
       --board-padding: 24px;
     }
     *{box-sizing:border-box}
@@ -22,7 +22,6 @@
       color:var(--black); background:var(--white); font-weight:900;
     }
 
-    /* Appbar */
     .appbar{position:sticky; top:0; z-index:1100; background:var(--white); border-bottom:1px solid rgba(0,0,0,0.06); display:flex; justify-content:center}
     .toolbar{width:100%; max-width:1200px; display:flex; gap:10px; align-items:center; padding:8px}
     .title{font-weight:900; font-size:15px; margin-right:auto; color:var(--black)}
@@ -31,27 +30,24 @@
 
     button{padding:8px 12px; border-radius:8px; border:1px solid var(--gray); background:var(--white); cursor:pointer}
     button.primary{background:var(--green); color:var(--white); border-color:transparent}
-    #btn-roll, #btn-reset{ font-weight:900; } /* bold per request */
+    #btn-roll, #btn-reset{ font-weight:900; }
 
     .wrap{width:100%; max-width:1200px; margin:18px auto; display:grid; grid-template-columns:3fr 1fr; gap:12px; align-items:start; padding:0 12px}
     @media (max-width:980px){ .wrap{grid-template-columns:1fr} }
 
-    /* Board area: we'll place tiles absolutely inside container */
     .board-wrap{background:var(--white); border:2px solid var(--gray); border-radius:14px; padding:var(--board-padding); position:relative; overflow:hidden; min-height:480px}
     .board{
-      position:relative; width:100%; height:720px; /* larger board to get more spacing */
-      touch-action:none;
+      position:relative; width:100%; height:760px; touch-action:none;
     }
 
-    /* tile (square) */
+    /* default (normal) tile: thin light-gray border */
     .tile{
       position:absolute;
       width:var(--tile-size);
       height:var(--tile-size);
       background:var(--white);
-      border:2px solid var(--green);
+      border:1px solid var(--gray); /* changed: thin gray for normal tiles */
       border-radius:6px;
-      /* center by left/top using translate */
       transform: translate(-50%,-50%);
       display:grid;
       place-items:center;
@@ -60,21 +56,25 @@
       box-shadow: 0 6px 18px rgba(0,0,0,0.03);
       transition: transform 160ms linear;
     }
-    .tile.event{ background: #f7fff0; border-color: #a8cf50; }
-    .tile.bonus{ background: #fff7e6; border-color: #f1b84a; }
-    .tile.penalty{ background: #fff8f8; border-color: #e09a9a; }
-    .tile.workshop{ background: #f0f8ff; border-color: #7fb3ff; }
-    .tile.client{ background: #f0fff7; border-color: #78e6b8; }
+
+    /* event tiles: green border (per request) */
+    .tile.event,
+    .tile.client,
+    .tile.workshop,
+    .tile.bonus,
+    .tile.penalty {
+      border:2px solid var(--green); /* unified green border for eventish tiles */
+      background: #fbfff6;
+    }
+
     .tile.goal{ background: var(--green); color: #fff; border-color: var(--green) }
 
-    /* start marker (off-path) */
     .start-marker{
       position:absolute; left:20px; top:20px; width:calc(var(--tile-size) * 1.1); height:calc(var(--tile-size) * 1.1);
       display:grid; place-items:center; border-radius:10px; border:2px dashed var(--gray); color:var(--black); font-weight:900; background:#fff;
       z-index:5;
     }
 
-    /* tokens */
     .token{
       position:absolute;
       width:30px; height:30px; border-radius:50%; display:grid; place-items:center; color:#fff; font-weight:900;
@@ -120,7 +120,6 @@
     <div class="board-wrap">
       <div class="board" id="board" aria-label="ボード">
         <div class="start-marker" id="start-marker">START</div>
-        <!-- tiles and tokens will be injected here -->
       </div>
     </div>
 
@@ -145,9 +144,9 @@
     const START_MARKER = $("#start-marker");
 
     const TILE_SIZE = Number(getComputedStyle(document.documentElement).getPropertyValue('--tile-size')) || 68;
-    const NUM_TILES = 60; // per user: 60 tiles, start not included; center included as final tile (A)
-    const BASE_JITTER = 10; // jitter px (increased)
-    const MIN_GAP = TILE_SIZE + (Number(getComputedStyle(document.documentElement).getPropertyValue('--tile-gap')) || 12);
+    const NUM_TILES = 60; // user requested, center included as last tile (A)
+    const BASE_JITTER = 14;
+    const MIN_GAP = TILE_SIZE + (Number(getComputedStyle(document.documentElement).getPropertyValue('--tile-gap')) || 16);
 
     let tileCoords = [];
     let state = {
@@ -160,7 +159,6 @@
       history: []
     };
 
-    // prepare player name inputs
     function renderPlayerNameInputs(){
       playerNamesWrap.innerHTML = "";
       const count = Math.max(1, Number(playersCountSel.value) || 2);
@@ -179,41 +177,46 @@
       return Array.from(playerNamesWrap.querySelectorAll("input")).map((i,idx)=> i.value.trim() || `プレイヤー${idx+1}`);
     }
 
-    // Build spiral coordinates then increase spacing if needed to avoid overlap
+    // Build spiral coordinates with an extra "turn" to give more room and avoid center crowding
     function buildSpiralCoords(N, containerW, containerH, tileSize){
       const cx = containerW / 2, cy = containerH / 2;
-      const margin = tileSize*1.6;
+      const margin = tileSize * 1.8;
+      // increase Rmax to give more room (expand outer radius)
       let Rmax = Math.min(containerW, containerH) / 2 - margin;
-      const Rmin = Math.max(tileSize * 0.6, 12);
-      // choose turns: fewer turns -> more spread. Adjust based on N and board size.
-      let approxTurns = Math.max(1.0, Math.min(6, (N / 30)));
-      approxTurns = Math.max(1.0, approxTurns * 0.9); // a bit fewer turns so more spread outward
+      Rmax *= 1.18; // slightly larger outer radius to reduce overlaps
+      const Rmin = Math.max(tileSize * 0.8, 18);
+      // add an extra turn compared to prior version
+      let approxTurns = Math.max(1.2, Math.min(8, (N / 22))); // increased baseline to produce more turns (3rd loop effect)
+      approxTurns = approxTurns + 1.0; // explicitly add one more turn to create extra spiral loop
       const maxTheta = approxTurns * 2 * Math.PI;
 
-      // initial coords using Archimedean-like mapping
+      // create base coords
       let coords = [];
       for(let i=0;i<N;i++){
-        const t = i/(N-1);
+        const t = i / Math.max(1, N - 1);
         const theta = t * maxTheta;
-        let r = Rmax - (Rmax - Rmin) * (theta / maxTheta);
-        // base angle: start near top and increase clockwise
+        // map theta to radius but bias so inner area isn't too squeezed
+        // use a slightly nonlinear radial interpolation to keep inner radius larger
+        const u = theta / maxTheta;
+        let r = Rmax - (Rmax - Rmin) * Math.pow(u, 0.85); // power <1 keeps more room inside
+        // angle: start at -90deg (top) and proceed clockwise
         const angle = -Math.PI/2 + theta;
-        // small radial jitter that increases toward outer area slightly
-        const radialJitter = (Math.random()*2 -1) * (tileSize * 0.08);
+        // jitter radial and perpendicular
+        const radialJitter = (Math.random()*2 -1) * (tileSize * 0.06);
         r = Math.max(Rmin, r + radialJitter);
         let x = cx + r * Math.cos(angle);
         let y = cy + r * Math.sin(angle);
-        // jitter perpendicular to spiral to add irregularity
+        // perpendicular jitter larger to add irregularity
         const jitterAngle = angle + Math.PI/2;
-        const jitter = (Math.random()*2 - 1) * BASE_JITTER;
+        const jitter = (Math.random()*2 - 1) * BASE_JITTER * (0.6 + 0.8 * (1 - u)); // slightly more jitter toward outer, scaled
         x += Math.cos(jitterAngle) * jitter;
         y += Math.sin(jitterAngle) * jitter;
-        // small angular offset for more randomness
-        const angOff = (Math.random()*2 -1) * (Math.PI/180 * 6); // up to +/-6deg
+        // small angular offset
+        const angOff = (Math.random()*2 -1) * (Math.PI/180 * 8);
         coords.push({x,y,angle:angle+angOff,r,theta,i});
       }
 
-      // compute minimal adjacent distance along the path and scale outward if too tight
+      // measure closest adjacent distances and if too small, scale radial distances outward
       function minAdjDist(arr){
         let min = Infinity;
         for(let i=1;i<arr.length;i++){
@@ -227,31 +230,29 @@
       let minDist = minAdjDist(coords);
       const desired = MIN_GAP;
       if(minDist < desired){
-        const scale = Math.min(2.5, desired / Math.max(1e-3, minDist)); // cap scale
-        // scale radial distances from center to push points outward, but keep within board bounds
+        const scale = Math.min(3.0, desired / Math.max(1e-3, minDist));
+        // gently push points outward relative to center
         coords = coords.map(c=>{
           const vx = c.x - cx, vy = c.y - cy;
           return { ...c, x: cx + vx * scale, y: cy + vy * scale, r: c.r * scale };
         });
-        // recompute minDist and if still small, slightly increase jitter on inner items
         minDist = minAdjDist(coords);
       }
 
-      // To avoid center crowding, push the last few points outward moderately
-      const innerBoostCount = Math.max(3, Math.floor(N * 0.12)); // about 12% from center
+      // push a handful of inner points outward more to avoid center crowding
+      const innerBoostCount = Math.max(5, Math.floor(N * 0.18)); // more than before
       for(let k=1;k<=innerBoostCount;k++){
-        const idx = N - 1 - (k-1);
+        const idx = N - k;
         if(idx >= 0 && idx < coords.length){
           const c = coords[idx];
-          // move slightly outward from center
           const vx = c.x - cx, vy = c.y - cy;
-          const factor = 1 + (0.18 * (innerBoostCount - (k-1)) / innerBoostCount); // stronger for nearer center
+          const factor = 1 + (0.28 * (innerBoostCount - (k-1)) / innerBoostCount);
           coords[idx].x = cx + vx * factor;
           coords[idx].y = cy + vy * factor;
         }
       }
 
-      // final clamp: ensure all coords inside boardRect (leave margin)
+      // clamp inside board bounds leaving margin
       const clampMargin = tileSize;
       coords = coords.map(c=>{
         const nx = Math.max(clampMargin, Math.min(containerW - clampMargin, c.x));
@@ -262,20 +263,16 @@
       return coords;
     }
 
-    // render tiles as absolutely positioned squares using the coords and add event classes
     function layoutTiles(){
-      // clear existing tiles
       board.querySelectorAll(".tile").forEach(n=>n.remove());
       const rect = board.getBoundingClientRect();
       const coords = buildSpiralCoords(NUM_TILES, rect.width, rect.height, TILE_SIZE);
-      tileCoords = coords; // store for token placement
-
-      // For deterministic-ish event assignment, use path-index modulo rules (like earlier rules)
+      tileCoords = coords;
       coords.forEach((c, idx)=>{
         const div = document.createElement("div");
         div.className = "tile";
         div.dataset.pathIndex = String(idx);
-        // determine type by index modulo (deterministic)
+        // deterministic event assignment by idx modulo to recreate game-like distribution
         if(idx === NUM_TILES - 1){
           div.classList.add("goal");
         } else if(idx % 11 === 0){
@@ -289,20 +286,16 @@
         } else if(idx % 7 === 0){
           div.classList.add("penalty");
         }
-        // small random rotation for visual irregularity
-        const rot = (Math.random()*2 - 1) * 6; // +/-6deg
+        const rot = (Math.random()*2 - 1) * 8; // up to +/-8deg for more randomness
         div.style.left = `${c.x}px`;
         div.style.top = `${c.y}px`;
-        // apply translate centering + rotation
         div.style.transform = `translate(-50%,-50%) rotate(${rot}deg)`;
         board.appendChild(div);
       });
-      // ensure tokens re-position
       placeAllTokens();
     }
 
     function placeAllTokens(){
-      // ensure token elements exist
       state.players.forEach((pl,i)=>{
         let t = document.getElementById(`token-${i}`);
         if(!t){
@@ -311,13 +304,11 @@
           t.style.background = (["#86BB27","#DFF3C6","#C4C4C4","#000000"][i % 4]) || "#86BB27";
           board.appendChild(t);
         }
-        // compute position: if pl.position is null or <0 => place near START_MARKER
         if(typeof pl.position !== "number" || pl.position < 0){
           const sRect = START_MARKER.getBoundingClientRect();
           const bRect = board.getBoundingClientRect();
           const x = (sRect.left - bRect.left) + sRect.width/2;
           const y = (sRect.top - bRect.top) + sRect.height/2;
-          // tokens use transform for absolute coords
           t.style.transform = `translate(${x}px, ${y}px)`;
         } else {
           const idx = pl.position;
@@ -331,7 +322,6 @@
       });
     }
 
-    // logging
     function pushLog(text, kind){
       const p = document.createElement("div");
       p.textContent = `[${(new Date()).toLocaleTimeString()}] ${text}`;
@@ -341,7 +331,6 @@
       logEl.scrollTop = logEl.scrollHeight;
     }
 
-    // movement: pl.position is path-index (0..NUM_TILES-1). initial pos = -1 (off path)
     async function animateMove(playerIndex, steps){
       const pl = state.players[playerIndex]; if(!pl || pl.finished) return;
       state.animating = true; updateRollState();
@@ -352,7 +341,6 @@
         while(remaining > 0){
           const next = pos + 1;
           if(next >= NUM_TILES){
-            // clamp at last tile (center)
             pos = NUM_TILES - 1;
             pl.position = pos;
             placeAllTokens();
@@ -366,21 +354,16 @@
           }
           remaining--;
         }
-        // resolve cell effects
         await resolveCell(playerIndex, pl.position);
       }catch(e){ console.error(e); }
       finally{ state.animating = false; updateRollState(); }
     }
 
-    // resolve cell by checking tile class
     async function resolveCell(playerIndex, pathIndex){
       const pl = state.players[playerIndex];
       if(pl == null) return;
       const tileEl = board.querySelector(`.tile[data-path-index="${pathIndex}"]`);
-      if(!tileEl){
-        renderPlayersPanel();
-        return;
-      }
+      if(!tileEl){ renderPlayersPanel(); return; }
       if(tileEl.classList.contains("goal")){
         pl.finished = true;
         pushLog(`${pl.name}: ゴール！`, "ok");
@@ -490,13 +473,12 @@
       highlightActive();
     }
 
-    // start/reset handlers
     function startGame(){
       if(state.started) return;
       const names = getPlayerNames();
       state.players = names.map((n,i)=>({
         name: n,
-        position: -1, // off-path
+        position: -1,
         learning: 50,
         rating: 50,
         finished: false
@@ -525,7 +507,6 @@
       updateRollState();
     }
 
-    // small fallback modal
     function showCard(title, text){
       return new Promise(resolve=>{
         document.querySelectorAll('.modal-fallback').forEach(e=>e.remove());
@@ -543,7 +524,6 @@
       });
     }
 
-    // attach handlers
     function attachHandlers(){
       btnStart.addEventListener("click", ()=> startGame());
       btnRoll.addEventListener("click", ()=> rollTurn());
@@ -558,9 +538,8 @@
     }
 
     attachHandlers();
-    // initial layout
     layoutTiles();
-    pushLog("UI ready — タイルを広げ、イベントマスを復活させ、ジッターを強めました。");
+    pushLog("UI ready — 3周め(追加ループ)を考慮して拡げ、イベントタイルを緑に統一しました。");
 
   })();
   </script>
