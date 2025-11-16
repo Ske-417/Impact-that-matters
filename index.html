@@ -7,157 +7,79 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <style>
     :root{
-      /* Allowed palette:
-         - #000000 (black)
-         - #FFFFFF (white)
-         - #86BB27 (green)
-         - #C4C4C4 (gray)
-         - #DFF3C6 (lightened 86BB27)
-      */
       --black: #000000;
       --white: #FFFFFF;
       --green: #86BB27;
-      --green-light: #DFF3C6; /* thin green background */
+      --green-light: #DFF3C6;
       --gray: #C4C4C4;
 
       --board-cols:10; --board-rows:6; --cell-size:68px;
-      --accent: var(--green);
-      --bg: var(--white);
-      --text: var(--black);
-      --active: rgba(0,0,0,0.08);
-      --ok: var(--green);
-      --muted: var(--gray);
-      --zoom-step:8px;
       --board-max-width: calc(var(--cell-size) * var(--board-cols) + 32px);
-
-      /* UI style tokens */
       --btn-radius: 12px;
       --card-radius: 14px;
       --card-shadow: 0 12px 30px rgba(0,0,0,0.08);
       --btn-shadow: 0 6px 14px rgba(0,0,0,0.06);
-      --btn-hover-shadow: 0 8px 18px rgba(0,0,0,0.07);
     }
     *{box-sizing:border-box}
     html,body{height:100%; margin:0}
-    /* All text bold per request */
     body{
       display:flex; flex-direction:column; align-items:stretch;
       font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,"Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic","Meiryo",sans-serif;
-      color:var(--text); background:var(--bg);
-      min-height:100vh;
-      font-weight:700;
+      color:var(--black); background:var(--white); min-height:100vh;
+      font-weight:700; /* all text bold as requested */
     }
 
-    /* ===== App Bar / Toolbar ===== */
+    /* App Bar */
     .appbar{
       position:sticky; top:0; z-index:1100; width:100%;
-      display:flex; justify-content:center;
-      background: var(--white);
-      backdrop-filter:saturate(0.9); border-bottom:1px solid rgba(0,0,0,0.06);
-      pointer-events:auto;
-      box-shadow: 0 4px 18px rgba(0,0,0,0.03);
+      display:flex; justify-content:center; background:var(--white);
+      border-bottom:1px solid rgba(0,0,0,0.06); box-shadow: 0 4px 18px rgba(0,0,0,0.03);
     }
-    /* slightly smaller toolbar */
     .toolbar{width:100%; padding:6px 10px; display:flex; flex-wrap:wrap; align-items:center; gap:10px}
-    .title{font-weight:900; font-size:15px; color:var(--black); letter-spacing:.02em; white-space:nowrap; margin-right:auto}
-
+    .title{font-weight:900; font-size:15px; color:var(--black); white-space:nowrap; margin-right:auto}
     .group{display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--white); border:1px solid var(--gray); border-radius:14px}
     label{font-size:12px; color:var(--black)}
-    select,input[type="number"],input[type="text"],input[type="range"],textarea,select{
-      padding:8px 10px; border-radius:10px; border:1px solid var(--gray); background:var(--white); color:var(--black);
-    }
-    input[type="range"]{width:120px}
-    button{
-      padding:8px 12px; border-radius:var(--btn-radius); border:1px solid var(--gray);
-      background:var(--white); cursor:pointer; color:var(--black);
-      transition: transform .12s ease, box-shadow .12s ease, opacity .12s ease, background .12s ease;
-      box-shadow: none;
-      font-weight:900;
-    }
-    /* flat primary button */
-    button.primary{
-      background: var(--green);
-      color: var(--white);
-      border-color: transparent;
-      box-shadow: var(--btn-shadow);
-    }
-    button:disabled{opacity:.45; cursor:not-allowed; box-shadow:none}
-    button:hover:not(:disabled){ transform: translateY(-2px); box-shadow: var(--btn-hover-shadow); }
+    select,input[type="text"]{padding:8px 10px; border-radius:10px; border:1px solid var(--gray); background:var(--white); color:var(--black)}
+    button{padding:8px 12px; border-radius:var(--btn-radius); border:1px solid var(--gray); background:var(--white); cursor:pointer; color:var(--black); box-shadow:none; font-weight:900}
+    button.primary{background:var(--green); color:var(--white); border-color:transparent; box-shadow:var(--btn-shadow)}
+    button:disabled{opacity:.45; cursor:not-allowed}
+    button:hover:not(:disabled){ transform:translateY(-2px); box-shadow:0 8px 18px rgba(0,0,0,0.07) }
 
-    .dice{width:44px; height:44px; display:grid; place-items:center; border-radius:12px; border:1px solid var(--gray); background:var(--white); color:var(--black)}
-    .dice.spin{animation:spin .6s ease}
-    @keyframes spin{0%{transform:rotate(0)}50%{transform:rotate(180deg) scale(1.05)}100%{transform:rotate(360deg)}}
-
-    /* player name inputs */
     .player-names { display:flex; gap:8px; align-items:center; }
-    .player-names input {
-      width:140px; padding:8px 10px; border-radius:10px; border:1px solid var(--gray);
-      background:var(--white); color:var(--black); font-weight:900;
-      transition: box-shadow .12s ease, border-color .12s ease;
-    }
-    /* focus state: border becomes green and subtle ring */
-    .player-names input:focus{
-      outline: none;
-      border-color: var(--green);
-      box-shadow: 0 0 0 6px rgba(134,187,39,0.08);
-    }
+    .player-names input { width:140px; padding:8px 10px; border-radius:10px; border:1px solid var(--gray); background:var(--white); color:var(--black); font-weight:900; transition: box-shadow .12s, border-color .12s }
+    .player-names input:focus{outline:none; border-color:var(--green); box-shadow:0 0 0 6px rgba(134,187,39,0.08);}
 
-    /* ===== Layout ===== */
+    /* Layout */
     .wrap{width:100%; padding:16px; display:grid; grid-template-columns:3fr 1.1fr; gap:12px; flex:1; align-items:start}
     @media (max-width:980px){ .wrap{grid-template-columns:1fr} }
 
-    /* ===== Board ===== */
-    .board-wrap{
-      display:flex; justify-content:center; align-items:flex-start;
-      overflow:auto;
-      width:100%;
-      padding-bottom:8px;
-      -webkit-overflow-scrolling:touch;
-      z-index:1;
-    }
-    .board{
-      background:var(--white); border:2px solid var(--gray); border-radius:14px; padding:12px; position:relative; display:grid; gap:8px;
-      grid-template-columns:repeat(var(--board-cols), var(--cell-size));
-      grid-auto-rows: var(--cell-size);
-      justify-content:center; align-content:start;
-      min-width: var(--board-max-width);
-      max-width: none;
-      box-shadow: 0 6px 22px rgba(0,0,0,0.04);
-    }
-    .cell{
-      background:var(--white); border:1px solid var(--gray); border-radius:12px; padding:8px;
-      display:grid; place-items:center; font-size:12px; position:relative; cursor:default; color:var(--black);
-      font-weight:900;
-    }
-    .cell.start{background: var(--green-light); border-color:var(--green)}
-    .cell.goal{background: var(--green); border-color:var(--green)}
-    .cell.event, .cell.bonus, .cell.workshop, .cell.client {
-      background: var(--green-light);
-      border-color: var(--green);
-      color: var(--black);
-    }
+    /* Board */
+    .board-wrap{display:flex; justify-content:center; align-items:flex-start; overflow:auto; width:100%; padding-bottom:8px; -webkit-overflow-scrolling:touch; z-index:1}
+    .board{background:var(--white); border:2px solid var(--gray); border-radius:14px; padding:12px; position:relative; display:grid; gap:8px; grid-template-columns:repeat(var(--board-cols), var(--cell-size)); grid-auto-rows: var(--cell-size); justify-content:center; align-content:start; min-width:var(--board-max-width)}
+    .cell{background:var(--white); border:1px solid var(--gray); border-radius:12px; padding:8px; display:grid; place-items:center; font-size:12px; position:relative; color:var(--black); font-weight:900}
+    .cell.start{background:var(--green-light); border-color:var(--green)}
+    .cell.goal{background:var(--green); border-color:var(--green)}
+    .cell.event, .cell.bonus, .cell.workshop, .cell.client { background:var(--green-light); border-color:var(--green); color:var(--black) }
     .cell.penalty{background:#FBFBFB; border-color:var(--gray)}
     .cell .idx{position:absolute; top:6px; left:8px; font-size:10px; color:var(--black)}
 
-    /* ===== Tokens ===== */
+    /* Tokens */
     .token{width:30px; height:30px; border-radius:50%; border:2px solid var(--black); display:grid; place-items:center; color:var(--white); font-size:12px; font-weight:900; box-shadow:0 8px 20px rgba(0,0,0,0.06)}
     .token.finished{opacity:.9; border-color:var(--gray)}
     .token.active{outline:3px solid rgba(0,0,0,0.08)}
 
-    /* ===== Sidebar ===== */
-    .sidebar{background:var(--white); border:2px solid var(--gray); border-radius:14px; padding:14px; display:grid; gap:12px; height:fit-content; z-index:2; box-shadow: 0 10px 30px rgba(0,0,0,0.04)}
+    /* Sidebar */
+    .sidebar{background:var(--white); border:2px solid var(--gray); border-radius:14px; padding:14px; display:grid; gap:12px; height:fit-content; z-index:2}
     .stat{display:flex; justify-content:space-between; gap:8px; padding:10px 12px; background:var(--white); border-radius:12px}
-    .players{display:grid; gap:10px}
+    .players{display:grid; gap:10px; min-height:72px}
     .player-row{display:grid; grid-template-columns:1fr 1fr; gap:10px; align-items:center; padding:10px 12px; background:var(--white); border:1px solid var(--gray); border-radius:12px}
     .player-row.active{border-color:rgba(0,0,0,0.12); box-shadow:0 0 0 2px rgba(134,187,39,0.06) inset}
     .badge{width:20px; height:20px; border-radius:50%; border:2px solid var(--black); display:inline-block; margin-right:8px}
-
     .left-col{display:flex; align-items:center; gap:10px}
     .name-wrap{display:flex; flex-direction:column}
     .player-name{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:220px; font-weight:900}
     .rank{font-weight:900; color:var(--black)}
     .salary{font-weight:900; color:var(--black); font-size:13px}
-
     .attr-list{display:flex; gap:8px; justify-content:flex-end; align-items:center}
     .attr{font-size:12px; background:var(--white); padding:6px 10px; border-radius:10px; border:1px solid var(--gray); min-width:86px; text-align:center; color:var(--black); font-weight:900}
 
@@ -166,50 +88,40 @@
     .log p.ok{color:var(--green)}
     .log p.bad{color:var(--black)}
 
-    /* nice little flash for attribute changes */
-    .flash-attr { animation: flashAttr 520ms ease; }
-    @keyframes flashAttr {
-      0% { transform: scale(1); background: var(--white); }
-      50% { transform: scale(1.05); background: var(--green-light); }
-      100% { transform: scale(1); background: var(--white); }
-    }
-
-    /* Modal card styling */
+    /* modal card */
     .card{padding:16px; border-radius:var(--card-radius); background:var(--white); box-shadow:var(--card-shadow); border:1px solid var(--gray)}
     .card h3{margin:0 0 8px; color:var(--black); font-weight:900}
     .card p{margin:0 0 8px; font-weight:900}
     .card .muted{color:var(--black); opacity:0.7; font-size:13px; font-weight:900}
     .card .actions{display:flex; justify-content:flex-end; gap:10px; margin-top:12px}
-    .card .actions button{min-width:84px; padding:8px 12px; border-radius:12px; font-weight:900}
+
+    /* fallback overlay for environments without dialog support */
+    .modal-fallback { position: fixed; inset: 0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.42); z-index:1600 }
+    .modal-fallback .card { max-width:520px; width:calc(100% - 40px) }
 
     dialog button{pointer-events:auto}
   </style>
 </head>
 <body>
-  <!-- App Bar -->
   <div class="appbar">
     <div class="toolbar" role="group" aria-label="ゲーム設定">
-      <!-- Title with only leading M green -->
-      <div class="title" id="app-title"><span style="color:var(--green); font-weight:900;">M</span>ake an impact that matters</div>
+      <div class="title" id="app-title"><span style="color:var(--green); font-weight:900">M</span>ake an impact that matters</div>
 
       <div class="group"><label for="players-count">人数</label>
-        <select id="players-count">
-          <option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option>
-        </select>
+        <select id="players-count"><option>1</option><option selected>2</option><option>3</option><option>4</option></select>
       </div>
 
-      <!-- Player name inputs -->
       <div class="group player-names" id="player-names"></div>
 
-      <div class="dice" id="dice" aria-live="polite" aria-atomic="true">-</div>
-
-      <button id="btn-start" class="primary" type="button">開始</button>
-      <button id="btn-roll" disabled type="button">サイコロ</button>
-      <button id="btn-reset" type="button">リセット</button>
-
-      <button id="btn-settings" title="プレイヤー設定" type="button">設定</button>
+      <div class="group" style="gap:8px;">
+        <div class="dice" id="dice" aria-live="polite" aria-atomic="true">-</div>
+        <button id="btn-start" class="primary" type="button">開始</button>
+        <button id="btn-roll" disabled type="button">サイコロ</button>
+        <button id="btn-reset" type="button">リセット</button>
+      </div>
 
       <div class="group" style="margin-left:auto;">
+        <button id="btn-settings" title="プレイヤー設定" type="button">設定</button>
         <button id="btn-zoom-in" title="ズームイン" type="button">ズーム＋</button>
         <button id="btn-zoom-out" title="ズームアウト" type="button">ズーム−</button>
       </div>
@@ -220,11 +132,24 @@
     <div class="board-wrap">
       <main class="board" id="board" aria-label="ボード"></main>
     </div>
+
     <aside class="sidebar">
       <div class="stat"><span>ターン</span><strong id="stat-turn">0</strong></div>
       <div class="stat"><span>手番</span><strong id="stat-current">-</strong></div>
+
       <div class="players" id="players-panel"></div>
+
       <div class="log" id="log" aria-live="polite" aria-atomic="false"></div>
+
+      <div class="card">
+        <div style="display:flex; gap:8px; justify-content:space-between; align-items:center">
+          <div style="font-weight:900">履歴</div>
+          <div style="display:flex; gap:8px">
+            <button id="btn-history" type="button">履歴を表示</button>
+            <button id="history-clear" type="button">履歴クリア</button>
+          </div>
+        </div>
+      </div>
     </aside>
   </div>
 
@@ -239,36 +164,8 @@
     </div>
   </dialog>
 
-  <dialog class="modal" id="history-modal" aria-labelledby="history-title">
-    <div class="card">
-      <h3 id="history-title">イベント履歴</h3>
-      <div id="history-body" style="max-height:360px; overflow:auto;"></div>
-      <div class="actions">
-        <button id="history-close" class="primary" type="button">閉じる</button>
-        <button id="history-clear" type="button">クリア</button>
-      </div>
-    </div>
-  </dialog>
-
-  <dialog class="modal" id="shortcuts-modal" aria-labelledby="shortcuts-title">
-    <div class="card">
-      <h3 id="shortcuts-title">操作ショートカット</h3>
-      <div class="help-list">
-        Space / Enter: サイコロを振る<br>
-        H: このヘルプを開く/閉じる<br>
-        Z / Shift+Z: ズームイン / ズームアウト<br>
-        F: 盤面を画面にフィット<br>
-      </div>
-      <div class="actions"><button id="shortcuts-close" class="primary" type="button">閉じる</button></div>
-    </div>
-  </dialog>
-
   <dialog class="modal" id="result" aria-labelledby="result-title">
-    <div class="card">
-      <h3 id="result-title">結果発表</h3>
-      <div id="result-body"></div>
-      <div class="actions"><button id="result-close" class="primary" type="button">閉じる</button></div>
-    </div>
+    <div class="card"><h3 id="result-title">結果発表</h3><div id="result-body"></div><div class="actions"><button id="result-close" class="primary" type="button">閉じる</button></div></div>
   </dialog>
 
   <script>
@@ -281,49 +178,92 @@
     const playersCountSel = $("#players-count");
     const playerNamesEl = $("#player-names");
     const btnZoomIn = $("#btn-zoom-in"), btnZoomOut = $("#btn-zoom-out");
+    const btnHistory = $("#btn-history"), historyClear = $("#history-clear");
     const genericModal = $("#modal"), genericTitle = $("#modal-title"), genericText = $("#modal-text"), genericSub = $("#modal-sub"), genericActions = $("#modal-actions");
-    const historyModal = $("#history-modal"), historyBody = $("#history-body"), historyClose = $("#history-close"), historyClear = $("#history-clear");
     const resultDlg = $("#result"), resultBody = $("#result-body");
 
     const BOARD_COLS = 10, BOARD_ROWS = 6, TOTAL_CELLS = BOARD_COLS * BOARD_ROWS;
-    const PLAYER_COLORS = ["#86BB27", "#DFF3C6", "#C4C4C4", "#000000", "#86BB27"];
+    const PLAYER_COLORS = ["#86BB27","#DFF3C6","#C4C4C4","#000000","#86BB27"];
     const BRANCH_CHANCE = 0.36;
 
-    const eventTable = [
-      { text:"短期支援入り", learning:+6, mental:+2, rating:+3, responsibility:+1 },
-      { text:"見積り漏れでトラブル", learning:+2, mental:-6, rating:-1, responsibility:0 },
-      { text:"紹介で新規案件獲得", learning:+4, mental:+3, rating:+5, responsibility:+2 },
-      { text:"資料誤記で修正対応", learning:+3, mental:-2, rating:-1, responsibility:+1 },
-      { text:"アップセル成功", learning:+5, mental:+3, rating:+4, responsibility:+2 },
-      { text:"請求遅延で対応", learning:+1, mental:-3, rating:0, responsibility:+1 },
-      { text:"分析が評価される", learning:+7, mental:+1, rating:+4, responsibility:0 },
-      { text:"外注コスト増で調整", learning:+1, mental:-4, rating:-1, responsibility:+1 },
-      { text:"プロトタイプが好評", learning:+8, mental:+5, rating:+6, responsibility:+3 },
-      { text:"内部調整で停滞", learning:0, mental:-1, rating:0, responsibility:0 }
-    ];
-
-    const RANKS = [
-      { key: "アナリスト", min: -Infinity, max: 59.999, base: 5000000 },
-      { key: "コンサルタント", min: 60, max: 84.999, base: 8500000 },
-      { key: "シニアコンサルタント", min: 85, max: 109.999, base: 12000000 },
-      { key: "マネージャー", min: 110, max: Infinity, base: 18000000 }
-    ];
-    function estimateScore(p){
-      return ( (p.learning||0) * 0.35 + (p.rating||0) * 0.35 + (p.responsibility||0) * 0.2 + (p.mental||0) * 0.1 );
-    }
-    function getRankAndSalary(p){
-      const score = estimateScore(p);
-      const rank = RANKS.find(r => score >= r.min && score <= r.max) || RANKS[0];
-      const modifier = 1 + Math.min(0.5, (p.responsibility||0) / 200) + Math.min(0.3, (p.rating||0) / 400);
-      const estimated = Math.round(rank.base * modifier / 1000) * 1000;
-      return { rank: rank.key, baseSalary: rank.base, estimatedSalary: estimated, score: Math.round(score) };
-    }
-
+    // Persistent history buffer (keeps logs even after reset). Uses localStorage to persist across reloads.
+    const HISTORY_KEY = "itmatters_history_v1";
     let state = {
       started:false, turn:0, currentPlayerIndex:0, players:[], finishedCount:0, animating:false,
-      rng: Math.random, speed:180, overshoot:"clamp", playerSettings: []
+      rng: Math.random, speed:180, overshoot:"clamp",
+      history: [] // {ts:ISO,text:string,kind?:string}
     };
 
+    // load history from storage
+    try{
+      const saved = localStorage.getItem(HISTORY_KEY);
+      if(saved){ state.history = JSON.parse(saved); }
+    }catch(e){ state.history = []; }
+
+    function persistHistory(){ try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(state.history)); }catch(e){} }
+
+    // helpers
+    function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
+    function randPick(rng, arr){ return arr[Math.floor(rng()*arr.length)]; }
+    function tokenId(i){ return `token-${i}` }
+    function yen(n){ return "¥" + Number(n).toLocaleString("ja-JP"); }
+    function timeNow(){ return (new Date()).toISOString(); }
+
+    // pushLog: append to history buffer and to DOM; always persistent until user clears via historyClear
+    function pushLog(text, kind){
+      const item = { ts: timeNow(), text: String(text), kind: kind || "" };
+      state.history.push(item);
+      persistHistory();
+      appendLogToDom(item);
+    }
+    function appendLogToDom(item){
+      if(!logEl) return;
+      const p = document.createElement("p");
+      p.textContent = `[${item.ts.slice(11,19)}] ${item.text}`;
+      if(item.kind) p.classList.add(item.kind);
+      logEl.appendChild(p);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    // render full history in modal / alert
+    function showHistory(){
+      // use a fallback overlay for history (simple)
+      const overlay = document.createElement("div");
+      overlay.className = "modal-fallback";
+      const card = document.createElement("div"); card.className = "card";
+      const h = document.createElement("h3"); h.textContent = "イベント履歴";
+      const body = document.createElement("div"); body.style.maxHeight = "60vh"; body.style.overflow = "auto"; body.style.marginTop = "8px";
+      if(state.history.length === 0){ body.textContent = "履歴がありません"; }
+      else {
+        state.history.slice().reverse().forEach(it=>{
+          const d = document.createElement("div");
+          d.style.padding = "6px 0";
+          d.textContent = `[${it.ts.slice(0,19)}] ${it.text}`;
+          if(it.kind) d.classList.add(it.kind);
+          body.appendChild(d);
+        });
+      }
+      const actions = document.createElement("div"); actions.className = "actions";
+      const close = document.createElement("button"); close.className = "primary"; close.type = "button"; close.textContent = "閉じる";
+      close.addEventListener("click", ()=> overlay.remove());
+      actions.appendChild(close);
+      card.appendChild(h); card.appendChild(body); card.appendChild(actions);
+      overlay.appendChild(card);
+      document.body.appendChild(overlay);
+      close.focus();
+    }
+
+    // clear history (explicit)
+    if(historyClear) historyClear.addEventListener("click", ()=>{
+      if(!confirm("履歴を完全にクリアしますか？")) return;
+      state.history = [];
+      persistHistory();
+      if(logEl) logEl.innerHTML = "";
+      pushLog("履歴をクリアしました", "ok");
+    });
+    if(btnHistory) btnHistory.addEventListener("click", showHistory);
+
+    // player name inputs
     function renderPlayerNameInputs(){
       const count = Math.max(1, parseInt(playersCountSel.value || "2"));
       playerNamesEl.innerHTML = "";
@@ -341,23 +281,10 @@
 
     function getPlayerNames(){
       const inputs = playerNamesEl.querySelectorAll("input");
-      const names = Array.from(inputs).map(inp => inp.value.trim() || inp.placeholder);
-      return names;
+      return Array.from(inputs).map((inp, i) => inp.value.trim() || `プレイヤー${i+1}`);
     }
 
-    function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
-    function randPick(rng, arr){ return arr[Math.floor(rng()*arr.length)]; }
-    function tokenId(i){ return `token-${i}` }
-    function yen(n){ return "¥" + Number(n).toLocaleString("ja-JP"); }
-    function flashAttr(playerIndex, attrName){
-      try{
-        const el = document.getElementById(`${attrName}-${playerIndex}`);
-        if(!el) return;
-        el.classList.add('flash-attr');
-        setTimeout(()=> el.classList.remove('flash-attr'), 520);
-      }catch(e){}
-    }
-
+    // board setup
     const cells = Array.from({length:TOTAL_CELLS},(_,i)=>({index:i,type:"none",label:""}));
     cells[0] = {index:0,type:"start",label:"スタート"};
     cells[TOTAL_CELLS-1] = {index:TOTAL_CELLS-1,type:"goal",label:"ゴール"};
@@ -392,20 +319,16 @@
         label.textContent = isEventish ? "イベント" : (cell.label||"");
         div.appendChild(label);
         const {row,col} = indexToGrid(cell.index); div.style.gridRowStart = row+1; div.style.gridColumnStart = col+1;
-        div.addEventListener("mouseenter", e=> showCellTooltip(cell, e));
-        div.addEventListener("mousemove", e=> moveTooltip(e));
-        div.addEventListener("mouseleave", hideTooltip);
+        div.addEventListener("mouseenter", ()=>{}); // tooltip disabled
         boardEl.appendChild(div);
       });
+      // tokens
       state.players.forEach((pl,i)=>{
         const token=document.createElement("div"); token.className="token"; token.id=tokenId(i); token.textContent=String(i+1);
         token.style.background = PLAYER_COLORS[i % PLAYER_COLORS.length];
         token.style.color = (i === 1 || i === 2) ? 'var(--black)' : 'var(--white)';
         if(pl.finished) token.classList.add("finished");
         token.style.position = "absolute"; token.style.left = "0px"; token.style.top = "0px";
-        token.addEventListener("mouseenter", e=> showPlayerTooltip(pl, e));
-        token.addEventListener("mousemove", e=> moveTooltip(e));
-        token.addEventListener("mouseleave", hideTooltip);
         boardEl.appendChild(token);
       });
       placeAllTokens(); highlightActiveToken();
@@ -444,57 +367,113 @@
       });
     }
 
-    // Tooltip disabled functions (kept no-op)
-    function showCellTooltip(){ }
-    function showPlayerTooltip(){ }
-    function moveTooltip(){ }
-    function hideTooltip(){ }
+    // Players panel render: show placeholder when no players, otherwise full status
+    function renderPlayersPanel(){
+      if(!playersPanelEl) return;
+      playersPanelEl.innerHTML = "";
+      if(!state.players || state.players.length === 0){
+        const placeholder = document.createElement("div");
+        placeholder.className = "card";
+        placeholder.style.textAlign = "center";
+        placeholder.style.fontWeight = "900";
+        placeholder.textContent = "プレイヤーを設定して「開始」を押してください";
+        playersPanelEl.appendChild(placeholder);
+        return;
+      }
+      state.players.forEach((pl,i)=>{
+        const row=document.createElement("div"); row.className="player-row"+(i===state.currentPlayerIndex?" active":"");
+        const left = document.createElement("div"); left.className = "left-col";
+        const badge=document.createElement("span"); badge.className="badge"; badge.style.background=pl.color; left.appendChild(badge);
+        const nameWrap = document.createElement("div"); nameWrap.className="name-wrap";
+        const name = document.createElement("div"); name.className = "player-name"; name.textContent = pl.name;
+        const { rank, estimatedSalary } = getRankAndSalary(pl);
+        const rankEl = document.createElement("div"); rankEl.className = "rank"; rankEl.textContent = rank;
+        const salEl = document.createElement("div"); salEl.className = "salary"; salEl.textContent = `${yen(estimatedSalary)}`;
+        nameWrap.appendChild(name); nameWrap.appendChild(rankEl); nameWrap.appendChild(salEl);
+        left.appendChild(nameWrap);
 
-    // Robust modal helpers with escape/key cleanup and timeout fallback
-    function showCard(title, text, sub){
+        const right = document.createElement("div"); right.className = "attr-list";
+        const aLearning = document.createElement("div"); aLearning.className="attr"; aLearning.id=`learning-${i}`; aLearning.textContent = `学び: ${pl.learning}`;
+        const aMental = document.createElement("div"); aMental.className="attr"; aMental.id=`mental-${i}`; aMental.textContent = `メンタル: ${pl.mental}`;
+        const aRating = document.createElement("div"); aRating.className="attr"; aRating.id=`rating-${i}`; aRating.textContent = `評価: ${pl.rating}`;
+        const aResp = document.createElement("div"); aResp.className="attr"; aResp.id=`responsibility-${i}`; aResp.textContent = `責任: ${pl.responsibility}`;
+        right.appendChild(aLearning); right.appendChild(aMental); right.appendChild(aRating); right.appendChild(aResp);
+
+        row.appendChild(left); row.appendChild(right);
+        playersPanelEl.appendChild(row);
+      });
+    }
+
+    // History: when page loads, render any persisted history in the log area
+    function loadHistoryToDom(){
+      if(!logEl) return;
+      logEl.innerHTML = "";
+      state.history.forEach(it => appendLogToDom(it));
+    }
+
+    // Robust modal helpers + fallback (same as previous robust version)
+    function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+    function showCard(title, text, sub, {timeout = 30000} = {}) {
       return new Promise(resolve => {
         if(!genericModal){ resolve(); return; }
         genericTitle.textContent = title || "";
         genericText.textContent = text || "";
         genericSub.textContent = sub || "";
         genericActions.innerHTML = "";
-        const ok = document.createElement("button"); ok.className = "primary"; ok.textContent = "OK"; ok.type = "button";
-
-        let finished = false;
-        const TIMEOUT = 30000; // 30s fallback
-        let timer = null;
+        const ok = document.createElement("button");
+        ok.className = "primary"; ok.type = "button"; ok.textContent = "OK";
+        let finished = false, timer = null;
         function cleanup(){
-          if(timer) { clearTimeout(timer); timer = null; }
-          genericModal.removeEventListener("close", onClose);
-          document.removeEventListener("keydown", onKey);
-          ok.removeEventListener("click", onOk);
+          if(timer){ clearTimeout(timer); timer = null; }
+          try{ genericModal.removeEventListener("close", onClose); }catch(e){}
+          try{ document.removeEventListener("keydown", onKey); }catch(e){}
         }
         function finish(val){
-          if(finished) return;
-          finished = true;
-          try{ genericModal.close(); }catch(e){}
-          cleanup();
+          if(finished) return; finished = true; cleanup();
+          try{ if(genericModal.open) genericModal.close(); }catch(e){}
+          const fb = document.querySelector(".modal-fallback"); if(fb) fb.remove();
           resolve(val);
         }
         function onOk(){ finish(); }
         function onClose(){ finish(); }
-        function onKey(e){ if(e.key === "Escape"){ finish(); } }
+        function onKey(e){ if(e.key === "Escape") finish(); }
 
         ok.addEventListener("click", onOk);
-        genericModal.addEventListener("close", onClose);
-        document.addEventListener("keydown", onKey);
         genericActions.appendChild(ok);
 
-        // fallback timeout to avoid indefinite blocking
-        timer = setTimeout(()=> {
-          finish();
-        }, TIMEOUT);
+        try{
+          genericModal.addEventListener("close", onClose);
+          document.addEventListener("keydown", onKey);
+          timer = setTimeout(()=> finish(), timeout);
+          genericModal.showModal();
+          ok.focus();
+          return;
+        }catch(err){
+          cleanup();
+        }
 
-        try{ genericModal.showModal(); ok.focus(); }catch(e){ cleanup(); resolve(); }
+        // fallback overlay
+        const overlay = document.createElement("div"); overlay.className = "modal-fallback";
+        const card = document.createElement("div"); card.className = "card";
+        card.innerHTML = `<h3>${escapeHtml(title||"")}</h3><div style="white-space:normal">${escapeHtml(text||"")}</div><div class="muted" style="margin-top:8px">${escapeHtml(sub||"")}</div>`;
+        const actionsWrap = document.createElement("div"); actionsWrap.className = "actions";
+        const ok2 = document.createElement("button"); ok2.className = "primary"; ok2.type = "button"; ok2.textContent = "OK";
+        actionsWrap.appendChild(ok2); card.appendChild(actionsWrap); overlay.appendChild(card); document.body.appendChild(overlay);
+
+        function fbOnOk(){ finish(); }
+        function fbOnKey(e){ if(e.key === "Escape") finish(); }
+        function fbOnClickOutside(e){ if(e.target === overlay) finish(); }
+
+        ok2.addEventListener("click", fbOnOk);
+        document.addEventListener("keydown", fbOnKey);
+        overlay.addEventListener("click", fbOnClickOutside);
+
+        timer = setTimeout(()=> finish(), timeout);
       });
     }
 
-    function showBranchModal(branchEv, playerIndex){
+    function showBranchModal(branchEv, playerIndex, {timeout = 30000} = {}) {
       return new Promise(resolve => {
         if(!genericModal){ resolve(null); return; }
         genericTitle.textContent = "案件分岐 (提案)";
@@ -502,47 +481,34 @@
         genericSub.textContent = `あなた: ${state.players[playerIndex].name}`;
         genericActions.innerHTML = "";
 
-        let resolved = false;
-        const TIMEOUT = 30000;
-        let timer = null;
+        let resolved = false, timer = null;
         function cleanup(){
           if(timer){ clearTimeout(timer); timer = null; }
-          genericModal.removeEventListener("close", onClose);
-          document.removeEventListener("keydown", onKey);
-          // remove click handlers on buttons if necessary
-          Array.from(genericActions.querySelectorAll("button")).forEach(b=>{
-            b.disabled = false;
-            b.replaceWith(b.cloneNode(true));
-          });
+          try{ genericModal.removeEventListener("close", onClose); }catch(e){}
+          try{ document.removeEventListener("keydown", onKey); }catch(e){}
         }
         function finish(val){
-          if(resolved) return;
-          resolved = true;
-          try{ genericModal.close(); }catch(e){}
-          cleanup();
+          if(resolved) return; resolved = true; cleanup();
+          try{ if(genericModal.open) genericModal.close(); }catch(e){}
+          const fb = document.querySelector(".modal-fallback"); if(fb) fb.remove();
           resolve(val);
         }
         function onClose(){ finish(null); }
-        function onKey(e){ if(e.key === "Escape"){ finish(null); } }
+        function onKey(e){ if(e.key === "Escape") finish(null); }
 
-        // Add buttons for choices
         const buttons = [];
         branchEv.choices.forEach(choice=>{
           const b = document.createElement("button"); b.type = "button"; b.textContent = choice.label;
-          b.addEventListener("click", async ()=>{
-            // disable all buttons immediately to prevent double clicks
-            buttons.forEach(btn => { btn.disabled = true; });
+          b.addEventListener("click", ()=>{
+            buttons.forEach(btn => btn.disabled = true);
             const baseProb = (typeof choice.probGood === "number") ? choice.probGood : 1.0;
             const pl = state.players[playerIndex];
             const repBonus = Math.max(-0.3, Math.min(0.3, (pl.rating || 0) / 200));
             const prob = Math.max(0.05, Math.min(0.95, baseProb + repBonus));
             const success = state.rng() < prob;
             const res = success ? (choice.success||{}) : (choice.failure||{});
-            // apply attributes
             ["learning","mental","rating","responsibility"].forEach(k=>{
-              if(typeof res[k] === "number"){
-                pl[k] = Math.max(0, Math.round((pl[k]||0) + res[k]));
-              }
+              if(typeof res[k] === "number") pl[k] = Math.max(0, Math.round((pl[k]||0) + res[k]));
             });
             ["learning","mental","rating","responsibility"].forEach(k=> flashAttr(playerIndex, k));
             pushLog(`${pl.name}: ${success ? (res.text || choice.label + " → 成功") : (res.text || choice.label + " → 失敗")}`, success ? "ok" : "bad");
@@ -556,124 +522,117 @@
         genericActions.appendChild(cancel);
         buttons.push(cancel);
 
-        // safety listeners
-        genericModal.addEventListener("close", onClose);
-        document.addEventListener("keydown", onKey);
+        try{
+          genericModal.addEventListener("close", onClose);
+          document.addEventListener("keydown", onKey);
+          timer = setTimeout(()=> finish(null), timeout);
+          genericModal.showModal();
+          return;
+        }catch(e){
+          cleanup();
+        }
 
-        timer = setTimeout(()=> {
-          finish(null);
-        }, TIMEOUT);
+        // fallback overlay with choices
+        const overlay = document.createElement("div"); overlay.className = "modal-fallback";
+        const card = document.createElement("div"); card.className = "card";
+        const h = document.createElement("h3"); h.textContent = "案件分岐 (提案)";
+        const body = document.createElement("div"); body.style.whiteSpace = "normal"; body.textContent = branchEv.text || "";
+        const muted = document.createElement("div"); muted.className = "muted"; muted.style.marginTop = "8px"; muted.textContent = `あなた: ${state.players[playerIndex].name}`;
+        const actionsWrap = document.createElement("div"); actionsWrap.className = "actions";
+        const fbButtons = [];
+        branchEv.choices.forEach(choice=>{
+          const b = document.createElement("button"); b.type = "button"; b.textContent = choice.label;
+          b.addEventListener("click", ()=>{
+            fbButtons.forEach(btn=>btn.disabled = true);
+            const baseProb = (typeof choice.probGood === "number") ? choice.probGood : 1.0;
+            const pl = state.players[playerIndex];
+            const repBonus = Math.max(-0.3, Math.min(0.3, (pl.rating || 0) / 200));
+            const prob = Math.max(0.05, Math.min(0.95, baseProb + repBonus));
+            const success = state.rng() < prob;
+            const res = success ? (choice.success||{}) : (choice.failure||{});
+            ["learning","mental","rating","responsibility"].forEach(k=>{
+              if(typeof res[k] === "number") pl[k] = Math.max(0, Math.round((pl[k]||0) + res[k]));
+            });
+            ["learning","mental","rating","responsibility"].forEach(k=> flashAttr(playerIndex, k));
+            pushLog(`${pl.name}: ${success ? (res.text || choice.label + " → 成功") : (res.text || choice.label + " → 失敗")}`, success ? "ok" : "bad");
+            finish({choice, res, success});
+          });
+          actionsWrap.appendChild(b);
+          fbButtons.push(b);
+        });
+        const fbCancel = document.createElement("button"); fbCancel.type = "button"; fbCancel.textContent = "やめる"; fbCancel.addEventListener("click", ()=> finish(null));
+        actionsWrap.appendChild(fbCancel); fbButtons.push(fbCancel);
+        card.appendChild(h); card.appendChild(body); card.appendChild(muted); card.appendChild(actionsWrap); overlay.appendChild(card); document.body.appendChild(overlay);
 
-        try{ genericModal.showModal(); }catch(e){ cleanup(); resolve(null); }
+        function fbOnKey(e){ if(e.key === "Escape") finish(null); }
+        function fbOnClickOutside(e){ if(e.target === overlay) finish(null); }
+        document.addEventListener("keydown", fbOnKey);
+        overlay.addEventListener("click", fbOnClickOutside);
+        timer = setTimeout(()=> finish(null), timeout);
       });
     }
 
+    // resolveCell: unchanged behavior but uses robust modals above
     async function resolveCell(playerIndex, index){
       const pl = state.players[playerIndex]; const cell = cells[index]; if(!cell||!pl) return;
       switch(cell.type){
-        case "start":
-          pushLog(`${pl.name}: プロジェクト開始地点へ`, "ok");
-          break;
-
+        case "start": pushLog(`${pl.name}: スタート`, "ok"); break;
         case "goal":
           if(!pl.finished){
             pl.finished = true; state.finishedCount += 1; $("#"+tokenId(playerIndex))?.classList.add("finished");
             pl.turnsToGoal = state.turn;
-            pushLog(`${pl.name}: プロジェクト完了（ゴール）！`);
+            pushLog(`${pl.name}: ゴール！`);
             const { rank, estimatedSalary } = getRankAndSalary(pl);
             await showCard("ゴール（プロジェクト完了）", `ランク: ${rank} / 推定年収: ${yen(estimatedSalary)}`, `${pl.name}`);
             if(isGameFinished()) showResult();
           }
           break;
-
         case "bonus":{
           const ev = eventTable[2];
-          ["learning","mental","rating","responsibility"].forEach(k=>{
-            if(typeof ev[k] === "number"){
-              pl[k] = Math.max(0, Math.round((pl[k]||0) + ev[k]));
-              flashAttr(playerIndex, k);
-            }
-          });
+          ["learning","mental","rating","responsibility"].forEach(k=>{ if(typeof ev[k] === "number"){ pl[k] = Math.max(0, Math.round((pl[k]||0)+ev[k])); flashAttr(playerIndex,k); }});
           pushLog(`${pl.name}: ボーナスイベント（属性上昇）`, "ok");
           break;
         }
-
         case "penalty":{
           const ev = eventTable[1];
-          ["learning","mental","rating","responsibility"].forEach(k=>{
-            if(typeof ev[k] === "number"){
-              pl[k] = Math.max(0, Math.round((pl[k]||0) + ev[k]));
-              flashAttr(playerIndex, k);
-            }
-          });
+          ["learning","mental","rating","responsibility"].forEach(k=>{ if(typeof ev[k] === "number"){ pl[k] = Math.max(0, Math.round((pl[k]||0)+ev[k])); flashAttr(playerIndex,k); }});
           pushLog(`${pl.name}: コスト（属性変動）`, "bad");
           break;
         }
-
         case "client":{
           const base = 0.55;
-          const repBonus = ((pl.rating||50) - 50) / 200;
-          const prob = Math.max(0.05, Math.min(0.95, base + repBonus));
+          const repBonus = ((pl.rating||50)-50)/200;
+          const prob = Math.max(0.05, Math.min(0.95, base+repBonus));
           const success = state.rng() < prob;
-          if(success){
-            pl.learning = Math.max(0, Math.round((pl.learning||0) + 4));
-            pl.mental = Math.max(0, Math.round((pl.mental||0) + 2));
-            pl.rating = Math.max(0, Math.round((pl.rating||0) + 3));
-            flashAttr(playerIndex, "learning"); flashAttr(playerIndex, "mental"); flashAttr(playerIndex, "rating");
-            pushLog(`${pl.name}: クライアント成功（学び↑ 評価↑）`, "ok");
-          } else {
-            pl.mental = Math.max(0, Math.round((pl.mental||0) - 3));
-            pl.rating = Math.max(0, Math.round((pl.rating||0) - 1));
-            flashAttr(playerIndex, "mental"); flashAttr(playerIndex, "rating");
-            pushLog(`${pl.name}: クライアント不調（メンタル↓）`, "bad");
-          }
+          if(success){ pl.learning = Math.max(0, pl.learning+4); pl.mental = Math.max(0, pl.mental+2); pl.rating = Math.max(0, pl.rating+3); flashAttr(playerIndex,"learning"); flashAttr(playerIndex,"mental"); flashAttr(playerIndex,"rating"); pushLog(`${pl.name}: クライアント成功`, "ok"); }
+          else { pl.mental = Math.max(0, pl.mental-3); pl.rating = Math.max(0, pl.rating-1); flashAttr(playerIndex,"mental"); flashAttr(playerIndex,"rating"); pushLog(`${pl.name}: クライアント不調`, "bad"); }
           await showCard("クライアント面談", `学び: ${pl.learning} / メンタル: ${pl.mental}`, `${pl.name}`);
           break;
         }
-
         case "workshop":{
-          const gain = randPick(state.rng, [1,2,3,5]);
-          pl.learning = Math.max(0, Math.round((pl.learning||0) + gain));
-          pl.rating = Math.max(0, Math.round((pl.rating||0) + 1));
-          flashAttr(playerIndex, "learning"); flashAttr(playerIndex, "rating");
+          const gain = randPick(state.rng,[1,2,3,5]);
+          pl.learning = Math.max(0, pl.learning+gain); pl.rating = Math.max(0, pl.rating+1); flashAttr(playerIndex,"learning"); flashAttr(playerIndex,"rating");
           pushLog(`${pl.name}: ワークショップで学び+${gain}`, "ok");
           await showCard("ワークショップ", `学び +${gain}`, `${pl.name}`);
           break;
         }
-
         case "event":{
           if(state.rng() < BRANCH_CHANCE){
-            const defaultBranch = { text: "クライアントへの提案機会", choices: [
+            const defaultBranch = { text: "クライアントへの提案機会", choices:[
               { label:"攻めの提案", probGood:0.5, success:{learning:+3,mental:+1,rating:+4,responsibility:+2,move:1,text:"提案受注！"}, failure:{learning:+1,mental:-2,rating:-1,responsibility:0,move:0,text:"提案失敗"} },
               { label:"守りの提案", probGood:0.8, success:{learning:+1,mental:+1,rating:+1,responsibility:+0,move:0,text:"小さな案件獲得"}, failure:{learning:0,mental:0,rating:0,responsibility:0,move:0,text:"何もしない"} }
             ]};
-            // wrap in try/catch to avoid uncaught exceptions blocking animateMove
             try{
               const res = await showBranchModal(defaultBranch, playerIndex);
               if(res && res.res && typeof res.res.move === "number" && res.res.move !== 0){
-                if(res.res.move > 0) {
-                  await animateMove(playerIndex, res.res.move);
-                } else {
-                  pl.position = Math.max(0, pl.position + res.res.move);
-                  placeAllTokens();
-                  await resolveCell(playerIndex, pl.position);
-                }
-              } else {
-                renderPlayersPanel();
-              }
-            }catch(e){
-              console.error("showBranchModal error:", e);
-              renderPlayersPanel();
-            }
+                if(res.res.move > 0) { await animateMove(playerIndex, res.res.move); }
+                else { pl.position = Math.max(0, pl.position + res.res.move); placeAllTokens(); await resolveCell(playerIndex, pl.position); }
+              } else { renderPlayersPanel(); }
+            }catch(e){ console.error(e); renderPlayersPanel(); }
             return;
           }
           const ev2 = randPick(state.rng, eventTable);
-          ["learning","mental","rating","responsibility"].forEach(k=>{
-            if(typeof ev2[k] === "number"){
-              pl[k] = Math.max(0, Math.round((pl[k]||0) + ev2[k]));
-              flashAttr(playerIndex, k);
-            }
-          });
+          ["learning","mental","rating","responsibility"].forEach(k=>{ if(typeof ev2[k] === "number"){ pl[k] = Math.max(0, Math.round((pl[k]||0)+ev2[k])); flashAttr(playerIndex,k); }});
           pushLog(`${pl.name}: ${ev2.text}（属性変動）`, ev2.learning>=0?"ok":"bad");
           await showCard("案件イベント", ev2.text, `${pl.name}`);
           break;
@@ -682,67 +641,37 @@
       renderPlayersPanel();
     }
 
-    function rollDice(){ const n = Math.floor(state.rng()*6)+1; if(diceEl) diceEl.textContent = n; if(diceEl) diceEl.classList.add("spin"); setTimeout(()=>{ if(diceEl) diceEl.classList.remove("spin"); }, 620); return n; }
+    // movement with robust try/finally
+    function rollDice(){ const n = Math.floor(state.rng()*6)+1; if(diceEl) diceEl.textContent = n; return n; }
     async function animateMove(playerIndex, steps){
       const pl = state.players[playerIndex]; if(!pl || pl.finished) return;
       state.animating = true; updateRollState();
       try{
         const delay = Number(state.speed || 180);
-        let pos = pl.position;
-        let dir = 1;
-        let remaining = steps;
+        let pos = pl.position, dir = 1, remaining = steps;
         while(remaining > 0){
           let next = pos + dir;
           if(next >= TOTAL_CELLS){
-            if(state.overshoot === "clamp"){
-              pos = TOTAL_CELLS-1;
-              pl.position = pos;
-              placeAllTokens();
-              await sleep(delay);
-              break;
-            } else {
-              pos = TOTAL_CELLS-1;
-              pl.position = pos;
-              placeAllTokens();
-              await sleep(delay);
-              dir = -1;
-            }
-          } else if(next < 0){
-            pos = 0;
-            pl.position = pos;
-            placeAllTokens();
-            await sleep(delay);
-            break;
-          } else {
-            pos = next;
-            pl.position = pos;
-            placeAllTokens();
-            await sleep(delay);
-          }
+            if(state.overshoot === "clamp"){ pos = TOTAL_CELLS-1; pl.position = pos; placeAllTokens(); await sleep(delay); break; }
+            else { pos = TOTAL_CELLS-1; pl.position = pos; placeAllTokens(); await sleep(delay); dir = -1; }
+          } else if(next < 0){ pos = 0; pl.position = pos; placeAllTokens(); await sleep(delay); break; }
+          else { pos = next; pl.position = pos; placeAllTokens(); await sleep(delay); }
           remaining--;
         }
         await resolveCell(playerIndex, pl.position);
-      }catch(e){
-        console.error("animateMove error:", e);
-      }finally{
-        state.animating = false; updateRollState();
-      }
+      }catch(e){ console.error("animateMove error:", e); }
+      finally{ state.animating = false; updateRollState(); }
     }
 
     function nextPlayerTurn(){
-      const total = state.players.length; if(total === 0) return;
+      const total = state.players.length; if(total===0) return;
       let i = state.currentPlayerIndex;
-      for(let c=0;c<total;c++){ i=(i+1)%total; const p=state.players[i]; if(!p.finished){ state.currentPlayerIndex=i; break; } }
+      for(let c=0;c<total;c++){ i=(i+1)%total; if(!state.players[i].finished){ state.currentPlayerIndex=i; break; } }
       if(state.players[state.currentPlayerIndex] && state.players[state.currentPlayerIndex].skipTurn){
-        const skipped = state.players[state.currentPlayerIndex];
-        skipped.skipTurn = false;
-        pushLog(`${skipped.name} は休みのためスキップ解除`);
+        const skipped = state.players[state.currentPlayerIndex]; skipped.skipTurn = false; pushLog(`${skipped.name} は休みのためスキップ解除`);
         for(let c=0;c<total;c++){ state.currentPlayerIndex=(state.currentPlayerIndex+1)%total; if(!state.players[state.currentPlayerIndex].finished && !state.players[state.currentPlayerIndex].skipTurn) break; }
       }
-      if(isGameFinished()){
-        statCurrentEl.textContent = "-";
-        return;
-      }
+      if(isGameFinished()){ statCurrentEl.textContent = "-"; return; }
       if(state.players[state.currentPlayerIndex] && state.players[state.currentPlayerIndex].finished){
         for(let c=0;c<total;c++){ state.currentPlayerIndex=(state.currentPlayerIndex+1)%total; if(!state.players[state.currentPlayerIndex].finished) break; }
       }
@@ -750,113 +679,54 @@
     }
     const isGameFinished = ()=> state.finishedCount === state.players.length;
 
-    function showResult(){
-      if(!resultDlg) return;
-      const rows = state.players.map((p,i)=>({i, name:p.name, score: Math.round(estimateScore(p))})).sort((a,b)=> b.score-a.score);
-      resultBody.innerHTML = `<ol>${rows.map(r=>`<li>${r.name}: スコア ${r.score} / ランク ${getRankAndSalary(state.players[r.i]).rank} / ${yen(getRankAndSalary(state.players[r.i]).estimatedSalary)}</li>`).join("")}</ol>`;
-      try{ resultDlg.showModal(); }catch(e){}
-    }
+    function showResult(){ if(!resultDlg) return; const rows = state.players.map((p,i)=>({i,name:p.name,score:Math.round(estimateScore(p))})).sort((a,b)=>b.score-a.score); resultBody.innerHTML = `<ol>${rows.map(r=>`<li>${r.name}: スコア ${r.score} / ランク ${getRankAndSalary(state.players[r.i]).rank} / ${yen(getRankAndSalary(state.players[r.i]).estimatedSalary)}</li>`).join("")}</ol>`; try{ resultDlg.showModal(); }catch(e){ alert("結果:\n"+rows.map(r=>`${r.name}: ${r.score}`).join("\n")); } }
 
     function startGame(){
       if(state.started) return;
-      const count = Math.max(1, parseInt(playersCountSel?.value || "2"));
-      const initialLearning = 50;
-      const initialMental = 50;
-      const initialRating = 50;
-      const initialResp = 0;
+      const count = Math.max(1, parseInt(playersCountSel.value || "2"));
       const names = getPlayerNames();
       state.players = [];
       for(let i=0;i<count;i++){
-        state.players.push({
-          name: names[i] || `プレイヤー${i+1}`,
-          color: PLAYER_COLORS[i % PLAYER_COLORS.length],
-          position: 0,
-          learning: initialLearning,
-          mental: initialMental,
-          rating: initialRating,
-          responsibility: initialResp,
-          achievements: [],
-          finished: false,
-          skipTurn: false
-        });
+        state.players.push({ name: names[i] || `プレイヤー${i+1}`, color: PLAYER_COLORS[i % PLAYER_COLORS.length], position:0, learning:50, mental:50, rating:50, responsibility:0, achievements:[], finished:false, skipTurn:false });
       }
-      state.started = true;
-      state.turn = 1;
-      state.currentPlayerIndex = 0;
-      state.finishedCount = 0;
-      state.rng = Math.random;
-      renderBoard();
-      renderPlayersPanel();
-      statTurnEl.textContent = String(state.turn);
-      statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
-      pushLog("ゲームを開始しました", "ok");
-      updateRollState();
-      if(btnStart) btnStart.disabled = true;
+      state.started = true; state.turn = 1; state.currentPlayerIndex = 0; state.finishedCount = 0; state.rng = Math.random;
+      renderBoard(); renderPlayersPanel(); statTurnEl.textContent = String(state.turn); statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
+      pushLog("ゲームを開始しました","ok"); updateRollState();
+      btnStart.disabled = true;
     }
 
     async function rollTurn(){
       if(!state.started || state.animating) return;
-      if(state.players.length === 0) { pushLog("プレイヤーが設定されていません"); return; }
+      if(state.players.length === 0){ pushLog("プレイヤーが設定されていません"); return; }
       const current = state.currentPlayerIndex;
       const val = rollDice();
       await animateMove(current, val);
-      const wasLast = (function(){
-        const active = state.players.map((p,i)=> ({i, active: !p.finished}));
-        const indices = active.filter(a=>a.active).map(a=>a.i);
-        if(indices.length === 0) return false;
-        return current === indices[indices.length-1];
-      })();
+      const wasLast = (function(){ const active = state.players.map((p,i)=>({i,active:!p.finished})); const indices = active.filter(a=>a.active).map(a=>a.i); if(indices.length===0) return false; return current === indices[indices.length-1]; })();
       nextPlayerTurn();
-      if(wasLast) {
-        state.turn = (state.turn || 1) + 1;
-        statTurnEl.textContent = String(state.turn);
-      }
+      if(wasLast){ state.turn = (state.turn || 1) + 1; statTurnEl.textContent = String(state.turn); }
       updateRollState();
     }
 
     function resetGame(){
-      state.started = false;
-      state.turn = 0;
-      state.currentPlayerIndex = 0;
-      state.players = [];
-      state.finishedCount = 0;
-      state.animating = false;
-      state.rng = Math.random;
-      if(logEl) logEl.innerHTML = "";
-      renderBoard();
-      renderPlayersPanel();
-      statTurnEl.textContent = "0";
-      statCurrentEl.textContent = "-";
-      if(btnStart) btnStart.disabled = false;
+      // keep history intact (user requested logs preserved)
+      state.started = false; state.turn = 0; state.currentPlayerIndex = 0; state.players = []; state.finishedCount = 0; state.animating = false; state.rng = Math.random;
+      renderBoard(); renderPlayersPanel(); statTurnEl.textContent = "0"; statCurrentEl.textContent = "-";
+      btnStart.disabled = false;
+      pushLog("ゲームをリセットしました","ok");
       updateRollState();
-      pushLog("ゲームをリセットしました");
     }
 
-    function updateRollState(){
-      if(btnRoll) btnRoll.disabled = !state.started || state.animating;
-    }
+    function updateRollState(){ if(btnRoll) btnRoll.disabled = !state.started || state.animating; }
 
-    if(btnStart) btnStart.addEventListener("click", ()=> startGame());
-    if(btnRoll) btnRoll.addEventListener("click", ()=> { rollTurn().catch(e=>console.error(e)); });
-    if(btnReset) btnReset.addEventListener("click", ()=> resetGame());
-    if(btnZoomIn) btnZoomIn.addEventListener('click', ()=> zoomIn());
-    if(btnZoomOut) btnZoomOut.addEventListener('click', ()=> zoomOut());
+    // events wiring
+    btnStart.addEventListener("click", ()=> startGame());
+    btnRoll.addEventListener("click", ()=> { rollTurn().catch(e=>console.error(e)); });
+    btnReset.addEventListener("click", ()=> resetGame());
+    btnZoomIn.addEventListener('click', ()=> { document.documentElement.style.fontSize = 'calc(100% + 8px)'; });
+    btnZoomOut.addEventListener('click', ()=> { document.documentElement.style.fontSize = '100%'; });
 
-    window.addEventListener('keydown', function (ev) {
-      if ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey) {
-        if (ev.key === '+' || ev.key === '=') { ev.preventDefault(); zoomIn(); }
-        if (ev.key === '-') { ev.preventDefault(); zoomOut(); }
-      }
-      if (!ev.ctrlKey && !ev.metaKey) {
-        if (ev.key === 'z' && !ev.shiftKey) { ev.preventDefault(); zoomIn(); }
-        if (ev.key === 'z' && ev.shiftKey) { ev.preventDefault(); zoomOut(); }
-        if (ev.key === 'f' || ev.key === 'F') { ev.preventDefault(); fitBoard(); }
-        if (ev.key === ' ' || ev.key === 'Enter') {
-          if(state.started && !state.animating) { ev.preventDefault(); rollTurn().catch(e=>console.error(e)); }
-        }
-      }
-    });
-
+    // init
+    loadHistoryToDom();
     renderBoard();
     renderPlayersPanel();
     updateRollState();
