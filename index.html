@@ -172,10 +172,9 @@
       // Expanded event templates with probabilistic choices (success/failure)
       const EVENT_TEMPLATES = {
         junior: [
-          { title:"デロイトに入社、念願のコンサル職！", body:"入社し念願のコンサル職に就けた！思ったよりも温かみのあるオフィスで安心して発言できた！", changes:{ learning:0, motivation:10, rating:3, mental:0, responsibility:0 } },
-          { title:"初めての長期プロジェクト配属", body:"初めて長期プロジェクトに配属された！2年かかる予定のなかなかない機会だ。しっかり頑張ろう！", changes:{ learning:0, motivation:5, rating:0, mental:0, responsibility:5 } },
-          { title:"1年で昇進！", body:"入社から一年が経過して職務にも慣れてきた。実績が評価されアナリストからコンサルタントに昇進した！", changes:{ learning:0, motivation:0, rating:5, mental:0, responsibility:5 } },
-          // branching with probabilistic success
+          { title:"デロイトに入社、念願のコンサル職！", body:"入社し念願のコンサル職に就けた！思ったよりも温かみのあるオフィスで安心して発言できた！", changes: { learning:0, motivation:10, rating:3, mental:0, responsibility:0 } },
+          { title:"初めての長期プロジェクト配属", body:"初めて長期プロジェクトに配属された！2年かかる予定のなかなかない機会だ。しっかり頑張ろう！", changes: { learning:0, motivation:5, rating:0, mental:0, responsibility:5 } },
+          { title:"1年で昇進！", body:"入社から一年が経過して職務にも慣れてきた。実績が評価されアナリストからコンサルタントに昇進した！", changes: { learning:0, motivation:0, rating:5, mental:0, responsibility:5 } },
           { title:"有名企業からの直案件（相談）", body:"有名企業の社長から直々に案件が！1ヶ月で意味あるインパクトを起こせるか問われる。受注しますか？", choices:[
             { label:"受注する（挑戦）", probGood:0.65, success:{ learning:5, rating:5, motivation:4, responsibility:5, mental:0 }, failure:{ learning:4, rating:-2, motivation:1, responsibility:2, mental:0 }, resultTextSuccess:"受注成功！評価と責任が大きく伸びた。", resultTextFailure:"挑戦は失敗したが多くを学んだ。次に活かそう。" },
             { label:"見送る（慎重）", probGood:1.0, success:{ learning:1, rating:1, motivation:1, responsibility:0, mental:0 }, resultTextSuccess:"今回は見送った。安定を取り次に備える判断だった。" }
@@ -350,7 +349,7 @@
         }
       }
 
-      /* ----- Improved path generation: prefer axis-aligned connectors ----- */
+      /* ----- Improved path generation: prefer axis-aligned connectors + enforce no-overlap ----- */
       function buildConnectedPath(N, containerW, containerH, tileSize, gap){
         const cx = containerW/2, cy = containerH/2;
         const coords = [];
@@ -381,7 +380,11 @@
         const rings = [];
         let attempts = 0;
         while(coords.length < N - 1 && right - left > tileSize && bottom - top > tileSize && attempts < 24){
-          const pts = perimeterPoints(left, top, right, bottom, tileSize + gap);
+          // spacing: outer rings have slightly larger spacing, inner rings smaller (so inner rings get more points)
+          const ringIndex = attempts;
+          const spacingScale = (ringIndex >= 2) ? 0.72 : (ringIndex === 1 ? 0.92 : 1.08);
+          const spacing = Math.max(8, Math.round((tileSize + gap) * spacingScale));
+          const pts = perimeterPoints(left, top, right, bottom, spacing);
           rings.push({pts, l:left, t:top, r:right, b:bottom});
           left += ringInset; top += ringInset; right -= ringInset; bottom -= ringInset;
           attempts++;
@@ -393,21 +396,19 @@
           const pts = ring.pts.slice();
           let startIdx = 0;
           if(prevExit){
-            // choose candidate that minimizes distance minus axis alignment benefit
+            // choose candidate minimizing (dist - alignmentBias) but also ensure not too close to prevExit area
             let best = 0, bestScore = Infinity;
             for(let k=0;k<pts.length;k++){
               const dx = pts[k].x - prevExit.x, dy = pts[k].y - prevExit.y;
               const dist = Math.hypot(dx,dy);
               const absX = Math.abs(dx), absY = Math.abs(dy);
-              // alignment: 1 = perfectly axis-aligned, 0 = perfectly diagonal
               const alignment = Math.abs(absX - absY) / (absX + absY + 1e-6);
-              // score: prefer small dist and high alignment; adjust penalty factor empirically
-              const score = dist - (alignment * 48); // 48 px bias toward axis alignment
+              const score = dist - (alignment * 48);
               if(score < bestScore){ bestScore = score; best = k; }
             }
             startIdx = best;
           } else {
-            // first ring: pick point closest to top-left corner to make tile0 at top-left
+            // first ring: pick point closest to top-left for tile0
             let best = 0, bestD = Infinity;
             const topLeft = {x: ring.l + 6, y: ring.t + 6};
             for(let k=0;k<pts.length;k++){
@@ -416,6 +417,26 @@
               if(d < bestD){ best = k; bestD = d; }
             }
             startIdx = best;
+          }
+
+          // avoid clustering: if minimal distance to prevExit area is too small, shift start
+          function minDistToPrev(startIndex){
+            if(!prevExit) return Infinity;
+            let minD = Infinity;
+            for(let kk=0; kk<pts.length; kk++){
+              const idx = (startIndex + kk) % pts.length;
+              const dx = pts[idx].x - prevExit.x, dy = pts[idx].y - prevExit.y;
+              const d = Math.hypot(dx,dy);
+              if(d < minD) minD = d;
+            }
+            return minD;
+          }
+          if(prevExit){
+            const minD = minDistToPrev(startIdx);
+            const threshold = TILE_SIZE * 1.05;
+            if(minD < threshold){
+              startIdx = (startIdx + Math.round(pts.length/4)) % pts.length;
+            }
           }
 
           for(let k=0;k<pts.length && coords.length < N - 1;k++){
@@ -428,15 +449,10 @@
           if(ri < rings.length - 1 && coords.length < N - 1){
             const inner = rings[ri+1];
             const innerCenter = {x: (inner.l + inner.r)/2, y: (inner.t + inner.b)/2};
-            // connector: prefer a point that lies horizontally or vertically nearer to prevExit
-            // compute a connector near 25% toward inner center but nudge to be axis-aligned
             let connX = prevExit.x + (innerCenter.x - prevExit.x) * 0.25;
             let connY = prevExit.y + (innerCenter.y - prevExit.y) * 0.25;
-            // nudge toward axis alignment: snap small fraction to either x or y of prevExit if close
             const dx = Math.abs(innerCenter.x - prevExit.x), dy = Math.abs(innerCenter.y - prevExit.y);
-            if(Math.abs(dx - dy) > 30){ // if one direction dominant, align more strongly
-              if(dx > dy) connY = prevExit.y; else connX = prevExit.x;
-            }
+            if(Math.abs(dx - dy) > 30){ if(dx > dy) connY = prevExit.y; else connX = prevExit.x; }
             connX += (Math.random()*2-1)*(BASE_JITTER*0.6);
             connY += (Math.random()*2-1)*(BASE_JITTER*0.6);
             coords.push({x: connX, y: connY, ang: (Math.random()*2-1)*6});
@@ -455,10 +471,109 @@
           }
         }
 
+        // put the final (goal) at the center
         coords.push({x: cx, y: cy, ang:0});
+
+        // enforce no-overlap: iterative repulsion until all pairs respect min distance
+        const minCenter = tileSize + 6; // minimum allowed center-to-center distance
+        enforceNoOverlap(coords, minCenter, containerW, containerH, tileSize);
+
+        // clamp to board edges again
         const clampMargin = tileSize;
         for(const c of coords){ c.x = Math.max(clampMargin, Math.min(containerW - clampMargin, c.x)); c.y = Math.max(clampMargin, Math.min(containerH - clampMargin, c.y)); }
         if(coords.length > N) coords.length = N;
+        return coords;
+      }
+
+      // enforceNoOverlap: iterative conservative repulsion, keeps goal (last point) at center
+      function enforceNoOverlap(points, minD, w, h, tileSize){
+        if(!Array.isArray(points)) return;
+        const maxPasses = 120;
+        const centerIdx = points.length - 1; // goal at last index
+        for(let pass=0; pass<maxPasses; pass++){
+          let moved = false;
+          for(let i=0;i<points.length;i++){
+            for(let j=i+1;j<points.length;j++){
+              // never move the goal (center)
+              if(i === centerIdx && j === centerIdx) continue;
+              const a = points[i], b = points[j];
+              const dx = b.x - a.x, dy = b.y - a.y;
+              let d = Math.hypot(dx, dy);
+              if(d === 0){
+                // random tiny offset to avoid divide by zero
+                const jitter = 1 + Math.random()*2;
+                a.x -= jitter; a.y -= jitter;
+                d = Math.hypot(b.x - a.x, b.y - a.y);
+              }
+              if(d < minD - 0.1){
+                const overlap = (minD - d);
+                // move each away by half overlap, but do not move goal (center)
+                const ux = dx / d, uy = dy / d;
+                const move = Math.max(0.5, overlap / 2);
+                if(i === centerIdx){
+                  // move b only
+                  b.x = Math.round(b.x + ux * move * 1.02);
+                  b.y = Math.round(b.y + uy * move * 1.02);
+                } else if(j === centerIdx){
+                  // move a only
+                  a.x = Math.round(a.x - ux * move * 1.02);
+                  a.y = Math.round(a.y - uy * move * 1.02);
+                } else {
+                  // move both
+                  a.x = Math.round(a.x - ux * move * 0.95);
+                  a.y = Math.round(a.y - uy * move * 0.95);
+                  b.x = Math.round(b.x + ux * move * 0.95);
+                  b.y = Math.round(b.y + uy * move * 0.95);
+                }
+                // clamp after nudging to inside bounds
+                const margin = tileSize/2 + 6;
+                a.x = Math.max(margin, Math.min(w - margin, a.x));
+                a.y = Math.max(margin, Math.min(h - margin, a.y));
+                b.x = Math.max(margin, Math.min(w - margin, b.x));
+                b.y = Math.max(margin, Math.min(h - margin, b.y));
+                moved = true;
+              }
+            }
+          }
+          if(!moved) break;
+          // small dampening: reduce jitter possible by slightly relaxing minD if stuck after many passes (keeps safety)
+          if(pass > 80) {
+            minD *= 0.995;
+          }
+        }
+        // final check: if still overlaps exist (rare), fall back to conservative grid spiral
+        for(let i=0;i<points.length;i++){
+          for(let j=i+1;j<points.length;j++){
+            const dx = points[j].x - points[i].x, dy = points[j].y - points[i].y;
+            if(Math.hypot(dx,dy) < (tileSize * 0.9)){
+              // can't safely fix here; rebuild with deterministic grid fallback
+              const rect = board.getBoundingClientRect();
+              const fallback = buildSpiralGridFallback(points.length, rect.width, rect.height, tileSize, GAP);
+              // copy fallback coords back
+              for(let k=0;k<points.length && k<fallback.length;k++){
+                points[k].x = fallback[k].x; points[k].y = fallback[k].y; points[k].ang = fallback[k].ang || 0;
+              }
+              return;
+            }
+          }
+        }
+      }
+
+      function buildSpiralGridFallback(N, containerW, containerH, tileSize, gap){
+        // deterministic grid fallback if repulsion fails
+        const cell = tileSize + gap;
+        const margin = Math.max(tileSize/2 + 12, 12);
+        const cols = Math.max(3, Math.floor((containerW - margin*2) / cell));
+        const rows = Math.max(3, Math.floor((containerH - margin*2) / cell));
+        const coords = [];
+        let idx = 0;
+        for(let r=0;r<rows && idx<N;r++){
+          for(let c=0;c<cols && idx<N;c++){
+            coords.push({ x: margin + c*cell, y: margin + r*cell, ang: 0 });
+            idx++;
+          }
+        }
+        while(coords.length < N) coords.push({ x: containerW/2, y: containerH/2, ang:0 });
         return coords;
       }
 
@@ -472,25 +587,49 @@
           const div = document.createElement("div");
           div.className = "tile";
           div.dataset.pathIndex = String(idx);
-          if(idx === NUM_TILES - 1){ div.classList.add("goal"); div.textContent = "GOAL"; }
-          else if(idx % 11 === 0){ div.classList.add("client"); }
-          else if(idx % 13 === 0){ div.classList.add("workshop"); }
-          else if(idx % 6 === 0){ div.classList.add("event"); }
-          else if(idx % 5 === 0){ div.classList.add("bonus"); }
-          else if(idx % 7 === 0){ div.classList.add("penalty"); }
-          div.style.left = `${c.x}px`; div.style.top = `${c.y}px`;
+          if(idx === NUM_TILES - 1){
+            div.classList.add("goal");
+            div.textContent = "GOAL";
+          } else if(idx % 11 === 0){
+            div.classList.add("client");
+          } else if(idx % 13 === 0){
+            div.classList.add("workshop");
+          } else if(idx % 6 === 0){
+            div.classList.add("event");
+          } else if(idx % 5 === 0){
+            div.classList.add("bonus");
+          } else if(idx % 7 === 0){
+            div.classList.add("penalty");
+          }
+          div.style.left = `${c.x}px`;
+          div.style.top = `${c.y}px`;
           const rot = c.ang || ((Math.random()*2-1)*6);
           div.style.transform = `translate(-50%,-50%) rotate(${rot}deg)`;
           board.appendChild(div);
         });
-        if(tileCoords && tileCoords[0]){ const t0 = tileCoords[0]; START_MARKER.style.left = `${t0.x}px`; START_MARKER.style.top = `${t0.y}px`; START_MARKER.style.display = 'grid'; } else { START_MARKER.style.display = 'none'; }
+
+        // align START_MARKER to tile 0
+        if(tileCoords && tileCoords[0]){
+          const t0 = tileCoords[0];
+          START_MARKER.style.left = `${t0.x}px`;
+          START_MARKER.style.top = `${t0.y}px`;
+          START_MARKER.style.display = 'grid';
+        } else {
+          START_MARKER.style.display = 'none';
+        }
+
         placeAllTokens();
       }
 
       // token helpers
       function ensureToken(i){
         let t = document.getElementById(`token-${i}`);
-        if(!t){ t = document.createElement("div"); t.className = "token"; t.id = `token-${i}`; t.textContent = String(i+1); t.style.background = (["#86BB27","#DFF3C6","#C4C4C4","#000000"][i % 4]) || "#86BB27"; board.appendChild(t); }
+        if(!t){
+          t = document.createElement("div"); t.className = "token"; t.id = `token-${i}`;
+          t.textContent = String(i+1);
+          t.style.background = (["#86BB27","#DFF3C6","#C4C4C4","#000000"][i % 4]) || "#86BB27";
+          board.appendChild(t);
+        }
         return t;
       }
       function placeAllTokens(){
@@ -506,7 +645,12 @@
           const sRect = START_MARKER.getBoundingClientRect();
           const sx = (sRect.left - bRect.left) + sRect.width/2;
           const sy = (sRect.top - bRect.top) + sRect.height/2;
-          startIdxs.forEach((pi,k)=>{ const t = ensureToken(pi); const offX = ((k % 2) - 0.5) * 18; const offY = (Math.floor(k/2) - 0.5) * 18; t.style.transform = `translate(${sx + offX}px, ${sy + offY}px)`; });
+          startIdxs.forEach((pi,k)=>{
+            const t = ensureToken(pi);
+            const offX = ((k % 2) - 0.5) * 18;
+            const offY = (Math.floor(k/2) - 0.5) * 18;
+            t.style.transform = `translate(${sx + offX}px, ${sy + offY}px)`;
+          });
         }
         groups.forEach((idxs, pos)=>{
           if(pos === "__start") return;
@@ -514,18 +658,43 @@
           if(!center) return;
           const n = idxs.length;
           const baseR = Math.max(14, TILE_SIZE * 0.28);
-          if(n === 1){ const t = ensureToken(idxs[0]); t.style.transform = `translate(${center.x}px, ${center.y}px)`; }
-          else {
-            const perOuter = 6; const outerCount = Math.min(n, perOuter); const innerCount = Math.max(0, n - perOuter); let used = 0;
+          if(n === 1){
+            const t = ensureToken(idxs[0]);
+            t.style.transform = `translate(${center.x}px, ${center.y}px)`;
+          } else {
+            const perOuter = 6;
+            const outerCount = Math.min(n, perOuter);
+            const innerCount = Math.max(0, n - perOuter);
+            let used = 0;
             const outerR = baseR;
-            for(let k=0;k<outerCount;k++){ const ang = (k / outerCount) * Math.PI * 2 - Math.PI/2; const x = center.x + Math.cos(ang) * outerR; const y = center.y + Math.sin(ang) * outerR; const t = ensureToken(idxs[used++]); t.style.transform = `translate(${x}px, ${y}px)`; }
-            if(innerCount > 0){ const innerR = baseR * 0.6; for(let k=0;k<innerCount;k++){ const ang = (k / innerCount) * Math.PI * 2 - Math.PI/2; const x = center.x + Math.cos(ang) * innerR; const y = center.y + Math.sin(ang) * innerR; const t = ensureToken(idxs[used++]); t.style.transform = `translate(${x}px, ${y}px)`; } }
+            for(let k=0;k<outerCount;k++){
+              const ang = (k / outerCount) * Math.PI * 2 - Math.PI/2;
+              const x = center.x + Math.cos(ang) * outerR;
+              const y = center.y + Math.sin(ang) * outerR;
+              const t = ensureToken(idxs[used++]);
+              t.style.transform = `translate(${x}px, ${y}px)`;
+            }
+            if(innerCount > 0){
+              const innerR = baseR * 0.6;
+              for(let k=0;k<innerCount;k++){
+                const ang = (k / innerCount) * Math.PI * 2 - Math.PI/2;
+                const x = center.x + Math.cos(ang) * innerR;
+                const y = center.y + Math.sin(ang) * innerR;
+                const t = ensureToken(idxs[used++]);
+                t.style.transform = `translate(${x}px, ${y}px)`;
+              }
+            }
           }
         });
       }
 
       function pushLog(text, kind){
-        const p = document.createElement("div"); p.textContent = `[${(new Date()).toLocaleTimeString()}] ${text}`; if(kind === "ok") p.style.color = "green"; if(kind === "bad") p.style.color = "#333"; logEl.appendChild(p); logEl.scrollTop = logEl.scrollHeight;
+        const p = document.createElement("div");
+        p.textContent = `[${(new Date()).toLocaleTimeString()}] ${text}`;
+        if(kind === "ok") p.style.color = "green";
+        if(kind === "bad") p.style.color = "#333";
+        logEl.appendChild(p);
+        logEl.scrollTop = logEl.scrollHeight;
       }
 
       function moveTokenStep(playerIndex, pos){
@@ -533,9 +702,22 @@
           const t = ensureToken(playerIndex);
           const c = (typeof pos === "number" && tileCoords[pos]) ? tileCoords[pos] : null;
           const bRect = board.getBoundingClientRect();
-          if(!c){ const sRect = START_MARKER.getBoundingClientRect(); const x = (sRect.left - bRect.left) + sRect.width/2; const y = (sRect.top - bRect.top) + sRect.height/2; t.style.transform = `translate(${x}px, ${y}px)`; setTimeout(()=> resolve(), TOKEN_MOVE_MS + 20); return; }
+          if(!c){
+            const sRect = START_MARKER.getBoundingClientRect();
+            const x = (sRect.left - bRect.left) + sRect.width/2;
+            const y = (sRect.top - bRect.top) + sRect.height/2;
+            t.style.transform = `translate(${x}px, ${y}px)`;
+            setTimeout(()=> resolve(), TOKEN_MOVE_MS + 20);
+            return;
+          }
           let finished = false;
-          function onEnd(e){ if(e && e.target !== t) return; if(finished) return; finished = true; t.removeEventListener('transitionend', onEnd); setTimeout(()=> resolve(), 20); }
+          function onEnd(e){
+            if(e && e.target !== t) return;
+            if(finished) return;
+            finished = true;
+            t.removeEventListener('transitionend', onEnd);
+            setTimeout(()=> resolve(), 20);
+          }
           t.addEventListener('transitionend', onEnd);
           setTimeout(()=>{ if(!finished){ finished=true; t.removeEventListener('transitionend', onEnd); resolve(); } }, TOKEN_MOVE_MS + 220);
           t.style.transform = `translate(${c.x}px, ${c.y}px)`;
@@ -550,7 +732,16 @@
           let remaining = steps;
           while(remaining > 0){
             const next = pos + 1;
-            if(next >= NUM_TILES){ pos = NUM_TILES - 1; pl.position = pos; await moveTokenStep(playerIndex, pos); break; } else { pos = next; pl.position = pos; await moveTokenStep(playerIndex, pos); }
+            if(next >= NUM_TILES){
+              pos = NUM_TILES - 1;
+              pl.position = pos;
+              await moveTokenStep(playerIndex, pos);
+              break;
+            } else {
+              pos = next;
+              pl.position = pos;
+              await moveTokenStep(playerIndex, pos);
+            }
             remaining--;
           }
           placeAllTokens();
@@ -572,10 +763,8 @@
         if(tileEl.classList.contains("goal")){
           if(!pl.finished){
             pl.finished = true;
-            pl.turnsToGoal = state.turn;
             pushLog(`${pl.name}: ゴール！`, "ok");
-            await showCard("ゴール（完了）", `${pl.name} がゴールしました！`);
-            checkAllFinishedAndShowResults();
+            await showCard("ゴール", `${pl.name} がゴールしました`);
           }
         } else {
           renderPlayersPanel();
@@ -586,38 +775,6 @@
         const rbtn = document.getElementById('btn-roll');
         if(!rbtn) return;
         rbtn.disabled = !(state.started && !state.animating);
-      }
-
-      function isGameFinished(){ return state.players.length>0 && state.players.every(p=>p.finished); }
-
-      function showFinalResults(){
-        // compute simple score and sort
-        const results = state.players.map(p=>{
-          const score = ((p.learning||0)*0.30 + (p.rating||0)*0.30 + (p.motivation||0)*0.20 + (p.responsibility||0)*0.15 + (p.mental||0)*0.05);
-          return {...p, score: Math.round(score*100)/100};
-        }).sort((a,b)=> b.score - a.score);
-        // build html
-        let body = "最終結果\n\n";
-        body += "順位\t名前\t学び\t評価\tメンタル\tモチベ\t責任\tスコア\n";
-        results.forEach((r, idx)=>{
-          body += `${idx+1}\t${r.name}\t${r.learning}\t${r.rating}\t${r.mental}\t${r.motivation}\t${r.responsibility}\t${r.score}\n`;
-        });
-        removeFallbacks();
-        const overlay = document.createElement('div'); overlay.className='modal-fallback';
-        const card = document.createElement('div'); card.className='card';
-        const h = document.createElement('div'); h.className='event-title'; h.textContent = "ゲーム結果";
-        const pre = document.createElement('pre'); pre.style.whiteSpace='pre-wrap'; pre.textContent = body;
-        const actions = document.createElement('div'); actions.style.textAlign='right';
-        const ok = document.createElement('button'); ok.className='primary'; ok.textContent='閉じる';
-        ok.addEventListener('click', ()=>{ overlay.remove(); });
-        actions.appendChild(ok);
-        card.appendChild(h); card.appendChild(pre); card.appendChild(actions); overlay.appendChild(card); document.body.appendChild(overlay);
-      }
-
-      function checkAllFinishedAndShowResults(){
-        if(isGameFinished()){
-          setTimeout(()=> showFinalResults(), 200);
-        }
       }
 
       async function rollTurn(){
@@ -684,17 +841,37 @@
         if(state.started) return;
         const names = getPlayerNames();
         state.players = names.map((n,i)=>({
-          name: n, position: 0, learning: 50, rating: 50, mental: 50, motivation: 50, responsibility: 0, finished: false
+          name: n,
+          position: 0, // start at tile 0
+          learning: 50,
+          rating: 50,
+          mental: 50,
+          motivation: 50,
+          responsibility: 0,
+          finished: false
         }));
-        state.started = true; state.turn = 1; state.currentPlayerIndex = 0;
-        statTurnEl.textContent = String(state.turn); statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
-        layoutTiles(); renderPlayersPanel(); pushLog("ゲームを開始しました（プレイヤーはスタートマスに配置されます）", "ok"); updateRollState();
+        state.started = true;
+        state.turn = 1;
+        state.currentPlayerIndex = 0;
+        statTurnEl.textContent = String(state.turn);
+        statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
+        layoutTiles();
+        renderPlayersPanel();
+        pushLog("ゲームを開始しました（プレイヤーはスタートマスに配置されます）", "ok");
+        updateRollState();
       }
 
       function resetGame(){
-        state.started = false; state.turn = 0; state.currentPlayerIndex = 0; state.players = [];
-        statTurnEl.textContent = "0"; statCurrentEl.textContent = "-"; board.querySelectorAll(".token").forEach(t=>t.remove()); playersPanelEl.innerHTML = "";
-        pushLog("ゲームをリセットしました", "ok"); updateRollState();
+        state.started = false;
+        state.turn = 0;
+        state.currentPlayerIndex = 0;
+        state.players = [];
+        statTurnEl.textContent = "0";
+        statCurrentEl.textContent = "-";
+        board.querySelectorAll(".token").forEach(t=>t.remove());
+        playersPanelEl.innerHTML = "";
+        pushLog("ゲームをリセットしました", "ok");
+        updateRollState();
       }
 
       function attachHandlers(){
@@ -702,7 +879,12 @@
         btnRoll.addEventListener("click", ()=> rollTurn());
         btnReset.addEventListener("click", ()=> resetGame());
         window.addEventListener("resize", ()=> layoutTiles());
-        window.addEventListener("keydown", (e)=>{ if((e.key === " " || e.key === "Enter") && state.started && !state.animating){ e.preventDefault(); rollTurn(); }});
+        window.addEventListener("keydown", (e)=>{
+          if((e.key === " " || e.key === "Enter") && state.started && !state.animating){
+            e.preventDefault();
+            rollTurn();
+          }
+        });
       }
 
       attachHandlers();
