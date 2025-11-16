@@ -59,6 +59,7 @@
       z-index:2;
       font-size:12px;
     }
+    /* eventish tiles: keep visual green border but no inner label text */
     .tile.event,
     .tile.client,
     .tile.workshop,
@@ -66,6 +67,7 @@
     .tile.penalty {
       border:2px solid var(--green);
       background:#fbfff6;
+      /* intentionally no text inside */
     }
     .tile.goal{ background: var(--green); color: #fff; border-color: var(--green) }
 
@@ -101,8 +103,13 @@
     .attr-list{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; font-weight:700}
     .log{margin-top:12px; border:1px solid var(--gray); border-radius:10px; padding:10px; max-height:300px; overflow:auto; font-size:13px}
 
+    /* modal fallback */
     .modal-fallback{position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.42); z-index:9999}
-    .modal-fallback .card{background:#fff; padding:16px; border-radius:10px; box-shadow:0 12px 30px rgba(0,0,0,0.12)}
+    .modal-fallback .card{background:#fff; padding:16px; border-radius:10px; box-shadow:0 12px 30px rgba(0,0,0,0.12); max-width:720px}
+    .event-title{font-weight:900; margin-bottom:8px}
+    .event-body{white-space:pre-wrap; margin-bottom:12px; line-height:1.5}
+    .event-changes{font-weight:700; color:var(--green)}
+    .choice-btn{margin-right:8px}
   </style>
 </head>
 <body>
@@ -189,7 +196,251 @@
       return Array.from(playerNamesWrap.querySelectorAll("input")).map((el,idx)=> el.value.trim() || `プレイヤー${idx+1}`);
     }
 
-    // Build connected path (rings+connectors). Choose start tile near top-left corner.
+    // Event templates (positive-only). We'll select based on player's experience stage.
+    // Each template: {title, body, changes:{learning, rating, mental, motivation, responsibility}, choices?}
+    const EVENT_TEMPLATES = {
+      junior: [
+        {
+          title: "デロイトに入社、念願のコンサル職！",
+          body: "入社し念願のコンサル職に就けた！思ったよりも温かみのあるオフィスで安心して発言できた！",
+          changes: { learning:0, motivation:10, rating:3, mental:0, responsibility:0 }
+        },
+        {
+          title: "長期プロジェクト配属",
+          body: "初めて長期プロジェクトに配属された！2年かかる予定のなかなかない機会だ。しっかり頑張ろう！",
+          changes: { learning:0, motivation:5, rating:0, mental:0, responsibility:5 }
+        },
+        {
+          title: "昇進の知らせ",
+          body: "入社から一年が経過して職務にも慣れてきた。自分の前向きな姿勢と実績が評価され、アナリストからコンサルタントに出世した！",
+          changes: { learning:0, motivation:0, rating:5, mental:0, responsibility:5 } // '給料' mapped to rating increase here (money positive-only)
+        },
+        {
+          title: "有名企業から直案件の打診",
+          body: "あの有名企業の社長から直々に案件が舞い込んだ！1ヶ月で意味あるインパクトを出すかどうか選べる場面だ。",
+          choices: [
+            { label:"受注する（挑戦）", resultText:"難しいが大きな学びと評価に繋がった！", changes:{ learning:5, rating:3, motivation:3, responsibility:5, mental:0 } },
+            { label:"今回は見送る（慎重）", resultText:"チームの安定を優先。短期的には負担はないが信頼は維持された。", changes:{ learning:1, motivation:1, rating:1, responsibility:0, mental:0 } }
+          ]
+        },
+        {
+          title: "打ち合わせの失敗を糧に",
+          body: "打ち合わせでミスがあったが、先輩の指摘を受けて気合いを入れ直した。次に活かそう。",
+          changes: { learning:5, motivation:0, rating:1, mental:3, responsibility:0 }
+        },
+        {
+          title: "先輩と有意義な飲み会",
+          body: "シニアマネジャーの先輩と話が弾み貴重なアドバイスをもらえた。学びが深まった。",
+          changes: { learning:3, motivation:8, rating:0, mental:0, responsibility:0 }
+        },
+        {
+          title: "友人に羨ましがられる",
+          body: "大学時代の友人に高賃金を羨ましがられたが、自分はやりがいを楽しんでいる。嬉しい気持ちになれた。",
+          changes: { learning:0, motivation:3, rating:0, mental:0, responsibility:0 }
+        },
+        {
+          title: "休日を楽しむ（セルフケア）",
+          body: "ネイルサロンや趣味に時間を使ってリフレッシュ。仕事のパフォーマンスを保つための大事な時間。",
+          changes: { learning:0, motivation:3, rating:0, mental:2, responsibility:0 }
+        }
+      ],
+      mid: [
+        {
+          title: "大規模案件の主要メンバーに",
+          body: "中堅として大規模案件の主要メンバーに抜擢。チームを率いる手腕が問われるがやりがいがある。",
+          changes: { learning:6, motivation:6, rating:4, mental:0, responsibility:4 }
+        },
+        {
+          title: "社内での評価が安定",
+          body: "クライアントでの実績が評価され、安定した信頼を獲得。給与の上昇やポジションも期待される。",
+          changes: { learning:2, motivation:4, rating:5, mental:0, responsibility:2 }
+        },
+        {
+          title: "講演や勉強会で登壇",
+          body: "社内勉強会で登壇し、知見を共有した。周囲からの評価と学びが増えた。",
+          changes: { learning:5, motivation:3, rating:2, mental:0, responsibility:0 }
+        },
+        {
+          title: "大手クライアントの直案件",
+          body: "有名企業から短期集中の案件が舞い込む。受注するか判断を求められる。",
+          choices: [
+            { label:"受注（チャレンジ）", resultText:"結果は大成功。高い評価と責任が得られた。", changes:{ learning:6, rating:5, motivation:4, responsibility:6, mental:0 } },
+            { label:"見送り（慎重）", resultText:"リスク回避の判断でチームは安定。次の機会に備える。", changes:{ learning:1, motivation:1, rating:1, responsibility:0, mental:0 } }
+          ]
+        },
+        {
+          title: "部下の指導で学びが倍増",
+          body: "後輩指導を通じて自分自身も成長。教えることで理解が深まった。",
+          changes: { learning:6, motivation:2, rating:1, mental:0, responsibility:2 }
+        }
+      ],
+      senior: [
+        {
+          title: "チームを率いて大きな成果",
+          body: "ベテランとしてチームを牽引し、クライアントに大きなインパクトを提供した。信頼が高まる。",
+          changes: { learning:8, motivation:6, rating:6, mental:0, responsibility:8 }
+        },
+        {
+          title: "業界賞や表彰",
+          body: "プロジェクトの成功が認められ、社内外で表彰された。キャリアハイの瞬間だ。",
+          changes: { learning:4, motivation:8, rating:8, mental:0, responsibility:3 }
+        },
+        {
+          title: "重要クライアントの提案を任される",
+          body: "経営層と直接やり取りするポジションで、より大きな責任を担うチャンス。",
+          choices: [
+            { label:"受注（大勝負）", resultText:"受注成功でチームの評判がさらに向上。責任と評価が大きく伸びた。", changes:{ learning:6, rating:8, motivation:6, responsibility:10, mental:0 } },
+            { label:"見送り（戦略）", resultText:"戦略的な判断で次にもっと良い機会を探る。安定した判断は信頼に繋がる。", changes:{ learning:2, motivation:2, rating:2, responsibility:1, mental:0 } }
+          ]
+        },
+        {
+          title: "後進育成の時間",
+          body: "若手の成長に注力し、自分の経験が組織の強化に繋がる実感を得た。",
+          changes: { learning:3, motivation:5, rating:2, mental:0, responsibility:3 }
+        }
+      ]
+    };
+
+    // Helpers to pick event template based on player stage (position):
+    function eventStageForPlayer(pl){
+      // player 'experience' measured by position; threshold 30 as requested
+      const pos = typeof pl.position === "number" ? pl.position : 0;
+      if(pos >= 30) return "senior";
+      if(pos >= 15) return "mid";
+      return "junior";
+    }
+
+    function pickEventForPlayer(playerIndex){
+      const pl = state.players[playerIndex];
+      if(!pl) return null;
+      const stage = eventStageForPlayer(pl);
+      const pool = EVENT_TEMPLATES[stage] || EVENT_TEMPLATES.junior;
+      // Pick candidate influenced by attributes: bias toward learning if low, motivation if low, etc.
+      // Simple approach: if learning < 40, prefer learning-heavy events.
+      const candidates = pool.slice();
+      // small weighting
+      let weights = candidates.map(c=>{
+        let w = 1;
+        if((pl.learning||0) < 40 && (c.changes && c.changes.learning)) w += 1.5;
+        if((pl.motivation||0) < 40 && (c.changes && c.changes.motivation)) w += 1.3;
+        if(c.choices) w += 0.3; // prefer choices sometimes
+        return w;
+      });
+      const total = weights.reduce((a,b)=>a+b,0);
+      let r = state.rng() * total;
+      for(let i=0;i<candidates.length;i++){
+        r -= weights[i];
+        if(r <= 0) return candidates[i];
+      }
+      return candidates[candidates.length-1];
+    }
+
+    // modal helpers: show simple card
+    function removeFallbacks(){ document.querySelectorAll('.modal-fallback').forEach(e=>e.remove()); }
+    function showCard(title, body, timeout=30000){
+      return new Promise(resolve=>{
+        removeFallbacks();
+        const overlay = document.createElement('div'); overlay.className='modal-fallback';
+        const card = document.createElement('div'); card.className='card';
+        const h = document.createElement('div'); h.className='event-title'; h.textContent = title;
+        const b = document.createElement('div'); b.className='event-body'; b.textContent = body;
+        const chg = document.createElement('div'); chg.className='event-changes';
+        const actions = document.createElement('div'); actions.style.textAlign='right';
+        const ok = document.createElement('button'); ok.className='primary'; ok.textContent='OK';
+        ok.addEventListener('click', ()=>{ overlay.remove(); resolve(true); });
+        actions.appendChild(ok);
+        card.appendChild(h); card.appendChild(b); card.appendChild(chg); card.appendChild(actions);
+        overlay.appendChild(card); document.body.appendChild(overlay);
+        ok.focus();
+      });
+    }
+
+    function showEventModal(playerIndex, tmpl){
+      return new Promise(async resolve=>{
+        removeFallbacks();
+        const overlay = document.createElement('div'); overlay.className='modal-fallback';
+        const card = document.createElement('div'); card.className='card';
+        const h = document.createElement('div'); h.className='event-title'; h.textContent = tmpl.title;
+        const b = document.createElement('div'); b.className='event-body'; b.textContent = tmpl.body;
+        const chg = document.createElement('div'); chg.className='event-changes';
+        const changes = tmpl.changes || {};
+        const parts = [];
+        if(changes.learning) parts.push(`学び ＋${changes.learning}`);
+        if(changes.rating) parts.push(`評価 ＋${changes.rating}`);
+        if(changes.mental) parts.push(`メンタル ＋${changes.mental}`);
+        if(changes.motivation) parts.push(`モチベ ＋${changes.motivation}`);
+        if(changes.responsibility) parts.push(`責任 ＋${changes.responsibility}`);
+        chg.textContent = parts.join('　');
+        const actions = document.createElement('div'); actions.style.textAlign='right';
+        const ok = document.createElement('button'); ok.className='primary'; ok.textContent='OK';
+        ok.addEventListener('click', ()=>{
+          // apply changes (only positive)
+          applyAttributeChanges(playerIndex, changes);
+          overlay.remove();
+          resolve(true);
+        });
+        actions.appendChild(ok);
+        card.appendChild(h); card.appendChild(b); card.appendChild(chg); card.appendChild(actions);
+        overlay.appendChild(card); document.body.appendChild(overlay);
+        ok.focus();
+      });
+    }
+
+    function showChoiceModal(playerIndex, tmpl){
+      return new Promise(async resolve=>{
+        removeFallbacks();
+        const overlay = document.createElement('div'); overlay.className='modal-fallback';
+        const card = document.createElement('div'); card.className='card';
+        const h = document.createElement('div'); h.className='event-title'; h.textContent = tmpl.title;
+        const b = document.createElement('div'); b.className='event-body'; b.textContent = tmpl.body;
+        const actions = document.createElement('div'); actions.style.textAlign='right'; actions.style.display='flex'; actions.style.justifyContent='flex-end'; actions.style.gap='8px';
+        tmpl.choices.forEach(choice=>{
+          const btn = document.createElement('button'); btn.type='button'; btn.className='choice-btn'; btn.textContent = choice.label;
+          btn.addEventListener('click', ()=> {
+            // apply choice.changes
+            applyAttributeChanges(playerIndex, choice.changes || {});
+            // show short result
+            const resCard = document.createElement('div'); resCard.className='card'; resCard.style.marginTop='8px';
+            // clean up overlay and show result then resolve
+            overlay.remove();
+            showCard(choice.resultText || "選択結果", "").then(()=> resolve(true));
+          });
+          actions.appendChild(btn);
+        });
+        const cancel = document.createElement('button'); cancel.type='button'; cancel.textContent='やめる';
+        cancel.addEventListener('click', ()=> { overlay.remove(); resolve(false); });
+        actions.appendChild(cancel);
+        card.appendChild(h); card.appendChild(b); card.appendChild(actions);
+        overlay.appendChild(card); document.body.appendChild(overlay);
+      });
+    }
+
+    function applyAttributeChanges(playerIndex, changes){
+      const pl = state.players[playerIndex];
+      if(!pl) return;
+      // ensure attributes exist and only add positive numbers (user requested no negatives)
+      const attrs = ['learning','rating','mental','motivation','responsibility'];
+      attrs.forEach(a=>{
+        if(typeof changes[a] === 'number' && changes[a] > 0){
+          pl[a] = Math.max(0, (pl[a]||0) + Math.round(changes[a]));
+        }
+      });
+      pushLog(`${pl.name}: 属性が変化しました → ${Object.entries(changes).filter(([k,v])=>v>0).map(([k,v])=> `${k} +${v}`).join(', ')}`, "ok");
+      renderPlayersPanel();
+    }
+
+    // pick and show event when landing on eventish tile
+    async function handleEventTile(playerIndex){
+      const tmpl = pickEventForPlayer(playerIndex);
+      if(!tmpl) return;
+      if(tmpl.choices && Array.isArray(tmpl.choices)){
+        await showChoiceModal(playerIndex, tmpl);
+      } else {
+        await showEventModal(playerIndex, tmpl);
+      }
+    }
+
+    // Build connected path (rings+connectors), start near top-left (so tile 0 is upper-left)
     function buildConnectedPath(N, containerW, containerH, tileSize, gap){
       const cx = containerW/2, cy = containerH/2;
       const coords = [];
@@ -240,9 +491,9 @@
           }
           startIdx = best;
         } else {
-          // choose point closest to top-left corner of ring to make tile 0 be top-left
+          // choose a point close to top-left to make tile 0 be near top-left
           let best = 0, bestD = Infinity;
-          const topLeft = {x: ring.l + 6, y: ring.t + 6}; // small inset to avoid exact corner
+          const topLeft = {x: ring.l + 6, y: ring.t + 6};
           for(let k=0;k<pts.length;k++){
             const dx = pts[k].x - topLeft.x, dy = pts[k].y - topLeft.y;
             const d = Math.hypot(dx,dy);
@@ -304,19 +555,17 @@
           div.textContent = "GOAL";
         } else if(idx % 11 === 0){
           div.classList.add("client");
-          div.textContent = "客";
+          // no inner text for eventish tiles per request
         } else if(idx % 13 === 0){
           div.classList.add("workshop");
-          div.textContent = "研";
         } else if(idx % 6 === 0){
           div.classList.add("event");
-          div.textContent = "EV";
         } else if(idx % 5 === 0){
           div.classList.add("bonus");
-          div.textContent = "+";
         } else if(idx % 7 === 0){
           div.classList.add("penalty");
-          div.textContent = "−";
+        } else {
+          // normal tiles can show nothing (kept blank)
         }
         div.style.left = `${c.x}px`;
         div.style.top = `${c.y}px`;
@@ -338,7 +587,7 @@
       placeAllTokens();
     }
 
-    // ensure token element exists
+    // token helpers
     function ensureToken(i){
       let t = document.getElementById(`token-${i}`);
       if(!t){
@@ -350,7 +599,6 @@
       return t;
     }
 
-    // position tokens, offset when sharing same tile
     function placeAllTokens(){
       const groups = new Map();
       state.players.forEach((pl,i)=>{
@@ -366,316 +614,4 @@
         const sy = (sRect.top - bRect.top) + sRect.height/2;
         startIdxs.forEach((pi,k)=>{
           const t = ensureToken(pi);
-          const offX = ((k % 2) - 0.5) * 18;
-          const offY = (Math.floor(k/2) - 0.5) * 18;
-          t.style.transform = `translate(${sx + offX}px, ${sy + offY}px)`;
-        });
-      }
-      groups.forEach((idxs, pos)=>{
-        if(pos === "__start") return;
-        const center = tileCoords[pos];
-        if(!center) return;
-        const n = idxs.length;
-        const baseR = Math.max(14, TILE_SIZE * 0.28);
-        if(n === 1){
-          const t = ensureToken(idxs[0]);
-          t.style.transform = `translate(${center.x}px, ${center.y}px)`;
-        } else {
-          const perOuter = 6;
-          const outerCount = Math.min(n, perOuter);
-          const innerCount = Math.max(0, n - perOuter);
-          let used = 0;
-          const outerR = baseR;
-          for(let k=0;k<outerCount;k++){
-            const ang = (k / outerCount) * Math.PI * 2 - Math.PI/2;
-            const x = center.x + Math.cos(ang) * outerR;
-            const y = center.y + Math.sin(ang) * outerR;
-            const t = ensureToken(idxs[used++]);
-            t.style.transform = `translate(${x}px, ${y}px)`;
-          }
-          if(innerCount > 0){
-            const innerR = baseR * 0.6;
-            for(let k=0;k<innerCount;k++){
-              const ang = (k / innerCount) * Math.PI * 2 - Math.PI/2;
-              const x = center.x + Math.cos(ang) * innerR;
-              const y = center.y + Math.sin(ang) * innerR;
-              const t = ensureToken(idxs[used++]);
-              t.style.transform = `translate(${x}px, ${y}px)`;
-            }
-          }
-        }
-      });
-    }
-
-    function pushLog(text, kind){
-      const p = document.createElement("div");
-      p.textContent = `[${(new Date()).toLocaleTimeString()}] ${text}`;
-      if(kind === "ok") p.style.color = "green";
-      if(kind === "bad") p.style.color = "#333";
-      logEl.appendChild(p);
-      logEl.scrollTop = logEl.scrollHeight;
-    }
-
-    // per-tile movement
-    function moveTokenStep(playerIndex, pos){
-      return new Promise(resolve=>{
-        const t = ensureToken(playerIndex);
-        const c = (typeof pos === "number" && tileCoords[pos]) ? tileCoords[pos] : null;
-        const bRect = board.getBoundingClientRect();
-        if(!c){
-          const sRect = START_MARKER.getBoundingClientRect();
-          const x = (sRect.left - bRect.left) + sRect.width/2;
-          const y = (sRect.top - bRect.top) + sRect.height/2;
-          t.style.transform = `translate(${x}px, ${y}px)`;
-          setTimeout(()=> resolve(), TOKEN_MOVE_MS + 20);
-          return;
-        }
-        let finished = false;
-        function onEnd(e){
-          if(e && e.target !== t) return;
-          if(finished) return;
-          finished = true;
-          t.removeEventListener('transitionend', onEnd);
-          setTimeout(()=> resolve(), 20);
-        }
-        t.addEventListener('transitionend', onEnd);
-        setTimeout(()=>{ if(!finished){ finished=true; t.removeEventListener('transitionend', onEnd); resolve(); } }, TOKEN_MOVE_MS + 220);
-        t.style.transform = `translate(${c.x}px, ${c.y}px)`;
-      });
-    }
-
-    async function animateMove(playerIndex, steps){
-      const pl = state.players[playerIndex]; if(!pl || pl.finished) return;
-      state.animating = true; updateRollState();
-      try{
-        let pos = (typeof pl.position === "number") ? pl.position : -1;
-        let remaining = steps;
-        while(remaining > 0){
-          const next = pos + 1;
-          if(next >= NUM_TILES){
-            pos = NUM_TILES - 1;
-            pl.position = pos;
-            await moveTokenStep(playerIndex, pos);
-            break;
-          } else {
-            pos = next;
-            pl.position = pos;
-            await moveTokenStep(playerIndex, pos);
-          }
-          remaining--;
-        }
-        placeAllTokens();
-        await resolveCell(playerIndex, pl.position);
-      }catch(e){ console.error(e); }
-      finally{ state.animating = false; updateRollState(); }
-    }
-
-    // resolve cell effects modifying 5 attributes:
-    // 学び (learning), 評価 (rating), メンタル (mental), モチベ (motivation), 責任 (responsibility)
-    async function resolveCell(playerIndex, pathIndex){
-      const pl = state.players[playerIndex];
-      if(pl == null) return;
-      const tileEl = board.querySelector(`.tile[data-path-index="${pathIndex}"]`);
-      if(!tileEl){ renderPlayersPanel(); return; }
-      if(tileEl.classList.contains("goal")){
-        pl.finished = true;
-        pushLog(`${pl.name}: ゴール！`, "ok");
-        await showCard("ゴール", `${pl.name} がゴールしました`);
-      } else if(tileEl.classList.contains("event")){
-        // event: 学び+3, メンタル-1, モチベ+1, 評価+1
-        pl.learning = (pl.learning||0) + 3;
-        pl.mental = Math.max(0, (pl.mental||0) - 1);
-        pl.motivation = (pl.motivation||0) + 1;
-        pl.rating = (pl.rating||0) + 1;
-        pushLog(`${pl.name}: 案件イベント（学び+3, メンタル-1, モチベ+1）`, "ok");
-        await showCard("案件イベント", `${pl.name} が案件イベントに遭遇しました`);
-      } else if(tileEl.classList.contains("bonus")){
-        // bonus: 学び+2, モチベ+2
-        pl.learning = (pl.learning||0) + 2;
-        pl.motivation = (pl.motivation||0) + 2;
-        pushLog(`${pl.name}: ボーナス（学び+2, モチベ+2）`, "ok");
-      } else if(tileEl.classList.contains("penalty")){
-        // penalty: メンタル-2, モチベ-2
-        pl.mental = Math.max(0, (pl.mental||0) - 2);
-        pl.motivation = Math.max(0, (pl.motivation||0) - 2);
-        pushLog(`${pl.name}: コスト（メンタル-2, モチベ-2）`, "bad");
-      } else if(tileEl.classList.contains("client")){
-        // client: success/failure
-        const base = 0.55;
-        const repBonus = ((pl.rating||50)-50)/200;
-        const prob = Math.max(0.05, Math.min(0.95, base + repBonus));
-        const success = state.rng() < prob;
-        if(success){
-          pl.learning = Math.max(0, (pl.learning||0) + 4);
-          pl.rating = Math.max(0, (pl.rating||0) + 3);
-          pl.motivation = Math.max(0, (pl.motivation||0) + 2);
-          pl.responsibility = Math.max(0, (pl.responsibility||0) + 1);
-          pushLog(`${pl.name}: クライアント成功（学び+4, 評価+3, モチベ+2, 責任+1）`, "ok");
-        } else {
-          pl.mental = Math.max(0, (pl.mental||0) - 3);
-          pl.rating = Math.max(0, (pl.rating||0) - 1);
-          pl.motivation = Math.max(0, (pl.motivation||0) - 2);
-          pushLog(`${pl.name}: クライアント不調（メンタル-3, 評価-1, モチベ-2）`, "bad");
-        }
-        await showCard("クライアント面談", `${pl.name} の面談が終了しました`);
-      } else if(tileEl.classList.contains("workshop")){
-        const gain = [1,2,3,5][Math.floor(state.rng()*4)];
-        pl.learning = Math.max(0,(pl.learning||0) + gain);
-        pl.motivation = Math.max(0,(pl.motivation||0) + 1);
-        pl.rating = Math.max(0,(pl.rating||0) + 1);
-        pushLog(`${pl.name}: ワークショップ（学び+${gain}, モチベ+1, 評価+1）`, "ok");
-        await showCard("ワークショップ", `${pl.name} がワークショップに参加しました`);
-      }
-      renderPlayersPanel();
-    }
-
-    function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
-
-    function updateRollState(){
-      const rbtn = document.getElementById('btn-roll');
-      if(!rbtn) return;
-      rbtn.disabled = !(state.started && !state.animating);
-    }
-
-    async function rollTurn(){
-      if(!state.started || state.animating) return;
-      const current = state.currentPlayerIndex;
-      const val = Math.floor(Math.random()*6)+1;
-      if(diceEl) diceEl.textContent = String(val);
-      pushLog(`${state.players[current].name} がサイコロを振りました`);
-      await animateMove(current, val);
-      nextPlayerTurn();
-    }
-
-    function nextPlayerTurn(){
-      const total = state.players.length;
-      if(total === 0) return;
-      let i = state.currentPlayerIndex;
-      for(let c=0;c<total;c++){
-        i = (i+1) % total;
-        const cand = state.players[i];
-        if(!cand) continue;
-        if(cand.finished) continue;
-        state.currentPlayerIndex = i;
-        statCurrentEl.textContent = state.players[i].name;
-        highlightActive();
-        return;
-      }
-      statCurrentEl.textContent = "-";
-    }
-
-    function highlightActive(){
-      Array.from(playersPanelEl.children).forEach((row, idx)=>{
-        if(idx === state.currentPlayerIndex) row.style.boxShadow = "0 0 0 3px rgba(134,187,39,0.12) inset";
-        else row.style.boxShadow = "";
-      });
-      highlightActiveToken();
-    }
-
-    function highlightActiveToken(){
-      state.players.forEach((pl,i)=>{
-        const t = document.getElementById(`token-${i}`);
-        if(!t) return;
-        if(i === state.currentPlayerIndex) t.style.outline = "3px solid rgba(0,0,0,0.08)";
-        else t.style.outline = "none";
-      });
-    }
-
-    // render players panel showing 5 attributes
-    function renderPlayersPanel(){
-      playersPanelEl.innerHTML = "";
-      state.players.forEach((pl, i)=>{
-        const row = document.createElement("div");
-        row.className = "player-row";
-        const left = document.createElement("div");
-        left.style.display = "flex"; left.style.alignItems = "center"; left.style.gap = "8px";
-        const badge = document.createElement("div");
-        badge.style.width = "18px"; badge.style.height = "18px"; badge.style.borderRadius = "50%";
-        badge.style.background = (["#86BB27","#DFF3C6","#C4C4C4","#000000"][i % 4]) || "#86BB27";
-        left.appendChild(badge);
-        const name = document.createElement("div"); name.textContent = pl.name;
-        left.appendChild(name);
-        const right = document.createElement("div"); right.className = "attr-list";
-        right.innerHTML = `<div>学び:${pl.learning}</div><div>評価:${pl.rating}</div><div>メンタル:${pl.mental}</div><div>モチベ:${pl.motivation}</div><div>責任:${pl.responsibility}</div>`;
-        row.appendChild(left); row.appendChild(right);
-        playersPanelEl.appendChild(row);
-      });
-      highlightActive();
-    }
-
-    // start/reset handlers: players start on tile 0 (start tile)
-    function startGame(){
-      if(state.started) return;
-      const names = getPlayerNames();
-      state.players = names.map((n,i)=>({
-        name: n,
-        position: 0, // start at tile 0
-        learning: 50,
-        rating: 50,
-        mental: 50,
-        motivation: 50,
-        responsibility: 0,
-        finished: false
-      }));
-      state.started = true;
-      state.turn = 1;
-      state.currentPlayerIndex = 0;
-      statTurnEl.textContent = String(state.turn);
-      statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
-      layoutTiles();
-      renderPlayersPanel();
-      pushLog("ゲームを開始しました（プレイヤーはスタートマスに配置されます）", "ok");
-      updateRollState();
-    }
-
-    function resetGame(){
-      state.started = false;
-      state.turn = 0;
-      state.currentPlayerIndex = 0;
-      state.players = [];
-      statTurnEl.textContent = "0";
-      statCurrentEl.textContent = "-";
-      board.querySelectorAll(".token").forEach(t=>t.remove());
-      playersPanelEl.innerHTML = "";
-      pushLog("ゲームをリセットしました", "ok");
-      updateRollState();
-    }
-
-    function showCard(title, text){
-      return new Promise(resolve=>{
-        document.querySelectorAll('.modal-fallback').forEach(e=>e.remove());
-        const overlay = document.createElement("div"); overlay.className="modal-fallback";
-        const card = document.createElement("div"); card.className="card";
-        const h = document.createElement("h3"); h.textContent = title;
-        const p = document.createElement("div"); p.style.marginTop = "8px"; p.textContent = text;
-        const actions = document.createElement("div"); actions.style.marginTop = "12px"; actions.style.textAlign = "right";
-        const ok = document.createElement("button"); ok.className = "primary"; ok.textContent = "OK";
-        ok.addEventListener("click", ()=>{ overlay.remove(); resolve(); });
-        actions.appendChild(ok);
-        card.appendChild(h); card.appendChild(p); card.appendChild(actions);
-        overlay.appendChild(card); document.body.appendChild(overlay);
-        ok.focus();
-      });
-    }
-
-    function attachHandlers(){
-      btnStart.addEventListener("click", ()=> startGame());
-      btnRoll.addEventListener("click", ()=> rollTurn());
-      btnReset.addEventListener("click", ()=> resetGame());
-      window.addEventListener("resize", ()=> layoutTiles());
-      window.addEventListener("keydown", (e)=>{
-        if((e.key === " " || e.key === "Enter") && state.started && !state.animating){
-          e.preventDefault();
-          rollTurn();
-        }
-      });
-    }
-
-    attachHandlers();
-    layoutTiles();
-    pushLog("UI ready — スタートマスを左上寄せに調整し、評価項目を5つに拡張しました。");
-
-  })();
-  </script>
-</body>
-</html>
+          const offX = ((
