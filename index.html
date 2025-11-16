@@ -147,6 +147,7 @@
     const NUM_TILES = 60; // last is goal
     const BASE_JITTER = 12;
     const GAP = Number(getComputedStyle(document.documentElement).getPropertyValue('--tile-gap')) || 16;
+    const TOKEN_MOVE_MS = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--token-move-ms')) || 120;
 
     let tileCoords = [];
     let state = {
@@ -175,37 +176,57 @@
     playersCountSel.addEventListener("change", renderPlayerNameInputs);
     renderPlayerNameInputs();
     function getPlayerNames(){
-      return Array.from(playerNamesWrap.querySelectorAll("input")).map((i,idx)=> i.value.trim() || `プレイヤー${idx+1}`);
+      return Array.from(playerNamesWrap.querySelectorAll("input")).map((el,idx)=> el.value.trim() || `プレイヤー${idx+1}`);
     }
 
-    // Build a single connected path using rings + connectors (as before)
+    // Build a single connected path using rings + connectors (as before), but fixed syntax and robust.
     function buildConnectedPath(N, containerW, containerH, tileSize, gap){
       const cx = containerW/2, cy = containerH/2;
       const coords = [];
       const margin = Math.max(tileSize*1.6, 28);
       let left = margin, top = margin, right = containerW - margin, bottom = containerH - margin;
       const ringInset = tileSize + gap + Math.round(tileSize*0.4);
+
       function perimeterPoints(l,t,r,b, spacing){
         const w = Math.max(1, r - l), h = Math.max(1, b - t);
         const perim = 2*(w + h);
         const count = Math.max(4, Math.floor(perim / spacing));
-        const topCount = Math.max(1, Math.round(count * (w / perim)));
-        const rightCount = Math.max(1, Math.round(count * (h / perim)));
-        const bottomCount = Math.max(1, Math.round(count * (w / perim)));
-        const leftCount = Math.max(1, Math.round(count * (h / perim)));
+        let topCount = Math.max(1, Math.round(count * (w / perim)));
+        let rightCount = Math.max(1, Math.round(count * (h / perim)));
+        let bottomCount = Math.max(1, Math.round(count * (w / perim)));
+        let leftCount = Math.max(1, Math.round(count * (h / perim)));
         let sum = topCount + rightCount + bottomCount + leftCount;
         let idxAdjust = 0;
         while(sum < count){ if(idxAdjust%4===0) topCount++; else if(idxAdjust%4===1) rightCount++; else if(idxAdjust%4===2) bottomCount++; else leftCount++; idxAdjust++; sum++; }
         while(sum > count){ if(idxAdjust%4===0 && topCount>1) topCount--; else if(idxAdjust%4===1 && rightCount>1) rightCount--; else if(idxAdjust%4===2 && bottomCount>1) bottomCount--; else if(idxAdjust%4===3 && leftCount>1) leftCount--; idxAdjust++; sum--; }
         const pts = [];
-        for(let i=0;i<topCount;i++){ const x = l + (i+0.5) * (w / topCount); pts.push({x,y:t}); }
-        for(let i=0;i<rightCount;i++){ const y = t + (i+0.5) * (h / rightCount); pts.push({x:r,y}); }
-        for(let i=0;i<bottomCount;i++){ const x = r - (i+0.5) * (w / bottomCount); pts.push({x,y:b}); }
-        for(let i=0;i<leftCount;i++){ const y = b - (i+0.5) * (h / leftCount); pts.push({x:l,y}); }
+        // top edge left->right
+        for(let i=0;i<topCount;i++){
+          const x = l + (i+0.5) * (w / topCount);
+          const y = t;
+          pts.push({x,y});
+        }
+        // right edge top->bottom
+        for(let i=0;i<rightCount;i++){
+          const x = r;
+          const y = t + (i+0.5) * (h / rightCount);
+          pts.push({x,y});
+        }
+        // bottom edge right->left
+        for(let i=0;i<bottomCount;i++){
+          const x = r - (i+0.5) * (w / bottomCount);
+          const y = b;
+          pts.push({x,y});
+        }
+        // left edge bottom->top
+        for(let i=0;i<leftCount;i++){
+          const x = l;
+          const y = b - (i+0.5) * (h / leftCount);
+          pts.push({x,y});
+        }
         return pts;
       }
 
-      // generates rings list (same as before)
       const rings = [];
       let attempts = 0;
       while(coords.length < N - 1 && right - left > tileSize && bottom - top > tileSize && attempts < 24){
@@ -215,14 +236,14 @@
         attempts++;
       }
 
-      // build continuous path: append rings and connectors
+      // concatenate rings into continuous path with connectors
       let prevExit = null;
-      for(let ri=0; ri<rings.length && coords.length < N - 1; ri++){
+      for(let ri = 0; ri < rings.length && coords.length < N - 1; ri++){
         const ring = rings[ri];
         const pts = ring.pts.slice();
         let startIdx = 0;
         if(prevExit){
-          let best=0, bestD=Infinity;
+          let best = 0, bestD = Infinity;
           for(let k=0;k<pts.length;k++){
             const dx = pts[k].x - prevExit.x, dy = pts[k].y - prevExit.y;
             const d = Math.hypot(dx,dy);
@@ -230,8 +251,7 @@
           }
           startIdx = best;
         } else {
-          // start at top center
-          let best=0, bestD=Infinity;
+          let best = 0, bestD = Infinity;
           const topCenter = {x:(ring.l+ring.r)/2, y:ring.t};
           for(let k=0;k<pts.length;k++){
             const dx = pts[k].x - topCenter.x, dy = pts[k].y - topCenter.y;
@@ -240,6 +260,7 @@
           }
           startIdx = best;
         }
+
         for(let k=0;k<pts.length && coords.length < N - 1;k++){
           const idx = (startIdx + k) % pts.length;
           const jitterX = (Math.random()*2 -1) * (BASE_JITTER * 0.4);
@@ -249,7 +270,7 @@
         prevExit = coords[coords.length-1];
         if(ri < rings.length - 1 && coords.length < N - 1){
           const inner = rings[ri+1];
-          const innerCenter = {x:(inner.l+inner.r)/2, y:(inner.t+inner.b)/2};
+          const innerCenter = {x: (inner.l + inner.r)/2, y: (inner.t + inner.b)/2};
           const connX = prevExit.x + (innerCenter.x - prevExit.x) * 0.25 + (Math.random()*2-1)*(BASE_JITTER*0.6);
           const connY = prevExit.y + (innerCenter.y - prevExit.y) * 0.25 + (Math.random()*2-1)*(BASE_JITTER*0.6);
           coords.push({x: connX, y: connY, ang: (Math.random()*2-1)*6});
@@ -257,7 +278,7 @@
         }
       }
 
-      // fill surplus if needed
+      // fill remaining if needed
       if(coords.length < N - 1){
         const remaining = (N - 1) - coords.length;
         for(let i=0;i<remaining;i++){
@@ -313,6 +334,18 @@
       placeAllTokens();
     }
 
+    // ensure token element exists and return it
+    function ensureToken(i){
+      let t = document.getElementById(`token-${i}`);
+      if(!t){
+        t = document.createElement("div"); t.className = "token"; t.id = `token-${i}`;
+        t.textContent = String(i+1);
+        t.style.background = (["#86BB27","#DFF3C6","#C4C4C4","#000000"][i % 4]) || "#86BB27";
+        board.appendChild(t);
+      }
+      return t;
+    }
+
     // place tokens with auto-offset when multiple tokens share same tile
     function placeAllTokens(){
       // group players by position
@@ -331,7 +364,6 @@
         const sy = (sRect.top - bRect.top) + sRect.height/2;
         startIdxs.forEach((pi,k)=>{
           const t = ensureToken(pi);
-          // arrange small offsets so start stack is visible
           const offX = ((k % 2) - 0.5) * 18;
           const offY = (Math.floor(k/2) - 0.5) * 18;
           t.style.transform = `translate(${sx + offX}px, ${sy + offY}px)`;
@@ -343,18 +375,15 @@
         const center = tileCoords[pos];
         if(!center) return;
         const n = idxs.length;
-        // choose arrangement radius depending on n
         const baseR = Math.max(14, TILE_SIZE * 0.28);
         if(n === 1){
           const t = ensureToken(idxs[0]);
           t.style.transform = `translate(${center.x}px, ${center.y}px)`;
         } else {
-          // arrange in circle(s)
           const perOuter = 6;
           const outerCount = Math.min(n, perOuter);
           const innerCount = Math.max(0, n - perOuter);
           let used = 0;
-          // outer circle
           const outerR = baseR;
           for(let k=0;k<outerCount;k++){
             const ang = (k / outerCount) * Math.PI * 2 - Math.PI/2;
@@ -363,7 +392,6 @@
             const t = ensureToken(idxs[used++]);
             t.style.transform = `translate(${x}px, ${y}px)`;
           }
-          // inner circle if needed
           if(innerCount > 0){
             const innerR = baseR * 0.6;
             for(let k=0;k<innerCount;k++){
@@ -376,17 +404,6 @@
           }
         }
       });
-    }
-
-    function ensureToken(i){
-      let t = document.getElementById(`token-${i}`);
-      if(!t){
-        t = document.createElement("div"); t.className = "token"; t.id = `token-${i}`;
-        t.textContent = String(i+1);
-        t.style.background = (["#86BB27","#DFF3C6","#C4C4C4","#000000"][i % 4]) || "#86BB27";
-        board.appendChild(t);
-      }
-      return t;
     }
 
     function pushLog(text, kind){
@@ -405,29 +422,24 @@
         const c = (typeof pos === "number" && tileCoords[pos]) ? tileCoords[pos] : null;
         const bRect = board.getBoundingClientRect();
         if(!c){
-          // place at start
           const sRect = START_MARKER.getBoundingClientRect();
           const x = (sRect.left - bRect.left) + sRect.width/2;
           const y = (sRect.top - bRect.top) + sRect.height/2;
           t.style.transform = `translate(${x}px, ${y}px)`;
-          // short timeout to simulate step
-          setTimeout(()=> resolve(), parseInt(getComputedStyle(t).transitionDuration) + 10);
+          setTimeout(()=> resolve(), TOKEN_MOVE_MS + 20);
           return;
         }
-        // set up one-time transitionend listener
         let finished = false;
         function onEnd(e){
           if(e && e.target !== t) return;
           if(finished) return;
           finished = true;
           t.removeEventListener('transitionend', onEnd);
-          // small extra delay so step is perceptible
           setTimeout(()=> resolve(), 20);
         }
         t.addEventListener('transitionend', onEnd);
-        // if transitionend doesn't fire (older browsers), fallback timeout
-        const fallback = setTimeout(()=> { if(!finished){ finished=true; t.removeEventListener('transitionend', onEnd); resolve(); } }, 400);
-        // move token
+        const fallback = setTimeout(()=>{ if(!finished){ finished=true; t.removeEventListener('transitionend', onEnd); resolve(); } }, TOKEN_MOVE_MS + 120);
+        // trigger move
         t.style.transform = `translate(${c.x}px, ${c.y}px)`;
       });
     }
@@ -444,7 +456,6 @@
           if(next >= NUM_TILES){
             pos = NUM_TILES - 1;
             pl.position = pos;
-            // move visually
             await moveTokenStep(playerIndex, pos);
             break;
           } else {
@@ -461,6 +472,7 @@
       finally{ state.animating = false; updateRollState(); }
     }
 
+    // resolve cell (unchanged game logic)
     async function resolveCell(playerIndex, pathIndex){
       const pl = state.players[playerIndex];
       if(pl == null) return;
@@ -641,7 +653,7 @@
 
     attachHandlers();
     layoutTiles();
-    pushLog("UI ready — favicon added; token moves now per-tile with short steps; multiple tokens on same tile are auto-offset to avoid exact overlap.");
+    pushLog("UI ready — favicon set; token moves are now per-tile; tokens sharing a tile auto-offset to avoid overlap.");
 
   })();
   </script>
