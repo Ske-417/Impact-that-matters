@@ -392,6 +392,8 @@
       state.players.forEach((pl,i)=>{
         const token=document.createElement("div"); token.className="token"; token.id=tokenId(i); token.textContent=String(i+1);
         token.style.background = PLAYER_COLORS[i % PLAYER_COLORS.length];
+        // Set token text color: players 2 and 3 (indexes 1 and 2) use black text for better readability
+        token.style.color = (i === 1 || i === 2) ? 'var(--black)' : 'var(--white)';
         if(pl.finished) token.classList.add("finished");
         token.style.position = "absolute"; token.style.left = "0px"; token.style.top = "0px";
         token.addEventListener("mouseenter", e=> showPlayerTooltip(pl, e));
