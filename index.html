@@ -9,7 +9,7 @@
     :root{
       --black:#000000; --white:#FFFFFF; --green:#86BB27; --green-alpha: rgba(134,187,39,0.12);
       --green-light:#DFF3C6; --gray:#C4C4C4;
-      --cell-size:68px; /* tile size */
+      --cell-size:68px; /* default desktop tile size */
       --tile-size: var(--cell-size);
       --tile-gap: 16px; /* baseline gap */
       --board-padding: 24px;
@@ -22,13 +22,14 @@
     /* GLOBAL */
     *{box-sizing:border-box}
     /* Make all text bold */
-    html, body, body * { font-weight: 900 !important; }
+    html, body, body * { font-weight: 900 !important; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
 
     html,body{height:100%; margin:0}
     body{
       display:flex; flex-direction:column; min-height:100vh; margin:0;
       font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,"Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic","Meiryo",sans-serif;
       color:var(--black); background:var(--white);
+      -webkit-tap-highlight-color: rgba(0,0,0,0);
     }
 
     /* Appbar */
@@ -38,7 +39,7 @@
     .group{display:flex; gap:8px; align-items:center; padding:6px 8px; border:1px solid var(--gray); border-radius:10px; background:var(--white)}
     select,input[type="text"]{padding:8px 10px; border-radius:8px; border:1px solid var(--gray); font-weight:900}
 
-    button{padding:8px 12px; border-radius:8px; border:1px solid var(--gray); background:var(--white); cursor:pointer}
+    button{padding:8px 12px; border-radius:8px; border:1px solid var(--gray); background:var(--white); cursor:pointer; -webkit-tap-highlight-color: transparent}
     button.primary{background:var(--green); color:var(--white); border-color:transparent}
     #btn-roll, #btn-reset{ font-weight:900; }
 
@@ -46,7 +47,7 @@
     :focus { outline: 3px solid var(--green); outline-offset:2px; box-shadow: 0 0 0 6px var(--green-alpha); }
 
     .wrap{width:100%; max-width:1300px; margin:18px auto; display:grid; grid-template-columns:3fr 1fr; gap:12px; align-items:start; padding:0 12px}
-    @media (max-width: var(--mobile-breakpoint)){ .wrap{grid-template-columns:1fr; margin:12px auto; padding:0 8px; gap:8px} }
+    @media (max-width: var(--mobile-breakpoint)){ .wrap{grid-template-columns:1fr; margin:10px auto; padding:0 8px; gap:8px} }
 
     /* Board */
     .board-wrap{background:var(--white); border:2px solid var(--gray); border-radius:14px; padding:var(--board-padding); position:relative; overflow:auto; min-height:520px}
@@ -54,7 +55,13 @@
       position:relative; width:100%; height:820px; touch-action:none;
       background: linear-gradient(180deg, rgba(0,0,0,0.01), rgba(0,0,0,0.00));
     }
-    @media (max-width: var(--mobile-breakpoint)){ .board { height: calc(100vh - var(--bottom-bar-height) - 140px); } }
+    @media (max-width: var(--mobile-breakpoint)){
+      /* make board area bigger and avoid being crowded by header/bottom bar */
+      .board { height: calc(100vh - var(--bottom-bar-height) - 120px); }
+      .appbar .title{ font-size:13px; }
+      .appbar .group{ padding:6px; gap:6px; }
+      .board-wrap{ padding:12px; min-height: calc(100vh - var(--bottom-bar-height) - 160px); }
+    }
 
     /* tiles */
     .tile{
@@ -71,6 +78,9 @@
       transition: transform 120ms linear;
       z-index:2;
       font-size:12px;
+      padding:4px;
+      text-align:center;
+      line-height:1;
     }
     .tile:hover{ box-shadow: 0 10px 26px rgba(14,20,25,0.12); }
 
@@ -92,7 +102,7 @@
     /* START_MARKER */
     .start-marker{
       position:absolute;
-      width:calc(var(--tile-size) * 0.9);
+      width:calc(var(--tile-size) * 0.95);
       height:calc(var(--tile-size) * 0.28);
       display:grid; place-items:center;
       border-radius:6px; border:1px solid rgba(0,0,0,0.08);
@@ -134,13 +144,13 @@
 
     /* modal / bottom-sheet */
     .modal-fallback{position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.42); z-index:9999}
-    .modal-fallback .card{background:#fff; padding:16px; border-radius:10px; box-shadow:0 12px 30px rgba(0,0,0,0.12); max-width:720px; width:100%; max-height:90vh; overflow:auto}
+    .modal-fallback .card{background:#fff; padding:18px; border-radius:12px; box-shadow:0 12px 30px rgba(0,0,0,0.12); max-width:720px; width:100%; max-height:88vh; overflow:auto; font-size:15px}
     /* mobile bottom-sheet variant */
     .modal-bottom { align-items:flex-end; }
-    .modal-bottom .card { border-radius:12px 12px 0 0; max-width:none; height:88vh; padding:16px; }
+    .modal-bottom .card { border-radius:12px 12px 0 0; max-width:none; height:88vh; padding:18px; }
 
-    .event-title{margin-bottom:8px}
-    .event-body{white-space:pre-wrap; margin-bottom:12px; line-height:1.5}
+    .event-title{margin-bottom:8px; font-size:18px}
+    .event-body{white-space:pre-wrap; margin-bottom:12px; line-height:1.6; font-size:15px}
     .event-changes{color:var(--green)}
     .choice-btn{margin-right:8px}
 
@@ -153,30 +163,49 @@
     /* bottom-bar for mobile */
     .bottom-bar { display:none; }
     @media (max-width: var(--mobile-breakpoint)){
+      /* increase touch targets, spacing, and font sizes for readability */
+      :root { --tile-size: 62px; --token-size:34px; --tile-gap:14px; --board-padding:12px; --bottom-bar-height:72px; }
       .sidebar { display: none; }
-      .bottom-bar { display:flex; position:fixed; inset:auto 0 0 0; height:var(--bottom-bar-height); background:var(--white); border-top:1px solid rgba(0,0,0,0.06); align-items:center; justify-content:space-around; z-index:1300; }
-      .bottom-bar button{ min-width:56px; height:40px; border-radius:8px; padding:8px 12px; }
-      /* compact tiles/tokens */
-      :root { --tile-size: 54px; --token-size:26px; --tile-gap:12px; --board-padding:12px; }
-      .board-wrap { padding:12px; }
-      .modal-fallback .card { max-height:88vh; }
+      .bottom-bar { display:flex; position:fixed; inset:auto 0 0 0; height:var(--bottom-bar-height); background:var(--white); border-top:1px solid rgba(0,0,0,0.06); align-items:center; justify-content:space-around; z-index:1300; padding:8px 12px; gap:8px; }
+      .bottom-bar button{ min-width:64px; height:48px; border-radius:10px; padding:10px 12px; font-size:15px; display:flex; align-items:center; justify-content:center; gap:8px; }
+      .appbar { position:fixed; top:0; left:0; right:0; z-index:1400; }
+      .wrap { margin-top: var(--bottom-bar-height); } /* prevent content under appbar */
+      .appbar .toolbar { padding:8px 10px; }
+      .appbar .group{ display:none; } /* hide extra controls to free space */
+      .appbar .title{ margin-right:0; padding-left:10px; }
+      .board { border-radius:10px; }
+
+      /* modal readability */
+      .modal-fallback .card { padding:18px; font-size:17px; }
+      .event-title { font-size:20px; }
+      .event-body { font-size:16px; }
+
+      /* choice buttons full width stack */
+      .choice-btn { display:block; width:100%; padding:14px 12px; margin-bottom:10px; border-radius:10px; font-size:15px; text-align:center; }
+
+      /* enlarge log and player list within bottom sheet clones */
+      .modal-bottom .card .player-row { padding:12px; gap:10px; }
+      .modal-bottom .card .log { max-height:60vh; overflow:auto; padding:12px; }
+
+      /* slightly larger tiles text for legibility */
+      .tile { font-size:13px; padding:6px; }
     }
   </style>
 </head>
 <body>
-  <div class="appbar">
+  <div class="appbar" role="banner">
     <div class="toolbar" role="group" aria-label="ゲーム設定">
-      <div class="title"><span style="color:var(--green)">M</span>ake an impact that matters</div>
+      <div class="title" aria-hidden="false"><span style="color:var(--green)">M</span>ake an impact that matters</div>
 
-      <div class="group">
+      <div class="group" id="desktop-controls">
         <label for="players-count">人数</label>
-        <select id="players-count"><option>1</option><option selected>2</option><option>3</option><option>4</option></select>
+        <select id="players-count" aria-label="プレイヤー人数"><option>1</option><option selected>2</option><option>3</option><option>4</option></select>
       </div>
 
-      <div class="group" id="player-names"></div>
+      <div class="group" id="player-names" aria-label="プレイヤー名入力"></div>
 
-      <div class="group" style="margin-left:auto;">
-        <div class="dice" id="dice">-</div>
+      <div class="group" style="margin-left:auto;" id="control-buttons">
+        <div class="dice" id="dice" aria-live="polite" aria-atomic="true">-</div>
         <button id="btn-start" class="primary">開始</button>
         <button id="btn-roll" disabled>サイコロ</button>
         <button id="btn-results">結果</button>
@@ -185,14 +214,14 @@
     </div>
   </div>
 
-  <div class="wrap">
-    <div class="board-wrap">
+  <div class="wrap" id="wrap">
+    <div class="board-wrap" aria-hidden="false">
       <div class="board" id="board" aria-label="ボード">
         <div class="start-marker" id="start-marker">START</div>
       </div>
     </div>
 
-    <aside class="sidebar" id="sidebar">
+    <aside class="sidebar" id="sidebar" aria-hidden="false">
       <div class="stat"><span>ターン</span><strong id="stat-turn">0</strong></div>
       <div class="stat"><span>手番</span><strong id="stat-current">-</strong></div>
 
@@ -201,7 +230,7 @@
         <div class="events-list" id="events-list"></div>
       </div>
 
-      <div class="players" id="players-panel"></div>
+      <div class="players" id="players-panel" aria-label="プレイヤー一覧"></div>
 
       <div class="log" id="log" aria-live="polite"></div>
     </aside>
@@ -209,21 +238,20 @@
 
   <!-- bottom bar for mobile -->
   <div class="bottom-bar" id="bottom-bar" role="toolbar" aria-hidden="true">
-    <button id="bb-btn-roll">サイコロ</button>
-    <button id="bb-btn-players">プレイヤー</button>
-    <button id="bb-btn-log">ログ</button>
-    <button id="bb-btn-results">結果</button>
+    <button id="bb-btn-roll" aria-label="サイコロ">🎲 サイコロ</button>
+    <button id="bb-btn-players" aria-label="プレイヤー">👥 プレイヤー</button>
+    <button id="bb-btn-log" aria-label="ログ">📝 ログ</button>
+    <button id="bb-btn-results" aria-label="結果">🏁 結果</button>
   </div>
 
   <script>
   (function(){
     window.addEventListener('load', init);
 
-    // Config / constants
-    const MOBILE_BREAK = 680;
+    const MOBILE_BREAK = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--mobile-breakpoint')) || 680;
     const NUM_TILES = 60;
 
-    // helpers for color parsing / luminance (for token contrast)
+    // Color helpers used for token contrast
     function parseColorToRgb(str){
       if(!str) return null;
       str = String(str).trim();
@@ -256,7 +284,7 @@
       return lum > 0.55;
     }
 
-    // Fetch event templates (expects event-templates.json served alongside)
+    // Attempt to load external templates, but do not block UI if absent
     let EVENT_TEMPLATES = null;
     async function loadEventTemplatesExternal(){
       try{
@@ -266,69 +294,33 @@
         if(!json || (!json.junior && !json.mid && !json.senior)) throw new Error('Invalid JSON shape');
         return json;
       }catch(e){
-        console.warn('event-templates.json not available, using embedded fallback if present');
+        // non-blocking
         return null;
       }
     }
 
-    // DOM shorteners
     const $ = s => document.querySelector(s);
     let isMobile = window.matchMedia(`(max-width: ${MOBILE_BREAK}px)`).matches;
 
-    // State
-    const state = {
-      started:false,
-      turn:0,
-      currentPlayerIndex:0,
-      players:[],
-      animating:false,
-      rng: Math.random,
-    };
+    // state
+    const state = { started:false, turn:0, currentPlayerIndex:0, players:[], animating:false, rng: Math.random };
 
     // tile coords
     let tileCoords = [];
 
-    // Initialization
     async function init(){
-      EVENT_TEMPLATES = await loadEventTemplatesExternal() || null;
-      // Elements
-      const btnStart = $("#btn-start"), btnRoll = $("#btn-roll"), btnReset = $("#btn-reset"), btnResults = $("#btn-results");
-      const bbRoll = $("#bb-btn-roll"), bbPlayers = $("#bb-btn-players"), bbLog = $("#bb-btn-log"), bbResults = $("#bb-btn-results");
-      const playersCountSel = $("#players-count"), playerNamesWrap = $("#player-names");
-
+      EVENT_TEMPLATES = await loadEventTemplatesExternal();
+      bindUI();
       renderPlayerNameInputs();
-      playersCountSel.addEventListener('change', renderPlayerNameInputs);
-
-      // wire desktop buttons
-      btnStart.addEventListener('click', startGame);
-      btnRoll.addEventListener('click', rollTurn);
-      btnReset.addEventListener('click', resetGame);
-      btnResults.addEventListener('click', showFinalResultsModal);
-
-      // wire bottom-bar buttons (mobile)
-      if(bbRoll) bbRoll.addEventListener('click', ()=> { if(!$("#btn-roll").disabled) rollTurn(); });
-      if(bbPlayers) bbPlayers.addEventListener('click', ()=> openBottomSheet('players'));
-      if(bbLog) bbLog.addEventListener('click', ()=> openBottomSheet('log'));
-      if(bbResults) bbResults.addEventListener('click', showFinalResultsModal);
-
-      // keyboard
-      window.addEventListener("keydown", (e)=>{
-        if((e.key === " " || e.key === "Enter") && state.started && !state.animating){
-          e.preventDefault();
-          rollTurn();
-        }
-      });
-
-      window.addEventListener('resize', onResize);
-
       layoutTiles();
       renderPlayersPanel();
-      updateRollState();
+      renderEventsPanel();
       updateBottomBarVisibility();
-      console.info('Initialized UI (responsive mode: ' + (isMobile ? 'mobile' : 'desktop') + ')');
+      updateRollState();
+      window.addEventListener('resize', resizeHandler);
     }
 
-    function onResize(){
+    function resizeHandler(){
       const prev = isMobile;
       isMobile = window.matchMedia(`(max-width: ${MOBILE_BREAK}px)`).matches;
       if(prev !== isMobile){
@@ -337,19 +329,54 @@
       layoutTiles();
     }
 
+    function bindUI(){
+      const btnStart = $("#btn-start"), btnRoll = $("#btn-roll"), btnReset = $("#btn-reset"), btnResults = $("#btn-results");
+      const bbRoll = $("#bb-btn-roll"), bbPlayers = $("#bb-btn-players"), bbLog = $("#bb-btn-log"), bbResults = $("#bb-btn-results");
+      const playersCountSel = $("#players-count");
+
+      playersCountSel.addEventListener('change', renderPlayerNameInputs);
+
+      btnStart.addEventListener('click', startGame);
+      btnRoll.addEventListener('click', rollTurn);
+      btnReset.addEventListener('click', resetGame);
+      btnResults.addEventListener('click', showFinalResultsModal);
+
+      if(bbRoll) bbRoll.addEventListener('click', ()=> { if(!$("#btn-roll").disabled) rollTurn(); });
+      if(bbPlayers) bbPlayers.addEventListener('click', ()=> openBottomSheet('players'));
+      if(bbLog) bbLog.addEventListener('click', ()=> openBottomSheet('log'));
+      if(bbResults) bbResults.addEventListener('click', showFinalResultsModal);
+
+      // keyboard convenience
+      window.addEventListener("keydown", (e)=>{
+        if((e.key === " " || e.key === "Enter") && state.started && !state.animating){
+          e.preventDefault();
+          rollTurn();
+        }
+      });
+    }
+
     function updateBottomBarVisibility(){
       const bb = $("#bottom-bar");
       if(!bb) return;
       if(isMobile){
         bb.setAttribute('aria-hidden','false');
         bb.style.display = 'flex';
+        // hide desktop-only controls to reduce clutter
+        const desktopControls = document.getElementById('desktop-controls');
+        if(desktopControls) desktopControls.style.display = 'none';
+        const playerNames = document.getElementById('player-names');
+        if(playerNames) playerNames.style.display = 'none';
       } else {
         bb.setAttribute('aria-hidden','true');
         bb.style.display = 'none';
+        const desktopControls = document.getElementById('desktop-controls');
+        if(desktopControls) desktopControls.style.display = '';
+        const playerNames = document.getElementById('player-names');
+        if(playerNames) playerNames.style.display = '';
       }
     }
 
-    // Player name inputs
+    // player name inputs
     function renderPlayerNameInputs(){
       const wrap = $("#player-names");
       if(!wrap) return;
@@ -360,15 +387,12 @@
         inp.type = "text";
         inp.placeholder = `Player ${i+1}`;
         inp.value = `プレイヤー${i+1}`;
-        inp.style.width = "120px";
+        inp.style.width = isMobile ? "88px" : "120px";
         wrap.appendChild(inp);
       }
     }
-    function getPlayerNames(){
-      return Array.from(document.querySelectorAll('#player-names input')).map((el,idx)=> el.value.trim() || `プレイヤー${idx+1}`);
-    }
+    function getPlayerNames(){ return Array.from(document.querySelectorAll('#player-names input')).map((el,idx)=> el.value.trim() || `プレイヤー${idx+1}`); }
 
-    // Logging
     function pushLog(text, kind){
       const logEl = $("#log");
       if(!logEl) return;
@@ -380,12 +404,13 @@
       logEl.scrollTop = logEl.scrollHeight;
     }
 
-    // Path generation (same logic as before)
+    /* Path generation - same algorithm but uses current CSS vars (tile size) */
     const BASE_JITTER = 12;
-    const GAP = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--tile-gap')) || 16;
-    const TILE_SIZE = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--tile-size')) || 68;
-    const TOKEN_MOVE_MS = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--token-move-ms')) || 140;
-
+    function getCssNumber(name, fallback){
+      const v = getComputedStyle(document.documentElement).getPropertyValue(name);
+      const n = parseFloat(v);
+      return Number.isFinite(n) ? n : fallback;
+    }
     function buildConnectedPath(N, containerW, containerH, tileSize, gap){
       const cx = containerW/2, cy = containerH/2;
       const coords = [];
@@ -484,13 +509,15 @@
       return coords;
     }
 
-    // Layout tiles
+    // layout tiles using current CSS values
     function layoutTiles(){
       const board = $("#board");
       if(!board) return;
       board.querySelectorAll(".tile").forEach(n=>n.remove());
       const rect = board.getBoundingClientRect();
-      const coords = buildConnectedPath(NUM_TILES, rect.width, rect.height, TILE_SIZE, GAP);
+      const tileSize = getCssNumber('--tile-size', 68);
+      const gap = getCssNumber('--tile-gap', 16);
+      const coords = buildConnectedPath(NUM_TILES, rect.width, rect.height, tileSize, gap);
       tileCoords = coords;
       coords.forEach((c, idx)=>{
         const div = document.createElement("div");
@@ -563,8 +590,8 @@
         startIdxs.forEach((pi,k)=>{
           const t = ensureToken(pi);
           if(shouldUseDarkTextForBg(t.style.background)) t.style.color = '#000'; else t.style.color = '#fff';
-          const offX = ((k % 2) - 0.5) * 18;
-          const offY = (Math.floor(k/2) - 0.5) * 18;
+          const offX = ((k % 2) - 0.5) * 20;
+          const offY = (Math.floor(k/2) - 0.5) * 20;
           t.style.transform = `translate(${sx + offX}px, ${sy + offY}px)`;
         });
       }
@@ -574,7 +601,7 @@
         const center = tileCoords[pos];
         if(!center) return;
         const n = idxs.length;
-        const baseR = Math.max(14, TILE_SIZE * 0.28);
+        const baseR = Math.max(16, getCssNumber('--tile-size',68) * 0.28);
         if(n === 1){
           const t = ensureToken(idxs[0]);
           if(shouldUseDarkTextForBg(t.style.background)) t.style.color = '#000'; else t.style.color = '#fff';
@@ -608,7 +635,7 @@
       });
     }
 
-    // Movement animation
+    // Movement animation (unchanged)
     function moveTokenStep(playerIndex, pos){
       return new Promise(resolve=>{
         const t = ensureToken(playerIndex);
@@ -619,7 +646,7 @@
           const x = (sRect.left - bRect.left) + sRect.width/2;
           const y = (sRect.top - bRect.top) + sRect.height/2;
           t.style.transform = `translate(${x}px, ${y}px)`;
-          setTimeout(()=> resolve(), TOKEN_MOVE_MS + 20);
+          setTimeout(()=> resolve(), (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--token-move-ms')) || 140) + 20);
           return;
         }
         let finished = false;
@@ -631,7 +658,7 @@
           setTimeout(()=> resolve(), 20);
         }
         t.addEventListener('transitionend', onEnd);
-        setTimeout(()=>{ if(!finished){ finished=true; t.removeEventListener('transitionend', onEnd); resolve(); } }, TOKEN_MOVE_MS + 220);
+        setTimeout(()=>{ if(!finished){ finished=true; t.removeEventListener('transitionend', onEnd); resolve(); } }, (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--token-move-ms')) || 140) + 220);
         t.style.transform = `translate(${c.x}px, ${c.y}px)`;
       });
     }
@@ -667,12 +694,13 @@
       finally{ state.animating = false; updateRollState(); }
     }
 
-    // Roll & turn logic
+    // roll / state
     function updateRollState(){
       const rbtn = document.getElementById('btn-roll');
       const bbRoll = document.getElementById('bb-btn-roll');
-      if(rbtn) rbtn.disabled = !(state.started && !state.animating);
-      if(bbRoll) bbRoll.disabled = !(state.started && !state.animating);
+      const disabled = !(state.started && !state.animating);
+      if(rbtn) rbtn.disabled = disabled;
+      if(bbRoll) bbRoll.disabled = disabled;
     }
 
     async function rollTurn(){
@@ -719,7 +747,7 @@
       });
     }
 
-    // Players panel render
+    // players panel
     function renderPlayersPanel(){
       const playersPanelEl = $("#players-panel");
       if(!playersPanelEl) return;
@@ -740,9 +768,8 @@
       highlightActive();
     }
 
-    // Events: stage selector and list for debugging (non-essential)
+    // events panel (light)
     function renderEventsPanel(){
-      // Keep minimal: show counts per stage when templates available
       const list = $("#events-list");
       if(!list) return;
       list.innerHTML = "";
@@ -760,7 +787,7 @@
       }
     }
 
-    // Event picking logic
+    // event selection logic
     function eventStageForPlayer(pl){
       const pos = typeof pl.position === "number" ? pl.position : 0;
       if(pos >= 30) return "senior";
@@ -791,7 +818,7 @@
       return pool[pool.length-1];
     }
 
-    // Modal helpers: adapt between desktop modal and mobile bottom-sheet
+    // modal helpers: desktop modal vs mobile bottom-sheet
     function removeFallbacks(){ document.querySelectorAll('.modal-fallback').forEach(e=>e.remove()); }
     function createModalCard(isBottom){
       removeFallbacks();
@@ -819,24 +846,29 @@
     }
 
     function openBottomSheet(kind){
-      // kind: 'players' or 'log'
       const isBottom = true;
       const { overlay, card } = createModalCard(isBottom);
       const h = document.createElement('div'); h.className='event-title'; h.textContent = (kind === 'players' ? 'プレイヤー' : 'ログ');
       const content = document.createElement('div'); content.style.overflow='auto'; content.style.maxHeight='70vh';
       if(kind === 'players'){
-        content.appendChild($("#players-panel").cloneNode(true));
+        // clone players panel for readable view
+        const clone = $("#players-panel").cloneNode(true);
+        clone.style.display = 'block';
+        content.appendChild(clone);
       } else {
-        content.appendChild($("#log").cloneNode(true));
+        const clone = $("#log").cloneNode(true);
+        clone.style.display = 'block';
+        content.appendChild(clone);
       }
       const actions = document.createElement('div'); actions.style.textAlign='right';
       const close = document.createElement('button'); close.className='primary'; close.textContent='閉じる';
       close.addEventListener('click', ()=> overlay.remove());
       actions.appendChild(close);
       card.appendChild(h); card.appendChild(content); card.appendChild(actions);
+      close.focus();
     }
 
-    // Event modals (choice + event)
+    // events modals
     function applyAttributeChanges(playerIndex, changes){
       const pl = state.players[playerIndex];
       if(!pl) return;
@@ -881,14 +913,10 @@
       const h = document.createElement('div'); h.className='event-title'; h.textContent = tmpl.title;
       const b = document.createElement('div'); b.className='event-body'; b.textContent = tmpl.body;
       const actions = document.createElement('div'); actions.style.display = 'flex'; actions.style.justifyContent = 'flex-end'; actions.style.gap = '8px';
-
       (tmpl.choices||[]).forEach(choice=>{
         const btn = document.createElement('button'); btn.type='button'; btn.className='choice-btn'; btn.textContent = choice.label;
-        // On mobile make choices full-width stacked
-        if(isMobile){
-          btn.style.display = 'block';
-          btn.style.width = '100%';
-          btn.style.marginBottom = '8px';
+        if(isBottom){
+          btn.style.display = 'block'; btn.style.width = '100%'; btn.style.marginBottom = '10px';
         }
         btn.addEventListener('click', async ()=> {
           overlay.remove();
@@ -910,14 +938,11 @@
         });
         actions.appendChild(btn);
       });
-
       const cancel = document.createElement('button'); cancel.type='button'; cancel.textContent='やめる';
-      if(isMobile){ cancel.style.display='block'; cancel.style.width='100%'; }
+      if(isBottom){ cancel.style.display='block'; cancel.style.width='100%'; cancel.style.marginTop='8px'; }
       cancel.addEventListener('click', ()=> overlay.remove());
       actions.appendChild(cancel);
-
       card.appendChild(h); card.appendChild(b); card.appendChild(actions);
-      // focus first button for accessibility
       const firstBtn = card.querySelector('button.choice-btn');
       if(firstBtn) firstBtn.focus();
     }
@@ -932,7 +957,7 @@
       }
     }
 
-    // resolve cell (goal handling)
+    // resolve cell and goal
     async function resolveCell(playerIndex, pathIndex){
       const pl = state.players[playerIndex];
       if(pl == null) return;
@@ -955,7 +980,7 @@
       }
     }
 
-    // Final results (no CSV/JSON)
+    // final results
     const SCORE_WEIGHTS = { rating: 3.0, learning: 1.5, motivation: 1.2, mental: 1.0, responsibility: 2.0 };
     function computeFinalResults(){
       const rows = state.players.map((p, i) => {
@@ -1034,9 +1059,10 @@
       btnClose.addEventListener('click', ()=> overlay.remove());
       actions.appendChild(btnClose);
       card.appendChild(actions);
+      btnClose.focus();
     }
 
-    // Start / Reset
+    // start / reset
     function startGame(){
       if(state.started) return;
       const names = getPlayerNames();
@@ -1077,12 +1103,16 @@
       updateRollState();
     }
 
-    // small helpers to avoid errors
+    // small helpers exposure
     window.createModalCard = createModalCard;
-
-    // expose for debugging
     window.__game = { state, layoutTiles, startGame, resetGame };
 
+    // utility to read CSS numeric var
+    function getCssNumber(name, fallback){
+      const v = getComputedStyle(document.documentElement).getPropertyValue(name);
+      const n = parseFloat(v);
+      return Number.isFinite(n) ? n : fallback;
+    }
   })();
   </script>
 </body>
