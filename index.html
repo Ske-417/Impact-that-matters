@@ -105,9 +105,15 @@
 
       const TILE_SIZE = Number(getComputedStyle(document.documentElement).getPropertyValue('--tile-size')) || 68;
       const NUM_TILES = 60;
-      const BASE_JITTER = 10;
       const GAP = Number(getComputedStyle(document.documentElement).getPropertyValue('--tile-gap')) || 16;
       const TOKEN_MOVE_MS = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--token-move-ms')) || 140;
+
+      // parameters for analytic spiral snapping + tile rotation
+      const A_PARAM = TILE_SIZE * 0.75;                // a in r = a + b * theta
+      const BASE_B_SCALE = 0.95;                       // inner tuning
+      const B_MULTIPLIER = 2.2;                        // slightly relaxed from previous 2.6
+      const ROTATE_TILES = true;                       // rotate tiles to tangent
+      const JITTER_AMT = 0;                            // exactly zero for clean spiral
 
       let tileCoords = [];
       let state = { started:false, turn:0, currentPlayerIndex:0, players:[], animating:false, rng: Math.random, history: [] };
@@ -128,7 +134,7 @@
       renderPlayerNameInputs();
       function getPlayerNames(){ return Array.from(playerNamesWrap.querySelectorAll("input")).map((el,idx)=> el.value.trim() || `プレイヤー${idx+1}`); }
 
-      // events (kept the same as earlier).
+      // events (kept, omitted in snippet)
       const EVENT_TEMPLATES = {
         junior: [ /* ... */ ],
         mid: [ /* ... */ ],
@@ -146,8 +152,7 @@
         if(!pl) return null;
         const stage = eventStageForPlayer(pl);
         const pool = EVENT_TEMPLATES[stage] || EVENT_TEMPLATES.junior;
-        let r = state.rng() * pool.length;
-        return pool[Math.floor(r)];
+        return pool[Math.floor(state.rng()*pool.length)];
       }
 
       function removeFallbacks(){ document.querySelectorAll('.modal-fallback').forEach(e=>e.remove()); }
@@ -249,88 +254,138 @@
         }
       }
 
-      /* Spiral tuned for stronger visual convergence:
-         - increase 'b' slightly for tighter winding toward center
-         - reduce theta step so more samples (visible smooth turns)
-         - keep gentle perpendicular jitter so spiral remains legible and non-uniform
-         - use gentle overlap resolution that preserves the spiral ordering
-      */
+      /* -------------------
+         Analytic arc-length placement + exact theta inversion
+         - r(θ) = a + b θ
+         - arc length S(θ) = (1/(2b)) [ u*sqrt(u^2 + b^2) + b^2 ln(u + sqrt(u^2 + b^2)) ]  where u = a + b θ
+         - invert S(θ) via bisection to find θ for given target arc length
+         - place N-1 tiles at equal arc-length intervals, outer -> inner
+         - rotate tiles to tangent computed from dx/dθ, dy/dθ
+      ------------------- */
+      function arcLengthTheta(theta, a, b){
+        // returns S(theta) from 0..theta
+        // u = a + b*theta
+        const u = a + b * theta;
+        const term = Math.sqrt(u*u + b*b);
+        // (1/(2b)) * ( u*term + b^2 * ln(u + term) ) - same at u=a
+        const part = (u * term + b*b * Math.log(u + term));
+        const ua = a;
+        const termA = Math.sqrt(ua*ua + b*b);
+        const partA = (ua * termA + b*b * Math.log(ua + termA));
+        return (part - partA) / (2*b);
+      }
+
+      function findThetaForArc(sTarget, thetaMax, a, b){
+        // sTarget between 0..S(thetaMax)
+        // use bisection on theta in [0, thetaMax]
+        let lo = 0, hi = thetaMax;
+        let slo = 0, shi = arcLengthTheta(hi, a, b);
+        // safety
+        if(sTarget <= 0) return 0;
+        if(sTarget >= shi) return hi;
+        for(let iter=0; iter<60; iter++){
+          const mid = (lo + hi)/2;
+          const sm = arcLengthTheta(mid, a, b);
+          if(sm > sTarget) hi = mid;
+          else lo = mid;
+        }
+        return (lo + hi)/2;
+      }
+
       function buildConnectedPath(N, containerW, containerH, tileSize, gap){
         const cx = containerW/2, cy = containerH/2;
         const coords = [];
         const minCenter = tileSize + 6;
-        const spacing = Math.max(tileSize + Math.round(gap*0.6), tileSize + 8);
+        const approxSpacing = Math.max(tileSize + Math.round(gap*0.62), tileSize + 8);
 
-        // stronger convergence: raise bMultiplier
-        const a = tileSize * 0.85; // slightly tighter start radius
-        const baseB = spacing / (2 * Math.PI) * 0.95;
-        const bMultiplier = 1.25; // increase to make spiral wind in more quickly
-        const b = baseB * bMultiplier;
+        // analytic params
+        const a = A_PARAM;
+        const bBase = (approxSpacing / (2 * Math.PI)) * BASE_B_SCALE;
+        const b = bBase * B_MULTIPLIER;
 
         const maxR = Math.min(containerW, containerH) * 0.44;
         const thetaMax = Math.max(4 * Math.PI, (maxR - a) / b);
-        const step = 0.06; // smaller step = smoother, more turns
 
-        let theta = thetaMax;
-        let last = null;
-        while(coords.length < N - 1 && theta > 0){
+        const startAngle = -Math.PI * 0.8; // start ~ top-left, clockwise by subtracting theta
+
+        // compute total arc length S_total analytically
+        const S_total = arcLengthTheta(thetaMax, a, b);
+
+        // place N-1 points at equal arc intervals along 0..thetaMax (outer->inner)
+        const points = [];
+        for(let k=0; k < N - 1; k++){
+          const sTarget = (k) * (S_total / Math.max(1, N - 1));
+          // find theta such that S(theta) = sTarget
+          const theta = findThetaForArc(sTarget, thetaMax, a, b);
           const r = a + b * theta;
-          const angle = theta - Math.PI/2;
-          const baseX = cx + Math.cos(angle) * r;
-          const baseY = cy + Math.sin(angle) * r;
-
-          // perpendicular jitter bounded (kept subtle so spiral remains clear)
-          const perpX = -Math.sin(angle), perpY = Math.cos(angle);
-          const jitterMax = Math.min(12, (spacing - minCenter) * 0.6, BASE_JITTER * 0.9);
-          const jitter = (Math.random()*2 -1) * jitterMax * 0.45; // slightly smaller jitter
-          const x = Math.round(baseX + perpX * jitter + (Math.random()*2-1) * (jitterMax*0.12));
-          const y = Math.round(baseY + perpY * jitter + (Math.random()*2-1) * (jitterMax*0.12));
-
-          if(!last){
-            coords.push({x,y,ang:(Math.random()*2-1)*6});
-            last = {x,y};
-          } else {
-            const dx = x - last.x, dy = y - last.y;
-            const d = Math.hypot(dx,dy);
-            if(d >= spacing * 0.72){ // allow slightly tighter spacing inward
-              coords.push({x,y,ang:(Math.random()*2-1)*6});
-              last = {x,y};
-            }
-          }
-          theta -= step;
+          const angle = startAngle - theta; // clockwise
+          const x = cx + Math.cos(angle) * r;
+          const y = cy + Math.sin(angle) * r;
+          points.push({theta, r, angle, x, y});
         }
 
-        // fill if needed
-        if(coords.length < N - 1){
-          let i = coords.length;
-          while(coords.length < N - 1){
-            const t = (i / Math.max(1, N - 1)) * Math.PI * 2;
-            const r = Math.max(tileSize * 1.0, maxR * (0.45 + 0.45 * (1 - i/(N-1))));
-            const x = Math.round(cx + Math.cos(t) * r);
-            const y = Math.round(cy + Math.sin(t) * r);
-            coords.push({x,y,ang:(Math.random()*2-1)*6});
-            i++;
+        // optional: detect inner crowding and redistribute evenly by angle (small rings)
+        const reserveRadius = Math.max(tileSize * 1.55, minCenter * 1.15);
+        const innerIdxs = [];
+        for(let i=0;i<points.length;i++){
+          const d = Math.hypot(points[i].x - cx, points[i].y - cy);
+          if(d < reserveRadius + tileSize * 0.45) innerIdxs.push(i);
+        }
+        if(innerIdxs.length > 0){
+          const perRing = 6;
+          for(let k=0;k<innerIdxs.length;k++){
+            const idx = innerIdxs[k];
+            const ringLevel = Math.floor(k / perRing);
+            const ringStep = tileSize * 0.7;
+            const newR = reserveRadius + ringLevel * ringStep;
+            const baseIndexFrac = idx / Math.max(1, points.length);
+            const angCenter = startAngle - (thetaMax * baseIndexFrac);
+            const slot = (k % perRing);
+            const angleOffset = (slot - (perRing-1)/2) * (Math.PI / (perRing * 1.2));
+            const newAng = angCenter + angleOffset;
+            points[idx].x = Math.round(cx + Math.cos(newAng) * newR);
+            points[idx].y = Math.round(cy + Math.sin(newAng) * newR);
+            points[idx].angle = newAng;
+            points[idx].r = newR;
           }
         }
 
-        // center goal
-        coords.push({x: Math.round(cx), y: Math.round(cy), ang:0});
+        // convert to final coords with tangent rotation computed
+        for(let i=0;i<points.length;i++){
+          const p = points[i];
+          // compute derivative dx/dθ, dy/dθ for tangent:
+          // dx/dθ = b * cos(angle) + r * sin(angle)
+          // dy/dθ = b * sin(angle) - r * cos(angle)
+          const r = p.r;
+          const angle = p.angle;
+          const dx_dth = b * Math.cos(angle) + r * Math.sin(angle);
+          const dy_dth = b * Math.sin(angle) - r * Math.cos(angle);
+          const tang = Math.atan2(dy_dth, dx_dth); // radians
+          const deg = tang * 180 / Math.PI;
+          coords.push({ x: Math.round(p.x), y: Math.round(p.y), ang: (JITTER_AMT ? (Math.random()*2-1)*JITTER_AMT : 0), rot: deg });
+        }
 
-        // gentle overlap resolution while preserving spiral
-        enforceNoOverlapPreserveSpiral(coords, minCenter, containerW, containerH, tileSize);
+        // push the center goal (no rotation)
+        coords.push({ x: Math.round(cx), y: Math.round(cy), ang:0, rot: 0 });
 
-        // clamp
+        // final small overlap cleanup (preserve spiral)
+        enforceNoOverlapPreserveSpiral(coords, tileSize + 6, containerW, containerH, tileSize);
+
+        // clamp to bounds & return
         const clampMargin = tileSize;
-        for(const c of coords){ c.x = Math.max(clampMargin, Math.min(containerW - clampMargin, c.x)); c.y = Math.max(clampMargin, Math.min(containerH - clampMargin, c.y)); }
+        for(const c of coords){
+          c.x = Math.max(clampMargin, Math.min(containerW - clampMargin, c.x));
+          c.y = Math.max(clampMargin, Math.min(containerH - clampMargin, c.y));
+        }
         if(coords.length > N) coords.length = N;
         return coords;
       }
 
-      // reuse gentle repulsion from earlier, preserving spiral shape
+      // minimal overlap resolver (keeps spiral ordering)
       function enforceNoOverlapPreserveSpiral(points, minD, w, h, tileSize){
         if(!Array.isArray(points)) return;
         const centerIdx = points.length - 1;
-        const maxPasses = 60;
+        const maxPasses = 80;
         for(let pass=0; pass<maxPasses; pass++){
           let moved = false;
           for(let i=0;i<points.length;i++){
@@ -339,23 +394,23 @@
               const a = points[i], b = points[j];
               let dx = b.x - a.x, dy = b.y - a.y;
               let d = Math.hypot(dx, dy) || 0.0001;
-              if(d < minD - 0.1){
+              if(d < minD - 0.05){
                 const overlap = (minD - d);
                 const ux = dx / d, uy = dy / d;
                 const perpX = -uy, perpY = ux;
-                const moveMain = Math.max(0.35, overlap * 0.4);
-                const movePerp = Math.min(2.0, overlap * 0.18);
+                const moveMain = Math.max(0.18, overlap * 0.28);
+                const movePerp = Math.min(1.2, overlap * 0.08);
                 if(i === centerIdx){
-                  b.x = Math.round(b.x + ux * moveMain + perpX * (Math.random() - 0.5) * movePerp);
-                  b.y = Math.round(b.y + uy * moveMain + perpY * (Math.random() - 0.5) * movePerp);
+                  b.x = Math.round(b.x + ux * moveMain + perpX * ((Math.random()-0.5) * movePerp));
+                  b.y = Math.round(b.y + uy * moveMain + perpY * ((Math.random()-0.5) * movePerp));
                 } else if(j === centerIdx){
-                  a.x = Math.round(a.x - ux * moveMain + perpX * (Math.random() - 0.5) * movePerp);
-                  a.y = Math.round(a.y - uy * moveMain + perpY * (Math.random() - 0.5) * movePerp);
+                  a.x = Math.round(a.x - ux * moveMain + perpX * ((Math.random()-0.5) * movePerp));
+                  a.y = Math.round(a.y - uy * moveMain + perpY * ((Math.random()-0.5) * movePerp));
                 } else {
-                  a.x = Math.round(a.x - ux * (moveMain*0.55) + perpX * (Math.random() - 0.5) * movePerp);
-                  a.y = Math.round(a.y - uy * (moveMain*0.55) + perpY * (Math.random() - 0.5) * movePerp);
-                  b.x = Math.round(b.x + ux * (moveMain*0.55) + perpX * (Math.random() - 0.5) * movePerp);
-                  b.y = Math.round(b.y + uy * (moveMain*0.55) + perpY * (Math.random() - 0.5) * movePerp);
+                  a.x = Math.round(a.x - ux * (moveMain*0.5) + perpX * ((Math.random()-0.5) * movePerp));
+                  a.y = Math.round(a.y - uy * (moveMain*0.5) + perpY * ((Math.random()-0.5) * movePerp));
+                  b.x = Math.round(b.x + ux * (moveMain*0.5) + perpX * ((Math.random()-0.5) * movePerp));
+                  b.y = Math.round(b.y + uy * (moveMain*0.5) + perpY * ((Math.random()-0.5) * movePerp));
                 }
                 const margin = tileSize/2 + 6;
                 a.x = Math.max(margin, Math.min(w - margin, a.x));
@@ -367,13 +422,14 @@
             }
           }
           if(!moved) break;
-          if(pass > 45) minD *= 0.998;
+          if(pass > 60) minD *= 0.997;
         }
 
+        // fallback grid if still problematic (very unlikely)
         for(let i=0;i<points.length;i++){
           for(let j=i+1;j<points.length;j++){
             const dx = points[j].x - points[i].x, dy = points[j].y - points[i].y;
-            if(Math.hypot(dx,dy) < tileSize * 0.9){
+            if(Math.hypot(dx,dy) < tileSize * 0.78){
               const rect = board.getBoundingClientRect();
               const fallback = buildSpiralGridFallback(points.length, rect.width, rect.height, tileSize, GAP);
               for(let k=0;k<points.length && k<fallback.length;k++){
@@ -402,7 +458,7 @@
         return coords;
       }
 
-      // tile layout and START align
+      // layout tiles and set rotation if requested
       function layoutTiles(){
         board.querySelectorAll(".tile").forEach(n=>n.remove());
         const rect = board.getBoundingClientRect();
@@ -412,24 +468,50 @@
           const div = document.createElement("div");
           div.className = "tile";
           div.dataset.pathIndex = String(idx);
-          if(idx === NUM_TILES - 1){ div.classList.add("goal"); div.textContent = "GOAL"; }
-          else if(idx % 11 === 0){ div.classList.add("client"); }
-          else if(idx % 13 === 0){ div.classList.add("workshop"); }
-          else if(idx % 6 === 0){ div.classList.add("event"); }
-          else if(idx % 5 === 0){ div.classList.add("bonus"); }
-          else if(idx % 7 === 0){ div.classList.add("penalty"); }
-          div.style.left = `${c.x}px`; div.style.top = `${c.y}px`;
-          div.style.transform = `translate(-50%,-50%) rotate(${c.ang || 0}deg)`;
+          if(idx === NUM_TILES - 1){
+            div.classList.add("goal");
+            div.textContent = "GOAL";
+            div.style.transform = `translate(-50%,-50%) rotate(0deg)`;
+          } else if(idx % 11 === 0){
+            div.classList.add("client");
+          } else if(idx % 13 === 0){
+            div.classList.add("workshop");
+          } else if(idx % 6 === 0){
+            div.classList.add("event");
+          } else if(idx % 5 === 0){
+            div.classList.add("bonus");
+          } else if(idx % 7 === 0){
+            div.classList.add("penalty");
+          }
+          div.style.left = `${c.x}px`;
+          div.style.top = `${c.y}px`;
+          // rotate tiles to tangent for clearer spiral flow if enabled
+          const rot = (ROTATE_TILES && typeof c.rot === 'number') ? c.rot : (c.ang || 0);
+          div.style.transform = `translate(-50%,-50%) rotate(${rot}deg)`;
           board.appendChild(div);
         });
-        if(tileCoords && tileCoords[0]){ const t0 = tileCoords[0]; START_MARKER.style.left = `${t0.x}px`; START_MARKER.style.top = `${t0.y}px`; START_MARKER.style.display = 'grid'; } else { START_MARKER.style.display = 'none'; }
+
+        // align START_MARKER to tile 0 (outermost)
+        if(tileCoords && tileCoords[0]){
+          const t0 = tileCoords[0];
+          START_MARKER.style.left = `${t0.x}px`;
+          START_MARKER.style.top = `${t0.y}px`;
+          START_MARKER.style.display = 'grid';
+        } else {
+          START_MARKER.style.display = 'none';
+        }
+
         placeAllTokens();
       }
 
-      // token helpers ...
+      // token helpers (unchanged)
       function ensureToken(i){
         let t = document.getElementById(`token-${i}`);
-        if(!t){ t = document.createElement("div"); t.className = "token"; t.id = `token-${i}`; t.textContent = String(i+1); board.appendChild(t); }
+        if(!t){
+          t = document.createElement("div"); t.className = "token"; t.id = `token-${i}`;
+          t.textContent = String(i+1);
+          board.appendChild(t);
+        }
         const palette = ["#86BB27","#DFF3C6","#C4C4C4","#2B2B2B"];
         const bg = palette[i % palette.length];
         t.style.background = bg;
@@ -454,7 +536,12 @@
           const sRect = START_MARKER.getBoundingClientRect();
           const sx = (sRect.left - bRect.left) + sRect.width/2;
           const sy = (sRect.top - bRect.top) + sRect.height/2;
-          startIdxs.forEach((pi,k)=>{ const t = ensureToken(pi); const offX = ((k % 2) - 0.5) * 18; const offY = (Math.floor(k/2) - 0.5) * 18; t.style.transform = `translate(${sx + offX}px, ${sy + offY}px)`; });
+          startIdxs.forEach((pi,k)=>{
+            const t = ensureToken(pi);
+            const offX = ((k % 2) - 0.5) * 18;
+            const offY = (Math.floor(k/2) - 0.5) * 18;
+            t.style.transform = `translate(${sx + offX}px, ${sy + offY}px)`;
+          });
         }
         groups.forEach((idxs, pos)=>{
           if(pos === "__start") return;
@@ -462,20 +549,242 @@
           if(!center) return;
           const n = idxs.length;
           const baseR = Math.max(14, TILE_SIZE * 0.28);
-          if(n === 1){ const t = ensureToken(idxs[0]); t.style.transform = `translate(${center.x}px, ${center.y}px)`; }
-          else {
-            const perOuter = 6; const outerCount = Math.min(n, perOuter); const innerCount = Math.max(0, n - perOuter); let used = 0;
+          if(n === 1){
+            const t = ensureToken(idxs[0]);
+            t.style.transform = `translate(${center.x}px, ${center.y}px)`;
+          } else {
+            const perOuter = 6;
+            const outerCount = Math.min(n, perOuter);
+            const innerCount = Math.max(0, n - perOuter);
+            let used = 0;
             const outerR = baseR;
-            for(let k=0;k<outerCount;k++){ const ang = (k / outerCount) * Math.PI * 2 - Math.PI/2; const x = center.x + Math.cos(ang) * outerR; const y = center.y + Math.sin(ang) * outerR; const t = ensureToken(idxs[used++]); t.style.transform = `translate(${x}px, ${y}px)`; }
-            if(innerCount > 0){ const innerR = baseR * 0.6; for(let k=0;k<innerCount;k++){ const ang = (k / innerCount) * Math.PI * 2 - Math.PI/2; const x = center.x + Math.cos(ang) * innerR; const y = center.y + Math.sin(ang) * innerR; const t = ensureToken(idxs[used++]); t.style.transform = `translate(${x}px, ${y}px)`; } }
+            for(let k=0;k<outerCount;k++){
+              const ang = (k / outerCount) * Math.PI * 2 - Math.PI/2;
+              const x = center.x + Math.cos(ang) * outerR;
+              const y = center.y + Math.sin(ang) * outerR;
+              const t = ensureToken(idxs[used++]);
+              t.style.transform = `translate(${x}px, ${y}px)`;
+            }
+            if(innerCount > 0){
+              const innerR = baseR * 0.6;
+              for(let k=0;k<innerCount;k++){
+                const ang = (k / innerCount) * Math.PI * 2 - Math.PI/2;
+                const x = center.x + Math.cos(ang) * innerR;
+                const y = center.y + Math.sin(ang) * innerR;
+                const t = ensureToken(idxs[used++]);
+                t.style.transform = `translate(${x}px, ${y}px)`;
+              }
+            }
           }
         });
       }
 
-      // remaining game logic unchanged...
+      function pushLog(text, kind){
+        const p = document.createElement("div");
+        p.textContent = `[${(new Date()).toLocaleTimeString()}] ${text}`;
+        if(kind === "ok") p.style.color = "green";
+        if(kind === "bad") p.style.color = "#333";
+        logEl.appendChild(p);
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      // movement / dice / game loop (unchanged)
+      function moveTokenStep(playerIndex, pos){
+        return new Promise(resolve=>{
+          const t = ensureToken(playerIndex);
+          const c = (typeof pos === "number" && tileCoords[pos]) ? tileCoords[pos] : null;
+          const bRect = board.getBoundingClientRect();
+          if(!c){
+            const sRect = START_MARKER.getBoundingClientRect();
+            const x = (sRect.left - bRect.left) + sRect.width/2;
+            const y = (sRect.top - bRect.top) + sRect.height/2;
+            t.style.transform = `translate(${x}px, ${y}px)`;
+            setTimeout(()=> resolve(), TOKEN_MOVE_MS + 20);
+            return;
+          }
+          let finished = false;
+          function onEnd(e){
+            if(e && e.target !== t) return;
+            if(finished) return;
+            finished = true;
+            t.removeEventListener('transitionend', onEnd);
+            setTimeout(()=> resolve(), 20);
+          }
+          t.addEventListener('transitionend', onEnd);
+          setTimeout(()=>{ if(!finished){ finished=true; t.removeEventListener('transitionend', onEnd); resolve(); } }, TOKEN_MOVE_MS + 220);
+          t.style.transform = `translate(${c.x}px, ${c.y}px)`;
+        });
+      }
+
+      async function animateMove(playerIndex, steps){
+        const pl = state.players[playerIndex]; if(!pl || pl.finished) return;
+        state.animating = true; updateRollState();
+        try{
+          let pos = (typeof pl.position === "number") ? pl.position : -1;
+          let remaining = steps;
+          while(remaining > 0){
+            const next = pos + 1;
+            if(next >= NUM_TILES){
+              pos = NUM_TILES - 1;
+              pl.position = pos;
+              await moveTokenStep(playerIndex, pos);
+              break;
+            } else {
+              pos = next;
+              pl.position = pos;
+              await moveTokenStep(playerIndex, pos);
+            }
+            remaining--;
+          }
+          placeAllTokens();
+          const tileEl = board.querySelector(`.tile[data-path-index="${pl.position}"]`);
+          if(tileEl && (tileEl.classList.contains('event') || tileEl.classList.contains('client') || tileEl.classList.contains('workshop') || tileEl.classList.contains('bonus') || tileEl.classList.contains('penalty')) ){
+            await handleEventTile(playerIndex);
+          } else {
+            await resolveCell(playerIndex, pl.position);
+          }
+        }catch(e){ console.error(e); }
+        finally{ state.animating = false; updateRollState(); }
+      }
+
+      async function resolveCell(playerIndex, pathIndex){
+        const pl = state.players[playerIndex];
+        if(pl == null) return;
+        const tileEl = board.querySelector(`.tile[data-path-index="${pathIndex}"]`);
+        if(!tileEl){ renderPlayersPanel(); return; }
+        if(tileEl.classList.contains("goal")){
+          if(!pl.finished){
+            pl.finished = true;
+            pushLog(`${pl.name}: ゴール！`, "ok");
+            await showCard("ゴール", `${pl.name} がゴールしました`);
+          }
+        } else {
+          renderPlayersPanel();
+        }
+      }
+
+      function updateRollState(){
+        const rbtn = document.getElementById('btn-roll');
+        if(!rbtn) return;
+        rbtn.disabled = !(state.started && !state.animating);
+      }
+
+      async function rollTurn(){
+        if(!state.started || state.animating) return;
+        const current = state.currentPlayerIndex;
+        diceEl.textContent = '...';
+        await new Promise(r => setTimeout(r, 120));
+        const val = Math.floor(Math.random()*6)+1;
+        if(diceEl) diceEl.textContent = String(val);
+        pushLog(`${state.players[current].name} がサイコロを振りました (${val})`);
+        await animateMove(current, val);
+        nextPlayerTurn();
+      }
+
+      function nextPlayerTurn(){
+        const total = state.players.length;
+        if(total === 0) return;
+        let i = state.currentPlayerIndex;
+        for(let c=0;c<total;c++){
+          i = (i+1) % total;
+          const cand = state.players[i];
+          if(!cand) continue;
+          if(cand.finished) continue;
+          state.currentPlayerIndex = i;
+          statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
+          highlightActive();
+          return;
+        }
+        statCurrentEl.textContent = "-";
+      }
+
+      function highlightActive(){
+        Array.from(playersPanelEl.children).forEach((row, idx)=>{
+          if(idx === state.currentPlayerIndex) row.style.boxShadow = "0 0 0 3px rgba(134,187,39,0.12) inset";
+          else row.style.boxShadow = "";
+        });
+        highlightActiveToken();
+      }
+      function highlightActiveToken(){
+        state.players.forEach((pl,i)=>{
+          const t = document.getElementById(`token-${i}`);
+          if(!t) return;
+          if(i === state.currentPlayerIndex) t.style.outline = "3px solid rgba(0,0,0,0.08)";
+          else t.style.outline = "none";
+        });
+      }
+
+      function renderPlayersPanel(){
+        playersPanelEl.innerHTML = "";
+        state.players.forEach((pl, i)=>{
+          const row = document.createElement("div"); row.className = "player-row";
+          const left = document.createElement("div"); left.style.display = "flex"; left.style.alignItems = "center"; left.style.gap = "8px";
+          const badge = document.createElement("div"); badge.style.width = "18px"; badge.style.height = "18px"; badge.style.borderRadius = "50%";
+          badge.style.background = (["#86BB27","#DFF3C6","#C4C4C4","#2B2B2B"][i % 4]) || "#86BB27";
+          left.appendChild(badge);
+          const name = document.createElement("div"); name.textContent = pl.name;
+          left.appendChild(name);
+          const right = document.createElement("div"); right.className = "attr-list";
+          right.innerHTML = `<div>学び:${pl.learning}</div><div>評価:${pl.rating}</div><div>メンタル:${pl.mental}</div><div>モチベ:${pl.motivation}</div><div>責任:${pl.responsibility}</div>`;
+          row.appendChild(left); row.appendChild(right); playersPanelEl.appendChild(row);
+        });
+        highlightActive();
+      }
+
+      function startGame(){
+        if(state.started) return;
+        const names = getPlayerNames();
+        state.players = names.map((n,i)=>({
+          name: n,
+          position: 0,
+          learning: 50,
+          rating: 50,
+          mental: 50,
+          motivation: 50,
+          responsibility: 0,
+          finished: false
+        }));
+        state.started = true;
+        state.turn = 1;
+        state.currentPlayerIndex = 0;
+        statTurnEl.textContent = String(state.turn);
+        statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
+        layoutTiles();
+        renderPlayersPanel();
+        pushLog("ゲームを開始しました（プレイヤーはスタートマスに配置されます）", "ok");
+        updateRollState();
+      }
+
+      function resetGame(){
+        state.started = false;
+        state.turn = 0;
+        state.currentPlayerIndex = 0;
+        state.players = [];
+        statTurnEl.textContent = "0";
+        statCurrentEl.textContent = "-";
+        board.querySelectorAll(".token").forEach(t=>t.remove());
+        playersPanelEl.innerHTML = "";
+        diceEl.textContent = "-";
+        pushLog("ゲームをリセットしました", "ok");
+        updateRollState();
+      }
+
+      function attachHandlers(){
+        btnStart.addEventListener("click", ()=> startGame());
+        btnRoll.addEventListener("click", ()=> rollTurn());
+        btnReset.addEventListener("click", ()=> resetGame());
+        window.addEventListener("resize", ()=> layoutTiles());
+        window.addEventListener("keydown", (e)=>{
+          if((e.key === " " || e.key === "Enter") && state.started && !state.animating){
+            e.preventDefault();
+            rollTurn();
+          }
+        });
+      }
+
       attachHandlers();
       layoutTiles();
-      pushLog("UI ready — 螺旋を等間隔に整列、START は外周の先頭に配置されます。");
+      pushLog("UI ready — 解析的な弧長スナップとタイル接線回転を適用しました。螺旋が数学的に等間隔で整列するはずです。");
     }
   })();
   </script>
