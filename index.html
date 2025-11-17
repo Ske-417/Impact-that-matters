@@ -21,7 +21,7 @@
       --board-padding-desktop: 24px;
       --token-move-ms:140ms;
 
-      /* Mobile defaults (used only inside media query) */
+      /* Mobile break */
       --mobile-breakpoint: 680px;
       --bottom-bar-height-mobile: 72px;
     }
@@ -39,7 +39,7 @@
       -webkit-tap-highlight-color: rgba(0,0,0,0);
     }
 
-    /* ---- Appbar / toolbar ---- */
+    /* Appbar */
     .appbar{position:sticky; top:0; z-index:1200; background:var(--white); border-bottom:1px solid rgba(0,0,0,0.06); display:flex; justify-content:center}
     .toolbar{width:100%; max-width:1300px; display:flex; gap:10px; align-items:center; padding:8px}
     .title{font-size:15px; margin-right:auto; color:var(--black)}
@@ -55,13 +55,14 @@
     .wrap{width:100%; max-width:1300px; margin:18px auto; display:grid; grid-template-columns:3fr 1fr; gap:12px; align-items:start; padding:0 12px}
     @media (max-width: 980px){ .wrap{grid-template-columns:1fr} }
 
-    /* ---- Board / tiles (desktop variables) ---- */
+    /* Board (desktop defaults) */
     .board-wrap{background:var(--white); border:2px solid var(--gray); border-radius:14px; padding:var(--board-padding-desktop); position:relative; overflow:auto; min-height:520px}
     .board{
       position:relative; width:100%; height:820px; touch-action:none;
       background: linear-gradient(180deg, rgba(0,0,0,0.01), rgba(0,0,0,0.00));
     }
 
+    /* tiles - desktop sizes */
     .tile{
       position:absolute;
       width:var(--tile-size-desktop);
@@ -161,16 +162,16 @@
        ============================ */
     @media (max-width: var(--mobile-breakpoint)) {
       /*
-        Important: All mobile-specific changes go inside this media query so desktop is untouched.
-        We're allowed to change layout/size aggressively for mobile as user requested.
+        Aggressive mobile redesign only inside this media query.
+        Smaller tiles, tighter gaps, improved alignment and spacing.
       */
 
-      /* Larger tap targets and simplified header */
+      /* Mobile CSS variables (smaller tiles, tokens, gaps) */
       :root {
-        --tile-size-mobile: 48px;      /* make tiles smaller to show more board area */
-        --token-size-mobile: 24px;
-        --tile-gap-mobile: 10px;
-        --board-padding-mobile: 10px;
+        --tile-size-mobile: 40px;      /* made smaller for vertical screens */
+        --token-size-mobile: 20px;
+        --tile-gap-mobile: 8px;
+        --board-padding-mobile: 8px;
         --bottom-bar-height-mobile: 76px;
       }
 
@@ -195,7 +196,7 @@
         border-radius:8px;
       }
 
-      /* tokens smaller but more legible */
+      /* tokens smaller but legible */
       .token{
         width: var(--token-size-mobile);
         height: var(--token-size-mobile);
@@ -225,11 +226,11 @@
       .modal-bottom .card { height:88vh; padding:18px; border-radius:12px 12px 0 0; }
       .choice-btn{ display:block; width:100%; padding:14px 12px; margin-bottom:10px; border-radius:10px; font-size:15px; text-align:center; }
 
-      /* make modal content more readable */
+      /* modal readability */
       .event-title{ font-size:20px; margin-bottom:12px; }
       .event-body{ font-size:16px; line-height:1.6; }
 
-      /* increase space for start marker and board padding */
+      /* start marker sizing */
       .start-marker { width: calc(var(--tile-size-mobile) * 1.2); height: calc(var(--tile-size-mobile) * 0.36); transform: translate(-50%,-150%); }
 
       /* ensure focus ring is large and green on mobile */
@@ -296,14 +297,13 @@
 
   <script>
   (function(){
-    // Initialization on load
     window.addEventListener('load', init);
 
     // Mobile breakpoint must match CSS
     const MOBILE_BREAK = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--mobile-breakpoint')) || 680;
     const NUM_TILES = 60;
 
-    // Color helpers for token text contrast
+    // Color helpers used for token contrast
     function parseColorToRgb(str){
       if(!str) return null;
       str = String(str).trim();
@@ -336,7 +336,7 @@
       return lum > 0.55;
     }
 
-    // Try to load event templates but don't block UI
+    // Try to load external templates but don't block UI
     let EVENT_TEMPLATES = null;
     async function loadEventTemplatesExternal(){
       try{
@@ -448,20 +448,16 @@
       logEl.scrollTop = logEl.scrollHeight;
     }
 
-    /* === Path generation (keeps desktop path behavior) === */
-    const BASE_JITTER = 12;
-    function getCssNumber(name, fallback){
-      const v = getComputedStyle(document.documentElement).getPropertyValue(name);
-      const n = parseFloat(v);
-      return Number.isFinite(n) ? n : fallback;
-    }
-
+    /* ===== Path generation with mobile-friendly jitter adjustments =====
+       - buildConnectedPath already accepts tileSize; we reduce jitter and rotation on mobile (smaller tileSize)
+    */
     function buildConnectedPath(N, containerW, containerH, tileSize, gap){
+      const BASE_JITTER_DYNAMIC = Math.max(3, Math.round(tileSize * 0.08)); // smaller when tileSize small
       const cx = containerW/2, cy = containerH/2;
       const coords = [];
-      const margin = Math.max(tileSize*1.6, 28);
+      const margin = Math.max(tileSize*1.4, 16);
       let left = margin, top = margin, right = containerW - margin, bottom = containerH - margin;
-      const ringInset = tileSize + gap + Math.round(tileSize*0.4);
+      const ringInset = tileSize + gap + Math.round(tileSize*0.34);
 
       function perimeterPoints(l,t,r,b, spacing){
         const w = Math.max(1, r - l), h = Math.max(1, b - t);
@@ -518,17 +514,19 @@
 
         for(let k=0;k<pts.length && coords.length < N - 1;k++){
           const idx = (startIdx + k) % pts.length;
-          const jitterX = (Math.random()*2 -1) * (BASE_JITTER * 0.4);
-          const jitterY = (Math.random()*2 -1) * (BASE_JITTER * 0.4);
-          coords.push({x: pts[idx].x + jitterX, y: pts[idx].y + jitterY, ang: (Math.random()*2-1)*6});
+          const jitterX = (Math.random()*2 -1) * (BASE_JITTER_DYNAMIC * 0.6);
+          const jitterY = (Math.random()*2 -1) * (BASE_JITTER_DYNAMIC * 0.6);
+          // smaller angle jitter on mobile (tileSize small) for cleaner alignment
+          const angRange = (tileSize < 50) ? 4 : 8;
+          coords.push({x: pts[idx].x + jitterX, y: pts[idx].y + jitterY, ang: (Math.random()*2-1)*angRange});
         }
         prevExit = coords[coords.length-1];
         if(ri < rings.length - 1 && coords.length < N - 1){
           const inner = rings[ri+1];
           const innerCenter = {x: (inner.l + inner.r)/2, y: (inner.t + inner.b)/2};
-          const connX = prevExit.x + (innerCenter.x - prevExit.x) * 0.25 + (Math.random()*2-1)*(BASE_JITTER*0.6);
-          const connY = prevExit.y + (innerCenter.y - prevExit.y) * 0.25 + (Math.random()*2-1)*(BASE_JITTER*0.6);
-          coords.push({x: connX, y: connY, ang: (Math.random()*2-1)*6});
+          const connX = prevExit.x + (innerCenter.x - prevExit.x) * 0.25 + (Math.random()*2-1)*(BASE_JITTER_DYNAMIC*0.9);
+          const connY = prevExit.y + (innerCenter.y - prevExit.y) * 0.25 + (Math.random()*2-1)*(BASE_JITTER_DYNAMIC*0.9);
+          coords.push({x: connX, y: connY, ang: (Math.random()*2-1)*4});
           prevExit = coords[coords.length-1];
         }
       }
@@ -538,9 +536,9 @@
         for(let i=0;i<remaining;i++){
           const angle = (i/remaining) * Math.PI * 2;
           const radius = Math.min(containerW, containerH) * 0.11 + (i%3) * (tileSize*0.4);
-          const x = cx + Math.cos(angle) * radius + (Math.random()*2-1)*BASE_JITTER;
-          const y = cy + Math.sin(angle) * radius + (Math.random()*2-1)*BASE_JITTER;
-          coords.push({x,y,ang:(Math.random()*2-1)*8});
+          const x = cx + Math.cos(angle) * radius + (Math.random()*2-1)*BASE_JITTER_DYNAMIC;
+          const y = cy + Math.sin(angle) * radius + (Math.random()*2-1)*BASE_JITTER_DYNAMIC;
+          coords.push({x,y,ang:(Math.random()*2-1)*6});
         }
       }
 
@@ -562,10 +560,10 @@
       const rect = board.getBoundingClientRect();
       // choose tile size and gap based on media query
       const tileSize = window.matchMedia(`(max-width: ${MOBILE_BREAK}px)`).matches
-        ? getCssNumber('--tile-size-mobile', 48)
+        ? getCssNumber('--tile-size-mobile', 40)
         : getCssNumber('--tile-size-desktop', 68);
       const gap = window.matchMedia(`(max-width: ${MOBILE_BREAK}px)`).matches
-        ? getCssNumber('--tile-gap-mobile', 10)
+        ? getCssNumber('--tile-gap-mobile', 8)
         : getCssNumber('--tile-gap-desktop', 16);
       const coords = buildConnectedPath(NUM_TILES, rect.width, rect.height, tileSize, gap);
       tileCoords = coords;
@@ -604,16 +602,15 @@
         START_MARKER.style.display = 'none';
       }
 
-      placeAllTokens();
+      placeAllTokens(); // will compute token offsets based on tile size
     }
 
-    // Token creation & placement with contrast handling
+    // Token creation & placement with contrast handling and tile-size aware offsets
     function ensureToken(i){
       let t = document.getElementById(`token-${i}`);
       if(!t){
         t = document.createElement("div"); t.className = "token"; t.id = `token-${i}`;
         t.textContent = String(i+1);
-        // palette: desktop and mobile share palette but sizes differ by CSS
         const palette = ["#86BB27","#DFF3C6","#C4C4C4","#2B2B2B"];
         const bg = palette[i % palette.length];
         t.style.background = bg;
@@ -632,6 +629,11 @@
         groups.get(pos).push(i);
       });
 
+      // compute current tile size to scale offsets
+      const tileSize = window.matchMedia(`(max-width: ${MOBILE_BREAK}px)`).matches
+        ? getCssNumber('--tile-size-mobile', 40)
+        : getCssNumber('--tile-size-desktop', 68);
+
       if(groups.has("__start")){
         const startIdxs = groups.get("__start");
         const sRect = $("#start-marker").getBoundingClientRect();
@@ -640,8 +642,8 @@
         startIdxs.forEach((pi,k)=>{
           const t = ensureToken(pi);
           if(shouldUseDarkTextForBg(t.style.background)) t.style.color = '#000'; else t.style.color = '#fff';
-          const offX = ((k % 2) - 0.5) * 20;
-          const offY = (Math.floor(k/2) - 0.5) * 20;
+          const offX = ((k % 2) - 0.5) * Math.max(10, tileSize*0.32);
+          const offY = (Math.floor(k/2) - 0.5) * Math.max(10, tileSize*0.32);
           t.style.transform = `translate(${sx + offX}px, ${sy + offY}px)`;
         });
       }
@@ -651,7 +653,7 @@
         const center = tileCoords[pos];
         if(!center) return;
         const n = idxs.length;
-        const baseR = Math.max(16, getCssNumber(window.matchMedia(`(max-width: ${MOBILE_BREAK}px)`).matches ? '--tile-size-mobile' : '--tile-size-desktop', 48) * 0.28);
+        const baseR = Math.max(12, tileSize * 0.28);
         if(n === 1){
           const t = ensureToken(idxs[0]);
           if(shouldUseDarkTextForBg(t.style.background)) t.style.color = '#000'; else t.style.color = '#fff';
@@ -671,7 +673,7 @@
             t.style.transform = `translate(${x}px, ${y}px)`;
           }
           if(innerCount > 0){
-            const innerR = baseR * 0.6;
+            const innerR = baseR * 0.55;
             for(let k=0;k<innerCount;k++){
               const ang = (k / innerCount) * Math.PI * 2 - Math.PI/2;
               const x = center.x + Math.cos(ang) * innerR;
@@ -685,7 +687,7 @@
       });
     }
 
-    // Movement animation (keeps same behavior)
+    // Movement animation (unchanged)
     function moveTokenStep(playerIndex, pos){
       return new Promise(resolve=>{
         const t = ensureToken(playerIndex);
@@ -837,7 +839,7 @@
       }
     }
 
-    // Event picking and modal helpers (desktop modal vs mobile bottom-sheet)
+    // Event modals and utilities (same behavior as before)
     function eventStageForPlayer(pl){
       const pos = typeof pl.position === "number" ? pl.position : 0;
       if(pos >= 30) return "senior";
@@ -1024,7 +1026,7 @@
       }
     }
 
-    // Final results (same as before)
+    // Final results kept
     const SCORE_WEIGHTS = { rating: 3.0, learning: 1.5, motivation: 1.2, mental: 1.0, responsibility: 2.0 };
     function computeFinalResults(){
       const rows = state.players.map((p, i) => {
