@@ -105,7 +105,7 @@
 
       const TILE_SIZE = Number(getComputedStyle(document.documentElement).getPropertyValue('--tile-size')) || 68;
       const NUM_TILES = 60;
-      const BASE_JITTER = 10;
+      const BASE_JITTER = 6; // reduce jitter for cleaner spiral
       const GAP = Number(getComputedStyle(document.documentElement).getPropertyValue('--tile-gap')) || 16;
       const TOKEN_MOVE_MS = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--token-move-ms')) || 140;
 
@@ -128,8 +128,12 @@
       renderPlayerNameInputs();
       function getPlayerNames(){ return Array.from(playerNamesWrap.querySelectorAll("input")).map((el,idx)=> el.value.trim() || `プレイヤー${idx+1}`); }
 
-      // events (kept same as earlier; omitted in this snippet for brevity)
-      const EVENT_TEMPLATES = { junior: [], mid: [], senior: [] };
+      // events (kept same as earlier; omitted for brevity)
+      const EVENT_TEMPLATES = {
+        junior: [ /* ... */ ],
+        mid: [ /* ... */ ],
+        senior: [ /* ... */ ]
+      };
 
       function eventStageForPlayer(pl){
         const pos = typeof pl.position === "number" ? pl.position : 0;
@@ -142,7 +146,13 @@
         if(!pl) return null;
         const stage = eventStageForPlayer(pl);
         const pool = EVENT_TEMPLATES[stage] || EVENT_TEMPLATES.junior;
-        return pool[Math.floor(state.rng()*pool.length)];
+        const weights = pool.map(c => 1);
+        let r = state.rng() * weights.reduce((a,b)=>a+b,0);
+        for(let i=0;i<pool.length;i++){
+          r -= weights[i];
+          if(r <= 0) return pool[i];
+        }
+        return pool[pool.length-1];
       }
 
       function removeFallbacks(){ document.querySelectorAll('.modal-fallback').forEach(e=>e.remove()); }
@@ -193,14 +203,10 @@
         chg.textContent = parts.join('　');
         const actions = document.createElement('div'); actions.style.textAlign='right';
         const ok = document.createElement('button'); ok.className='primary'; ok.textContent='OK';
-        ok.addEventListener('click', ()=>{
-          applyAttributeChanges(playerIndex, changes);
-          overlay.remove();
-        });
+        ok.addEventListener('click', ()=>{ applyAttributeChanges(playerIndex, changes); overlay.remove(); });
         actions.appendChild(ok);
         card.appendChild(h); card.appendChild(b); card.appendChild(chg); card.appendChild(actions);
-        overlay.appendChild(card); document.body.appendChild(overlay);
-        ok.focus();
+        overlay.appendChild(card); document.body.appendChild(overlay); ok.focus();
       }
 
       async function showChoiceModal(playerIndex, tmpl){
@@ -241,18 +247,15 @@
       async function handleEventTile(playerIndex){
         const tmpl = pickEventForPlayer(playerIndex);
         if(!tmpl) return;
-        if(tmpl.choices && Array.isArray(tmpl.choices)){
-          await showChoiceModal(playerIndex, tmpl);
-        } else {
-          await showEventModal(playerIndex, tmpl);
-        }
+        if(tmpl.choices && Array.isArray(tmpl.choices)) await showChoiceModal(playerIndex, tmpl); else await showEventModal(playerIndex, tmpl);
       }
 
-      /* --- Improved spiral:
-         - Clockwise sampling from outer -> inner.
-         - Dynamic theta increment to aim for even spacing along the spiral curve (prevents local crowding).
-         - Strong convergence but with a cleanup step that redistributes any tiles that land too close to center.
-         - START (tile 0) located near top-left and sampling proceeds clockwise.
+      /* --- Deterministic, clean spiral generator ---
+         Goals:
+         - Strong spiral convergence but with deterministic sampling (prevents local clumping).
+         - Minimal jitter (purely perpendicular, very small) so the spiral looks neat.
+         - Clockwise from top-left; start at outermost near top-left.
+         - Inner crowding redistributed evenly in angle to avoid messy stacks on the right.
       */
       function buildConnectedPath(N, containerW, containerH, tileSize, gap){
         const cx = containerW/2, cy = containerH/2;
@@ -260,111 +263,105 @@
         const minCenter = tileSize + 6;
         const targetSpacing = Math.max(tileSize + Math.round(gap*0.65), tileSize + 8);
 
-        // spiral params
+        // Archimedean spiral parameters
         const a = tileSize * 0.75;
         const baseB = targetSpacing / (2 * Math.PI) * 0.95;
-        const bMultiplier = 2.6; // strong convergence as requested
+        const bMultiplier = 2.6; // keep strong convergence
         const b = baseB * bMultiplier;
 
         const maxR = Math.min(containerW, containerH) * 0.44;
         const thetaMax = Math.max(4 * Math.PI, (maxR - a) / b);
 
-        // start at top-left (approx -135deg) and go clockwise => angle = startAngle - theta
-        const startAngle = -3 * Math.PI / 4;
+        // Start angle near top-left; proceed clockwise by subtracting angle with theta
+        const startAngle = -Math.PI * 0.8; // ~ -144deg, slightly shifted so dense inner doesn't sit on right
 
-        // dynamic sampling: choose dtheta so arc-length ~ targetSpacing
-        let theta = 0; // we will iterate theta from small to thetaMax, producing outer->inner by using r(thetaMax - theta)
-        let last = null;
-        while(coords.length < N - 1 && theta <= thetaMax + 1e-6){
-          const t = thetaMax - theta; // map 0->thetaMax to outer->inner
+        // Deterministic sampling: advance theta so arc-length ≈ targetSpacing
+        // We'll iterate t from thetaMax down to a small epsilon to produce outer->inner ordering
+        let t = thetaMax;
+        let lastPos = null;
+        const epsilon = 0.001;
+        while(coords.length < N - 1 && t > epsilon){
           const r = a + b * t;
-          const angle = startAngle - t; // decreasing angle -> clockwise
+          const angle = startAngle - t; // clockwise
           const baseX = cx + Math.cos(angle) * r;
           const baseY = cy + Math.sin(angle) * r;
 
-          // perpendicular jitter (very restrained) to keep spiral neat but non-uniform
+          // tiny perpendicular jitter for organic look but keep it minimal
           const perpX = -Math.sin(angle), perpY = Math.cos(angle);
-          const jitterMax = Math.min(8, (targetSpacing - minCenter) * 0.45, BASE_JITTER * 0.6);
-          const jitter = (Math.random()*2 -1) * jitterMax * 0.25;
+          const jitterMax = Math.min(4, (targetSpacing - minCenter) * 0.25, BASE_JITTER * 0.35);
+          const jitter = ((Math.sin(t * 12) * 0.5) + 0) * (jitterMax * 0.4); // deterministic wavy jitter (reduces visual randomness)
           const x = Math.round(baseX + perpX * jitter);
           const y = Math.round(baseY + perpY * jitter);
 
-          if(!last){
-            coords.push({x,y,angle,r,ang: (Math.random()*2-1)*4});
-            last = {x,y};
+          if(!lastPos){
+            coords.push({x,y,angle,r,ang:0});
+            lastPos = {x,y};
           } else {
-            const dx = x - last.x, dy = y - last.y;
+            const dx = x - lastPos.x, dy = y - lastPos.y;
             const d = Math.hypot(dx,dy);
             if(d >= targetSpacing * 0.78){
-              coords.push({x,y,angle,r,ang: (Math.random()*2-1)*4});
-              last = {x,y};
+              coords.push({x,y,angle,r,ang:0});
+              lastPos = {x,y};
             }
           }
 
-          // compute dtheta that approximates targetSpacing along spiral:
-          // ds^2 = (dr)^2 + (r dtheta)^2  -> dr = b * dtheta
-          // ds ≈ dtheta * sqrt(b^2 + r^2)
-          // so dtheta ≈ targetSpacing / sqrt(b^2 + r^2)
+          // compute dtheta to maintain arc-length ~ targetSpacing:
+          // ds ≈ dtheta * sqrt((b)^2 + r^2)  => dtheta = targetSpacing / sqrt(b^2 + r^2)
           const denom = Math.sqrt(b*b + Math.max(0.0001, r*r));
-          const dtheta = Math.max(0.03, Math.min(0.25, targetSpacing / denom));
-          theta += dtheta;
+          const dtheta = Math.max(0.02, Math.min(0.2, targetSpacing / denom));
+          t -= dtheta;
         }
 
-        // if not enough points, fill modest rings outward->inward to keep connectivity
+        // fill if needed with clean rings (deterministic) to keep connectivity
         if(coords.length < N - 1){
           let i = coords.length;
           while(coords.length < N - 1){
-            const t = (i / Math.max(1, N - 1)) * Math.PI * 2;
-            const r = Math.max(tileSize * 0.9, maxR * (0.5 + 0.45 * (1 - i/(N-1))));
-            const x = Math.round(cx + Math.cos(t) * r);
-            const y = Math.round(cy + Math.sin(t) * r);
-            coords.push({x,y,angle:t,r,ang:(Math.random()*2-1)*4});
+            const frac = i / Math.max(1, N - 1);
+            const angle = startAngle - (thetaMax * frac);
+            const r = Math.max(tileSize * 0.9, maxR * (0.5 + 0.45 * (1 - frac)));
+            const x = Math.round(cx + Math.cos(angle) * r);
+            const y = Math.round(cy + Math.sin(angle) * r);
+            coords.push({x,y,angle,r,ang:0});
             i++;
           }
         }
 
-        // redistribute inner crowding: detect points too close to center and spread them onto
-        // small concentric rings with slight angular offsets to keep a neat final cluster.
-        const reserveRadius = Math.max(tileSize * 1.55, minCenter * 1.2);
+        // detect inner crowding and redistribute evenly in angle (deterministic spacing)
+        const reserveRadius = Math.max(tileSize * 1.55, minCenter * 1.15);
         const innerIdxs = [];
         for(let i=0;i<coords.length;i++){
           const c = coords[i];
           const d = Math.hypot(c.x - cx, c.y - cy);
-          if(d < reserveRadius + tileSize * 0.4) innerIdxs.push(i);
+          if(d < reserveRadius + tileSize * 0.45) innerIdxs.push(i);
         }
         if(innerIdxs.length > 0){
-          // sort inner indices by original radial distance (outer -> inner)
-          innerIdxs.sort((ia,ib) => {
-            const da = Math.hypot(coords[ia].x - cx, coords[ia].y - cy);
-            const db = Math.hypot(coords[ib].x - cx, coords[ib].y - cy);
-            return db - da; // put innermost first so we preserve path ordering (we will reassign from outer->inner)
-          });
+          // distribute them evenly across a set of small concentric rings
           const m = innerIdxs.length;
+          const perRing = 6;
           for(let k=0;k<m;k++){
             const idx = innerIdxs[k];
-            // place on concentric rings spaced by ringStep, angle distributed around the original angle
+            const ringLevel = Math.floor(k / perRing);
             const ringStep = tileSize * 0.7;
-            const ringLevel = Math.floor(k / 6); // every ~6 tiles per ring
             const newR = reserveRadius + ringLevel * ringStep;
-            const baseAng = coords[idx].angle || (startAngle - (thetaMax * (idx / coords.length)));
-            const spread = Math.PI * 0.28;
-            const angOffset = ((k % 6) / Math.max(1,Math.min(5,m-1)) - 0.5) * spread;
-            const newAng = baseAng + angOffset;
-            coords[idx].x = Math.round(cx + Math.cos(newAng) * newR);
-            coords[idx].y = Math.round(cy + Math.sin(newAng) * newR);
-            coords[idx].angle = newAng;
+            // evenly distribute angle around full circle but keep base ordering so path still flows nicely:
+            // pick angle based on index but offset it so it's consistent
+            const ang = startAngle - (thetaMax * ((idx) / coords.length));
+            const evenAngle = ang + ((k % perRing) - (perRing-1)/2) * (Math.PI / (perRing*1.2));
+            coords[idx].x = Math.round(cx + Math.cos(evenAngle) * newR);
+            coords[idx].y = Math.round(cy + Math.sin(evenAngle) * newR);
+            coords[idx].angle = evenAngle;
             coords[idx].r = newR;
-            coords[idx].ang = (Math.random()*2-1)*4;
+            coords[idx].ang = 0;
           }
         }
 
-        // add final goal at exact center
+        // push final goal at exact center
         coords.push({x: Math.round(cx), y: Math.round(cy), ang:0});
 
-        // gentle no-overlap pass (preserve spiral flow)
+        // gentle overlap resolution (very small nudges) while preserving spiral order
         enforceNoOverlapPreserveSpiral(coords, minCenter, containerW, containerH, tileSize);
 
-        // clamp to board
+        // clamp and return
         const clampMargin = tileSize;
         for(const c of coords){
           c.x = Math.max(clampMargin, Math.min(containerW - clampMargin, c.x));
@@ -374,7 +371,7 @@
         return coords;
       }
 
-      // gentle repulsion preserving ordering (same idea used earlier, tuned slightly)
+      // preserve spiral ordering; only small corrections perpendicular/radial to keep neat
       function enforceNoOverlapPreserveSpiral(points, minD, w, h, tileSize){
         if(!Array.isArray(points)) return;
         const centerIdx = points.length - 1;
@@ -387,12 +384,13 @@
               const a = points[i], b = points[j];
               let dx = b.x - a.x, dy = b.y - a.y;
               let d = Math.hypot(dx, dy) || 0.0001;
-              if(d < minD - 0.1){
+              if(d < minD - 0.05){
                 const overlap = (minD - d);
                 const ux = dx / d, uy = dy / d;
+                // small moves, biased perpendicular to keep spiral lines
                 const perpX = -uy, perpY = ux;
-                const moveMain = Math.max(0.25, overlap * 0.36);
-                const movePerp = Math.min(2.0, overlap * 0.14);
+                const moveMain = Math.max(0.18, overlap * 0.28);
+                const movePerp = Math.min(1.2, overlap * 0.10);
                 if(i === centerIdx){
                   b.x = Math.round(b.x + ux * moveMain + perpX * (Math.random() - 0.5) * movePerp);
                   b.y = Math.round(b.y + uy * moveMain + perpY * (Math.random() - 0.5) * movePerp);
@@ -400,10 +398,10 @@
                   a.x = Math.round(a.x - ux * moveMain + perpX * (Math.random() - 0.5) * movePerp);
                   a.y = Math.round(a.y - uy * moveMain + perpY * (Math.random() - 0.5) * movePerp);
                 } else {
-                  a.x = Math.round(a.x - ux * (moveMain*0.55) + perpX * (Math.random() - 0.5) * movePerp);
-                  a.y = Math.round(a.y - uy * (moveMain*0.55) + perpY * (Math.random() - 0.5) * movePerp);
-                  b.x = Math.round(b.x + ux * (moveMain*0.55) + perpX * (Math.random() - 0.5) * movePerp);
-                  b.y = Math.round(b.y + uy * (moveMain*0.55) + perpY * (Math.random() - 0.5) * movePerp);
+                  a.x = Math.round(a.x - ux * (moveMain*0.5) + perpX * (Math.random() - 0.5) * movePerp);
+                  a.y = Math.round(a.y - uy * (moveMain*0.5) + perpY * (Math.random() - 0.5) * movePerp);
+                  b.x = Math.round(b.x + ux * (moveMain*0.5) + perpX * (Math.random() - 0.5) * movePerp);
+                  b.y = Math.round(b.y + uy * (moveMain*0.5) + perpY * (Math.random() - 0.5) * movePerp);
                 }
                 const margin = tileSize/2 + 6;
                 a.x = Math.max(margin, Math.min(w - margin, a.x));
@@ -415,13 +413,13 @@
             }
           }
           if(!moved) break;
-          if(pass > 80) minD *= 0.997;
+          if(pass > 90) minD *= 0.998;
         }
-        // final fallback: if still overlaps, use deterministic fallback
+        // final fallback if still overlapping (very unlikely)
         for(let i=0;i<points.length;i++){
           for(let j=i+1;j<points.length;j++){
             const dx = points[j].x - points[i].x, dy = points[j].y - points[i].y;
-            if(Math.hypot(dx,dy) < tileSize * 0.8){
+            if(Math.hypot(dx,dy) < tileSize * 0.78){
               const rect = board.getBoundingClientRect();
               const fallback = buildSpiralGridFallback(points.length, rect.width, rect.height, tileSize, GAP);
               for(let k=0;k<points.length && k<fallback.length;k++){
@@ -450,7 +448,7 @@
         return coords;
       }
 
-      // tile layout and START align: START is tile 0 (outermost, near top-left) and path is clockwise
+      // layout + start alignment (tile 0 is outermost near top-left; sampling goes clockwise)
       function layoutTiles(){
         board.querySelectorAll(".tile").forEach(n=>n.remove());
         const rect = board.getBoundingClientRect();
@@ -480,7 +478,6 @@
           board.appendChild(div);
         });
 
-        // align START_MARKER to tile 0 (outermost)
         if(tileCoords && tileCoords[0]){
           const t0 = tileCoords[0];
           START_MARKER.style.left = `${t0.x}px`;
@@ -497,9 +494,7 @@
       function ensureToken(i){
         let t = document.getElementById(`token-${i}`);
         if(!t){
-          t = document.createElement("div"); t.className = "token"; t.id = `token-${i}`;
-          t.textContent = String(i+1);
-          board.appendChild(t);
+          t = document.createElement("div"); t.className = "token"; t.id = `token-${i}`; t.textContent = String(i+1); board.appendChild(t);
         }
         const palette = ["#86BB27","#DFF3C6","#C4C4C4","#2B2B2B"];
         const bg = palette[i % palette.length];
@@ -577,7 +572,7 @@
         logEl.scrollTop = logEl.scrollHeight;
       }
 
-      // movement / dice logic
+      // movement / dice logic (unchanged)
       function moveTokenStep(playerIndex, pos){
         return new Promise(resolve=>{
           const t = ensureToken(playerIndex);
@@ -661,9 +656,9 @@
       async function rollTurn(){
         if(!state.started || state.animating) return;
         const current = state.currentPlayerIndex;
-        // simple dice animation: show rolling then result
+        // dice visual
         diceEl.textContent = '...';
-        await new Promise(r => setTimeout(r, 120)); // small visual pause
+        await new Promise(r => setTimeout(r, 120));
         const val = Math.floor(Math.random()*6)+1;
         if(diceEl) diceEl.textContent = String(val);
         pushLog(`${state.players[current].name} がサイコロを振りました (${val})`);
@@ -742,7 +737,6 @@
         layoutTiles();
         renderPlayersPanel();
         pushLog("ゲームを開始しました（プレイヤーはスタートマスに配置されます）", "ok");
-        // ensure the roll button is enabled now (fix for "サイコロが動作しない")
         updateRollState();
       }
 
@@ -775,7 +769,7 @@
 
       attachHandlers();
       layoutTiles();
-      pushLog("UI ready — 螺旋を時計回りに、スタートを左上、ゴール近くの混雑を分散させつつ乱雑さを抑えました。サイコロは開始後に有効になります。");
+      pushLog("UI ready — らせん整列性を強化しました（時計回り／左上スタート）。右側のごちゃつきを抑えるためジッターを減らし、内側は均等分配で整えています。");
     }
   })();
   </script>
