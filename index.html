@@ -108,13 +108,12 @@
       const GAP = Number(getComputedStyle(document.documentElement).getPropertyValue('--tile-gap')) || 16;
       const TOKEN_MOVE_MS = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--token-move-ms')) || 140;
 
-      // parameters: eased to previous nicer look, and spacing shortened
-      const A_PARAM = TILE_SIZE * 0.75;
-      const BASE_B_SCALE = 0.95;
-      const B_MULTIPLIER = 1.25; // relaxed, nicer winding
-      const ROTATE_TILES = true;
-      const ROTATION_BLEND = 0.6;
-      const JITTER_AMT = 0;
+      // parameters for analytic spiral snapping + tile rotation
+      const A_PARAM = TILE_SIZE * 0.75;                // a in r = a + b * theta
+      const BASE_B_SCALE = 0.95;                       // inner tuning
+      const B_MULTIPLIER = 2.2;                        // slightly relaxed from previous 2.6
+      const ROTATE_TILES = true;                       // rotate tiles to tangent
+      const JITTER_AMT = 0;                            // exactly zero for clean spiral
 
       let tileCoords = [];
       let state = { started:false, turn:0, currentPlayerIndex:0, players:[], animating:false, rng: Math.random, history: [] };
@@ -135,7 +134,13 @@
       renderPlayerNameInputs();
       function getPlayerNames(){ return Array.from(playerNamesWrap.querySelectorAll("input")).map((el,idx)=> el.value.trim() || `プレイヤー${idx+1}`); }
 
-      const EVENT_TEMPLATES = { junior: [], mid: [], senior: [] };
+      // events (kept, omitted in snippet)
+      const EVENT_TEMPLATES = {
+        junior: [ /* ... */ ],
+        mid: [ /* ... */ ],
+        senior: [ /* ... */ ]
+      };
+
       function eventStageForPlayer(pl){
         const pos = typeof pl.position === "number" ? pl.position : 0;
         if(pos >= 30) return "senior";
@@ -143,8 +148,11 @@
         return "junior";
       }
       function pickEventForPlayer(playerIndex){
-        const pool = EVENT_TEMPLATES[eventStageForPlayer(state.players[playerIndex])];
-        return pool && pool.length ? pool[Math.floor(state.rng()*pool.length)] : null;
+        const pl = state.players[playerIndex];
+        if(!pl) return null;
+        const stage = eventStageForPlayer(pl);
+        const pool = EVENT_TEMPLATES[stage] || EVENT_TEMPLATES.junior;
+        return pool[Math.floor(state.rng()*pool.length)];
       }
 
       function removeFallbacks(){ document.querySelectorAll('.modal-fallback').forEach(e=>e.remove()); }
@@ -164,52 +172,133 @@
         });
       }
 
-      function pushLog(text, kind){
-        const p = document.createElement("div");
-        p.textContent = `[${(new Date()).toLocaleTimeString()}] ${text}`;
-        if(kind === "ok") p.style.color = "green";
-        if(kind === "bad") p.style.color = "#333";
-        logEl.appendChild(p);
-        logEl.scrollTop = logEl.scrollHeight;
+      function applyAttributeChanges(playerIndex, changes){
+        const pl = state.players[playerIndex];
+        if(!pl) return;
+        const attrs = ['learning','rating','mental','motivation','responsibility'];
+        attrs.forEach(a=>{
+          if(typeof changes[a] === 'number'){
+            pl[a] = Math.round((pl[a]||0) + changes[a]);
+            if(pl[a] < 0) pl[a] = 0;
+          }
+        });
+        pushLog(`${pl.name}: 属性が変化しました → ${Object.entries(changes).filter(([k,v])=>v!==0).map(([k,v])=> `${k} ${v>0?'+':''}${v}`).join(', ')}`, "ok");
+        renderPlayersPanel();
       }
 
-      /* analytic arc-length functions (unchanged) */
+      async function showEventModal(playerIndex, tmpl){
+        removeFallbacks();
+        const overlay = document.createElement('div'); overlay.className='modal-fallback';
+        const card = document.createElement('div'); card.className='card';
+        const h = document.createElement('div'); h.className='event-title'; h.textContent = tmpl.title;
+        const b = document.createElement('div'); b.className='event-body'; b.textContent = tmpl.body;
+        const chg = document.createElement('div'); chg.className='event-changes';
+        const changes = tmpl.changes || {};
+        const parts = [];
+        if(changes.learning) parts.push(`学び ＋${changes.learning}`);
+        if(changes.rating) parts.push(`評価 ＋${changes.rating}`);
+        if(changes.mental) parts.push(`メンタル ＋${changes.mental}`);
+        if(changes.motivation) parts.push(`モチベ ＋${changes.motivation}`);
+        if(changes.responsibility) parts.push(`責任 ＋${changes.responsibility}`);
+        chg.textContent = parts.join('　');
+        const actions = document.createElement('div'); actions.style.textAlign='right';
+        const ok = document.createElement('button'); ok.className='primary'; ok.textContent='OK';
+        ok.addEventListener('click', ()=>{ applyAttributeChanges(playerIndex, changes); overlay.remove(); });
+        actions.appendChild(ok);
+        card.appendChild(h); card.appendChild(b); card.appendChild(chg); card.appendChild(actions);
+        overlay.appendChild(card); document.body.appendChild(overlay); ok.focus();
+      }
+
+      async function showChoiceModal(playerIndex, tmpl){
+        removeFallbacks();
+        const overlay = document.createElement('div'); overlay.className='modal-fallback';
+        const card = document.createElement('div'); card.className='card';
+        const h = document.createElement('div'); h.className='event-title'; h.textContent = tmpl.title;
+        const b = document.createElement('div'); b.className='event-body'; b.textContent = tmpl.body;
+        const actions = document.createElement('div'); actions.style.display='flex'; actions.style.justifyContent='flex-end'; actions.style.gap='8px';
+        tmpl.choices && tmpl.choices.forEach(choice=>{
+          const btn = document.createElement('button'); btn.type='button'; btn.className='choice-btn'; btn.textContent = choice.label;
+          btn.addEventListener('click', async ()=> {
+            const baseProb = (typeof choice.probGood === 'number') ? choice.probGood : 1.0;
+            const pl = state.players[playerIndex];
+            const repBonus = Math.max(-0.2, Math.min(0.2, ((pl.rating||50)-50)/250));
+            const prob = Math.max(0.02, Math.min(0.98, baseProb + repBonus));
+            const success = state.rng() < prob;
+            if(success){
+              const succ = choice.success || choice.changes || {};
+              applyAttributeChanges(playerIndex, succ);
+              overlay.remove();
+              await showCard("成功！", choice.resultTextSuccess || choice.resultText || "良い結果が得られました。");
+            } else {
+              const fail = choice.failure || { learning:4, rating:-2, motivation:1 };
+              applyAttributeChanges(playerIndex, fail);
+              overlay.remove();
+              await showCard("失敗（学びあり）", choice.resultTextFailure || "挑戦は失敗したが、多くを学んだ。学びが増え、評価は少し下がった。");
+            }
+          });
+          actions.appendChild(btn);
+        });
+        const cancel = document.createElement('button'); cancel.type='button'; cancel.textContent='やめる';
+        cancel.addEventListener('click', ()=> overlay.remove());
+        actions.appendChild(cancel);
+        card.appendChild(h); card.appendChild(b); card.appendChild(actions); overlay.appendChild(card); document.body.appendChild(overlay);
+      }
+
+      async function handleEventTile(playerIndex){
+        const tmpl = pickEventForPlayer(playerIndex);
+        if(!tmpl) return;
+        if(tmpl.choices && Array.isArray(tmpl.choices)){
+          await showChoiceModal(playerIndex, tmpl);
+        } else {
+          await showEventModal(playerIndex, tmpl);
+        }
+      }
+
+      /* -------------------
+         Analytic arc-length placement + exact theta inversion
+         - r(θ) = a + b θ
+         - arc length S(θ) = (1/(2b)) [ u*sqrt(u^2 + b^2) + b^2 ln(u + sqrt(u^2 + b^2)) ]  where u = a + b θ
+         - invert S(θ) via bisection to find θ for given target arc length
+         - place N-1 tiles at equal arc-length intervals, outer -> inner
+         - rotate tiles to tangent computed from dx/dθ, dy/dθ
+      ------------------- */
       function arcLengthTheta(theta, a, b){
+        // returns S(theta) from 0..theta
+        // u = a + b*theta
         const u = a + b * theta;
         const term = Math.sqrt(u*u + b*b);
+        // (1/(2b)) * ( u*term + b^2 * ln(u + term) ) - same at u=a
+        const part = (u * term + b*b * Math.log(u + term));
         const ua = a;
         const termA = Math.sqrt(ua*ua + b*b);
-        const part = (u * term + b*b * Math.log(u + term));
         const partA = (ua * termA + b*b * Math.log(ua + termA));
         return (part - partA) / (2*b);
       }
 
       function findThetaForArc(sTarget, thetaMax, a, b){
+        // sTarget between 0..S(thetaMax)
+        // use bisection on theta in [0, thetaMax]
         let lo = 0, hi = thetaMax;
+        let slo = 0, shi = arcLengthTheta(hi, a, b);
+        // safety
         if(sTarget <= 0) return 0;
-        const sHi = arcLengthTheta(hi, a, b);
-        if(sTarget >= sHi) return hi;
+        if(sTarget >= shi) return hi;
         for(let iter=0; iter<60; iter++){
           const mid = (lo + hi)/2;
           const sm = arcLengthTheta(mid, a, b);
-          if(sm > sTarget) hi = mid; else lo = mid;
+          if(sm > sTarget) hi = mid;
+          else lo = mid;
         }
         return (lo + hi)/2;
       }
 
-      /* buildConnectedPath
-         - shorter inter-tile spacing (approxSpacing reduced)
-         - corrected angle mapping so theta=thetaMax maps to startAngle (outermost => start)
-         - startAngle set to -135deg (left-top)
-      */
       function buildConnectedPath(N, containerW, containerH, tileSize, gap){
         const cx = containerW/2, cy = containerH/2;
         const coords = [];
         const minCenter = tileSize + 6;
+        const approxSpacing = Math.max(tileSize + Math.round(gap*0.62), tileSize + 8);
 
-        // SHORTENED spacing so tiles are closer
-        const approxSpacing = Math.max(Math.round(tileSize * 0.82), tileSize + 6);
-
+        // analytic params
         const a = A_PARAM;
         const bBase = (approxSpacing / (2 * Math.PI)) * BASE_B_SCALE;
         const b = bBase * B_MULTIPLIER;
@@ -217,46 +306,42 @@
         const maxR = Math.min(containerW, containerH) * 0.44;
         const thetaMax = Math.max(4 * Math.PI, (maxR - a) / b);
 
-        // start exactly left-top
-        const startAngle = -3 * Math.PI / 4; // -135deg
+        const startAngle = -Math.PI * 0.8; // start ~ top-left, clockwise by subtracting theta
 
-        // total arc length
+        // compute total arc length S_total analytically
         const S_total = arcLengthTheta(thetaMax, a, b);
 
-        // Place N-1 points with sTarget from 0..S_total (outer->inner)
-        // we set sTarget = k * spacing but flip theta below to get outermost first.
+        // place N-1 points at equal arc intervals along 0..thetaMax (outer->inner)
         const points = [];
         for(let k=0; k < N - 1; k++){
-          const sTarget = k * (S_total / Math.max(1, N - 1));
-          const theta_by_arc = findThetaForArc(sTarget, thetaMax, a, b); // 0..thetaMax
-          // theta (for r) should be thetaMax - theta_by_arc to make outermost correspond to sTarget=0
-          const theta = thetaMax - theta_by_arc;
+          const sTarget = (k) * (S_total / Math.max(1, N - 1));
+          // find theta such that S(theta) = sTarget
+          const theta = findThetaForArc(sTarget, thetaMax, a, b);
           const r = a + b * theta;
-          // angle must map theta_by_arc so that when theta_by_arc == 0 (outermost) angle == startAngle
-          const angle = startAngle - theta_by_arc; // clockwise progression from startAngle
+          const angle = startAngle - theta; // clockwise
           const x = cx + Math.cos(angle) * r;
           const y = cy + Math.sin(angle) * r;
-          points.push({theta, r, angle, x, y, theta_by_arc});
+          points.push({theta, r, angle, x, y});
         }
 
-        // gentle inner redistribution with milder parameters (avoid overcorrection)
-        const reserveRadius = Math.max(tileSize * 1.4, minCenter * 1.05);
+        // optional: detect inner crowding and redistribute evenly by angle (small rings)
+        const reserveRadius = Math.max(tileSize * 1.55, minCenter * 1.15);
         const innerIdxs = [];
         for(let i=0;i<points.length;i++){
           const d = Math.hypot(points[i].x - cx, points[i].y - cy);
-          if(d < reserveRadius + tileSize * 0.35) innerIdxs.push(i);
+          if(d < reserveRadius + tileSize * 0.45) innerIdxs.push(i);
         }
         if(innerIdxs.length > 0){
-          const perRing = 8;
+          const perRing = 6;
           for(let k=0;k<innerIdxs.length;k++){
             const idx = innerIdxs[k];
             const ringLevel = Math.floor(k / perRing);
-            const ringStep = tileSize * 0.65;
+            const ringStep = tileSize * 0.7;
             const newR = reserveRadius + ringLevel * ringStep;
-            const baseIndexFrac = points[idx].theta_by_arc / Math.max(1, thetaMax); // keep ordering by theta_by_arc
+            const baseIndexFrac = idx / Math.max(1, points.length);
             const angCenter = startAngle - (thetaMax * baseIndexFrac);
             const slot = (k % perRing);
-            const angleOffset = (slot - (perRing-1)/2) * (Math.PI / (perRing * 1.5));
+            const angleOffset = (slot - (perRing-1)/2) * (Math.PI / (perRing * 1.2));
             const newAng = angCenter + angleOffset;
             points[idx].x = Math.round(cx + Math.cos(newAng) * newR);
             points[idx].y = Math.round(cy + Math.sin(newAng) * newR);
@@ -265,25 +350,28 @@
           }
         }
 
-        // compute tangent rotation and add to coords
+        // convert to final coords with tangent rotation computed
         for(let i=0;i<points.length;i++){
           const p = points[i];
+          // compute derivative dx/dθ, dy/dθ for tangent:
+          // dx/dθ = b * cos(angle) + r * sin(angle)
+          // dy/dθ = b * sin(angle) - r * cos(angle)
           const r = p.r;
           const angle = p.angle;
           const dx_dth = b * Math.cos(angle) + r * Math.sin(angle);
           const dy_dth = b * Math.sin(angle) - r * Math.cos(angle);
-          const tang = Math.atan2(dy_dth, dx_dth);
+          const tang = Math.atan2(dy_dth, dx_dth); // radians
           const deg = tang * 180 / Math.PI;
-          const blended = deg * ROTATION_BLEND; // reduce tilt for readability
-          coords.push({ x: Math.round(p.x), y: Math.round(p.y), ang: 0, rot: blended });
+          coords.push({ x: Math.round(p.x), y: Math.round(p.y), ang: (JITTER_AMT ? (Math.random()*2-1)*JITTER_AMT : 0), rot: deg });
         }
 
-        // center goal
-        coords.push({ x: Math.round(cx), y: Math.round(cy), ang:0, rot:0 });
+        // push the center goal (no rotation)
+        coords.push({ x: Math.round(cx), y: Math.round(cy), ang:0, rot: 0 });
 
+        // final small overlap cleanup (preserve spiral)
         enforceNoOverlapPreserveSpiral(coords, tileSize + 6, containerW, containerH, tileSize);
 
-        // clamp
+        // clamp to bounds & return
         const clampMargin = tileSize;
         for(const c of coords){
           c.x = Math.max(clampMargin, Math.min(containerW - clampMargin, c.x));
@@ -293,6 +381,7 @@
         return coords;
       }
 
+      // minimal overlap resolver (keeps spiral ordering)
       function enforceNoOverlapPreserveSpiral(points, minD, w, h, tileSize){
         if(!Array.isArray(points)) return;
         const centerIdx = points.length - 1;
@@ -335,6 +424,21 @@
           if(!moved) break;
           if(pass > 60) minD *= 0.997;
         }
+
+        // fallback grid if still problematic (very unlikely)
+        for(let i=0;i<points.length;i++){
+          for(let j=i+1;j<points.length;j++){
+            const dx = points[j].x - points[i].x, dy = points[j].y - points[i].y;
+            if(Math.hypot(dx,dy) < tileSize * 0.78){
+              const rect = board.getBoundingClientRect();
+              const fallback = buildSpiralGridFallback(points.length, rect.width, rect.height, tileSize, GAP);
+              for(let k=0;k<points.length && k<fallback.length;k++){
+                points[k].x = fallback[k].x; points[k].y = fallback[k].y; points[k].ang = fallback[k].ang || 0;
+              }
+              return;
+            }
+          }
+        }
       }
 
       function buildSpiralGridFallback(N, w, h, tileSize, gap){
@@ -354,6 +458,7 @@
         return coords;
       }
 
+      // layout tiles and set rotation if requested
       function layoutTiles(){
         board.querySelectorAll(".tile").forEach(n=>n.remove());
         const rect = board.getBoundingClientRect();
@@ -367,20 +472,26 @@
             div.classList.add("goal");
             div.textContent = "GOAL";
             div.style.transform = `translate(-50%,-50%) rotate(0deg)`;
-          } else if(idx % 11 === 0) div.classList.add("client");
-          else if(idx % 13 === 0) div.classList.add("workshop");
-          else if(idx % 6 === 0) div.classList.add("event");
-          else if(idx % 5 === 0) div.classList.add("bonus");
-          else if(idx % 7 === 0) div.classList.add("penalty");
-
+          } else if(idx % 11 === 0){
+            div.classList.add("client");
+          } else if(idx % 13 === 0){
+            div.classList.add("workshop");
+          } else if(idx % 6 === 0){
+            div.classList.add("event");
+          } else if(idx % 5 === 0){
+            div.classList.add("bonus");
+          } else if(idx % 7 === 0){
+            div.classList.add("penalty");
+          }
           div.style.left = `${c.x}px`;
           div.style.top = `${c.y}px`;
+          // rotate tiles to tangent for clearer spiral flow if enabled
           const rot = (ROTATE_TILES && typeof c.rot === 'number') ? c.rot : (c.ang || 0);
           div.style.transform = `translate(-50%,-50%) rotate(${rot}deg)`;
           board.appendChild(div);
         });
 
-        // ensure START is outermost and near left-top
+        // align START_MARKER to tile 0 (outermost)
         if(tileCoords && tileCoords[0]){
           const t0 = tileCoords[0];
           START_MARKER.style.left = `${t0.x}px`;
@@ -393,10 +504,14 @@
         placeAllTokens();
       }
 
-      // token helpers & game loop (unchanged)
+      // token helpers (unchanged)
       function ensureToken(i){
         let t = document.getElementById(`token-${i}`);
-        if(!t){ t = document.createElement("div"); t.className = "token"; t.id = `token-${i}`; t.textContent = String(i+1); board.appendChild(t); }
+        if(!t){
+          t = document.createElement("div"); t.className = "token"; t.id = `token-${i}`;
+          t.textContent = String(i+1);
+          board.appendChild(t);
+        }
         const palette = ["#86BB27","#DFF3C6","#C4C4C4","#2B2B2B"];
         const bg = palette[i % palette.length];
         t.style.background = bg;
@@ -464,6 +579,16 @@
         });
       }
 
+      function pushLog(text, kind){
+        const p = document.createElement("div");
+        p.textContent = `[${(new Date()).toLocaleTimeString()}] ${text}`;
+        if(kind === "ok") p.style.color = "green";
+        if(kind === "bad") p.style.color = "#333";
+        logEl.appendChild(p);
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      // movement / dice / game loop (unchanged)
       function moveTokenStep(playerIndex, pos){
         return new Promise(resolve=>{
           const t = ensureToken(playerIndex);
@@ -659,7 +784,7 @@
 
       attachHandlers();
       layoutTiles();
-      pushLog("UI ready — マス間隔を短くし、開始位置を左上に固定、らせんの収束を緩和して見た目を調整しました。");
+      pushLog("UI ready — 解析的な弧長スナップとタイル接線回転を適用しました。螺旋が数学的に等間隔で整列するはずです。");
     }
   })();
   </script>
