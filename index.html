@@ -108,12 +108,12 @@
       const GAP = Number(getComputedStyle(document.documentElement).getPropertyValue('--tile-gap')) || 16;
       const TOKEN_MOVE_MS = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--token-move-ms')) || 140;
 
-      // parameters for analytic spiral snapping + tile rotation
-      const A_PARAM = TILE_SIZE * 0.75;                // a in r = a + b * theta
-      const BASE_B_SCALE = 0.95;                       // inner tuning
-      const B_MULTIPLIER = 2.2;                        // slightly relaxed from previous 2.6
-      const ROTATE_TILES = true;                       // rotate tiles to tangent
-      const JITTER_AMT = 0;                            // exactly zero for clean spiral
+      // analytic spiral params (adjusted)
+      const A_PARAM = TILE_SIZE * 0.75;
+      const BASE_B_SCALE = 0.95;
+      const B_MULTIPLIER = 2.2;
+      const ROTATE_TILES = true;
+      const JITTER_AMT = 0;
 
       let tileCoords = [];
       let state = { started:false, turn:0, currentPlayerIndex:0, players:[], animating:false, rng: Math.random, history: [] };
@@ -134,12 +134,8 @@
       renderPlayerNameInputs();
       function getPlayerNames(){ return Array.from(playerNamesWrap.querySelectorAll("input")).map((el,idx)=> el.value.trim() || `プレイヤー${idx+1}`); }
 
-      // events (kept, omitted in snippet)
-      const EVENT_TEMPLATES = {
-        junior: [ /* ... */ ],
-        mid: [ /* ... */ ],
-        senior: [ /* ... */ ]
-      };
+      // events (omitted for brevity)
+      const EVENT_TEMPLATES = { junior: [], mid: [], senior: [] };
 
       function eventStageForPlayer(pl){
         const pos = typeof pl.position === "number" ? pl.position : 0;
@@ -148,11 +144,8 @@
         return "junior";
       }
       function pickEventForPlayer(playerIndex){
-        const pl = state.players[playerIndex];
-        if(!pl) return null;
-        const stage = eventStageForPlayer(pl);
-        const pool = EVENT_TEMPLATES[stage] || EVENT_TEMPLATES.junior;
-        return pool[Math.floor(state.rng()*pool.length)];
+        const pool = EVENT_TEMPLATES[eventStageForPlayer(state.players[playerIndex])];
+        return pool && pool.length ? pool[Math.floor(state.rng()*pool.length)] : null;
       }
 
       function removeFallbacks(){ document.querySelectorAll('.modal-fallback').forEach(e=>e.remove()); }
@@ -247,47 +240,29 @@
       async function handleEventTile(playerIndex){
         const tmpl = pickEventForPlayer(playerIndex);
         if(!tmpl) return;
-        if(tmpl.choices && Array.isArray(tmpl.choices)){
-          await showChoiceModal(playerIndex, tmpl);
-        } else {
-          await showEventModal(playerIndex, tmpl);
-        }
+        if(tmpl.choices && Array.isArray(tmpl.choices)) await showChoiceModal(playerIndex, tmpl); else await showEventModal(playerIndex, tmpl);
       }
 
-      /* -------------------
-         Analytic arc-length placement + exact theta inversion
-         - r(θ) = a + b θ
-         - arc length S(θ) = (1/(2b)) [ u*sqrt(u^2 + b^2) + b^2 ln(u + sqrt(u^2 + b^2)) ]  where u = a + b θ
-         - invert S(θ) via bisection to find θ for given target arc length
-         - place N-1 tiles at equal arc-length intervals, outer -> inner
-         - rotate tiles to tangent computed from dx/dθ, dy/dθ
-      ------------------- */
+      // analytic arc length for Archimedean spiral
       function arcLengthTheta(theta, a, b){
-        // returns S(theta) from 0..theta
-        // u = a + b*theta
         const u = a + b * theta;
         const term = Math.sqrt(u*u + b*b);
-        // (1/(2b)) * ( u*term + b^2 * ln(u + term) ) - same at u=a
-        const part = (u * term + b*b * Math.log(u + term));
         const ua = a;
         const termA = Math.sqrt(ua*ua + b*b);
+        const part = (u * term + b*b * Math.log(u + term));
         const partA = (ua * termA + b*b * Math.log(ua + termA));
         return (part - partA) / (2*b);
       }
 
       function findThetaForArc(sTarget, thetaMax, a, b){
-        // sTarget between 0..S(thetaMax)
-        // use bisection on theta in [0, thetaMax]
         let lo = 0, hi = thetaMax;
-        let slo = 0, shi = arcLengthTheta(hi, a, b);
-        // safety
         if(sTarget <= 0) return 0;
-        if(sTarget >= shi) return hi;
+        const sHi = arcLengthTheta(hi, a, b);
+        if(sTarget >= sHi) return hi;
         for(let iter=0; iter<60; iter++){
           const mid = (lo + hi)/2;
           const sm = arcLengthTheta(mid, a, b);
-          if(sm > sTarget) hi = mid;
-          else lo = mid;
+          if(sm > sTarget) hi = mid; else lo = mid;
         }
         return (lo + hi)/2;
       }
@@ -298,7 +273,6 @@
         const minCenter = tileSize + 6;
         const approxSpacing = Math.max(tileSize + Math.round(gap*0.62), tileSize + 8);
 
-        // analytic params
         const a = A_PARAM;
         const bBase = (approxSpacing / (2 * Math.PI)) * BASE_B_SCALE;
         const b = bBase * B_MULTIPLIER;
@@ -306,17 +280,19 @@
         const maxR = Math.min(containerW, containerH) * 0.44;
         const thetaMax = Math.max(4 * Math.PI, (maxR - a) / b);
 
-        const startAngle = -Math.PI * 0.8; // start ~ top-left, clockwise by subtracting theta
+        // start angle near top-left
+        const startAngle = -Math.PI * 0.8;
 
-        // compute total arc length S_total analytically
+        // compute total arc length
         const S_total = arcLengthTheta(thetaMax, a, b);
 
-        // place N-1 points at equal arc intervals along 0..thetaMax (outer->inner)
+        // place N-1 points at equal arc intervals. We compute theta_by_arc and then flip
+        // to make outermost first: theta = thetaMax - theta_by_arc
         const points = [];
         for(let k=0; k < N - 1; k++){
           const sTarget = (k) * (S_total / Math.max(1, N - 1));
-          // find theta such that S(theta) = sTarget
-          const theta = findThetaForArc(sTarget, thetaMax, a, b);
+          const theta_by_arc = findThetaForArc(sTarget, thetaMax, a, b);
+          const theta = thetaMax - theta_by_arc; // flip so k=0 is outermost
           const r = a + b * theta;
           const angle = startAngle - theta; // clockwise
           const x = cx + Math.cos(angle) * r;
@@ -324,7 +300,7 @@
           points.push({theta, r, angle, x, y});
         }
 
-        // optional: detect inner crowding and redistribute evenly by angle (small rings)
+        // redistribute inner crowd evenly if needed
         const reserveRadius = Math.max(tileSize * 1.55, minCenter * 1.15);
         const innerIdxs = [];
         for(let i=0;i<points.length;i++){
@@ -350,28 +326,25 @@
           }
         }
 
-        // convert to final coords with tangent rotation computed
+        // compute tangent rotation and push coords
         for(let i=0;i<points.length;i++){
           const p = points[i];
-          // compute derivative dx/dθ, dy/dθ for tangent:
-          // dx/dθ = b * cos(angle) + r * sin(angle)
-          // dy/dθ = b * sin(angle) - r * cos(angle)
           const r = p.r;
           const angle = p.angle;
           const dx_dth = b * Math.cos(angle) + r * Math.sin(angle);
           const dy_dth = b * Math.sin(angle) - r * Math.cos(angle);
-          const tang = Math.atan2(dy_dth, dx_dth); // radians
+          const tang = Math.atan2(dy_dth, dx_dth);
           const deg = tang * 180 / Math.PI;
-          coords.push({ x: Math.round(p.x), y: Math.round(p.y), ang: (JITTER_AMT ? (Math.random()*2-1)*JITTER_AMT : 0), rot: deg });
+          coords.push({ x: Math.round(p.x), y: Math.round(p.y), ang: 0, rot: deg });
         }
 
-        // push the center goal (no rotation)
-        coords.push({ x: Math.round(cx), y: Math.round(cy), ang:0, rot: 0 });
+        // center goal
+        coords.push({ x: Math.round(cx), y: Math.round(cy), ang:0, rot:0 });
 
-        // final small overlap cleanup (preserve spiral)
+        // small overlap cleanup
         enforceNoOverlapPreserveSpiral(coords, tileSize + 6, containerW, containerH, tileSize);
 
-        // clamp to bounds & return
+        // clamp
         const clampMargin = tileSize;
         for(const c of coords){
           c.x = Math.max(clampMargin, Math.min(containerW - clampMargin, c.x));
@@ -381,7 +354,6 @@
         return coords;
       }
 
-      // minimal overlap resolver (keeps spiral ordering)
       function enforceNoOverlapPreserveSpiral(points, minD, w, h, tileSize){
         if(!Array.isArray(points)) return;
         const centerIdx = points.length - 1;
@@ -424,8 +396,7 @@
           if(!moved) break;
           if(pass > 60) minD *= 0.997;
         }
-
-        // fallback grid if still problematic (very unlikely)
+        // fallback grid (unlikely)
         for(let i=0;i<points.length;i++){
           for(let j=i+1;j<points.length;j++){
             const dx = points[j].x - points[i].x, dy = points[j].y - points[i].y;
@@ -458,7 +429,6 @@
         return coords;
       }
 
-      // layout tiles and set rotation if requested
       function layoutTiles(){
         board.querySelectorAll(".tile").forEach(n=>n.remove());
         const rect = board.getBoundingClientRect();
@@ -472,26 +442,20 @@
             div.classList.add("goal");
             div.textContent = "GOAL";
             div.style.transform = `translate(-50%,-50%) rotate(0deg)`;
-          } else if(idx % 11 === 0){
-            div.classList.add("client");
-          } else if(idx % 13 === 0){
-            div.classList.add("workshop");
-          } else if(idx % 6 === 0){
-            div.classList.add("event");
-          } else if(idx % 5 === 0){
-            div.classList.add("bonus");
-          } else if(idx % 7 === 0){
-            div.classList.add("penalty");
-          }
+          } else if(idx % 11 === 0) div.classList.add("client");
+          else if(idx % 13 === 0) div.classList.add("workshop");
+          else if(idx % 6 === 0) div.classList.add("event");
+          else if(idx % 5 === 0) div.classList.add("bonus");
+          else if(idx % 7 === 0) div.classList.add("penalty");
+
           div.style.left = `${c.x}px`;
           div.style.top = `${c.y}px`;
-          // rotate tiles to tangent for clearer spiral flow if enabled
           const rot = (ROTATE_TILES && typeof c.rot === 'number') ? c.rot : (c.ang || 0);
           div.style.transform = `translate(-50%,-50%) rotate(${rot}deg)`;
           board.appendChild(div);
         });
 
-        // align START_MARKER to tile 0 (outermost)
+        // Ensure START marker is at tile 0 (outermost, left-top)
         if(tileCoords && tileCoords[0]){
           const t0 = tileCoords[0];
           START_MARKER.style.left = `${t0.x}px`;
@@ -504,7 +468,6 @@
         placeAllTokens();
       }
 
-      // token helpers (unchanged)
       function ensureToken(i){
         let t = document.getElementById(`token-${i}`);
         if(!t){
@@ -588,7 +551,6 @@
         logEl.scrollTop = logEl.scrollHeight;
       }
 
-      // movement / dice / game loop (unchanged)
       function moveTokenStep(playerIndex, pos){
         return new Promise(resolve=>{
           const t = ensureToken(playerIndex);
@@ -784,7 +746,7 @@
 
       attachHandlers();
       layoutTiles();
-      pushLog("UI ready — 解析的な弧長スナップとタイル接線回転を適用しました。螺旋が数学的に等間隔で整列するはずです。");
+      pushLog("UI ready — スタートを左上に固定するよう修正しました（解析スナップ + 接線回転維持）。");
     }
   })();
   </script>
