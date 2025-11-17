@@ -111,6 +111,13 @@
     .attr-list{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; font-weight:700}
     .log{margin-top:12px; border:1px solid var(--gray); border-radius:10px; padding:10px; max-height:300px; overflow:auto; font-size:13px}
 
+    /* events panel */
+    .events-panel{margin-top:12px}
+    .events-tabs{display:flex; gap:6px; margin-bottom:8px}
+    .events-list{max-height:260px; overflow:auto; border:1px solid #eee; border-radius:8px; padding:6px}
+    .event-item{padding:8px; border-bottom:1px dashed #eee; cursor:pointer}
+    .event-item:hover{background:#fbfffb}
+
     /* modal fallback */
     .modal-fallback{position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.42); z-index:9999}
     .modal-fallback .card{background:#fff; padding:16px; border-radius:10px; box-shadow:0 12px 30px rgba(0,0,0,0.12); max-width:720px}
@@ -344,6 +351,7 @@
         ok.focus();
       }
 
+      // Updated showChoiceModal: when choice label includes "受注", do 50/50 success/failure.
       async function showChoiceModal(playerIndex, tmpl){
         removeFallbacks();
         const overlay = document.createElement('div'); overlay.className='modal-fallback';
@@ -351,19 +359,48 @@
         const h = document.createElement('div'); h.className='event-title'; h.textContent = tmpl.title;
         const b = document.createElement('div'); b.className='event-body'; b.textContent = tmpl.body;
         const actions = document.createElement('div'); actions.style.display='flex'; actions.style.justifyContent='flex-end'; actions.style.gap='8px';
+
         (tmpl.choices||[]).forEach(choice=>{
-          const btn = document.createElement('button'); btn.type='button'; btn.className='choice-btn'; btn.textContent = choice.label;
-          btn.addEventListener('click', ()=> {
-            applyAttributeChanges(playerIndex, choice.changes || {});
+          const btn = document.createElement('button');
+          btn.type='button';
+          btn.className='choice-btn';
+          btn.textContent = choice.label;
+
+          btn.addEventListener('click', async ()=> {
+            // Close preview overlay
             overlay.remove();
-            showCard(choice.resultText || "選択結果", "").then(()=>{});
+
+            const isOrderChoice = /受注/.test(choice.label);
+            if(isOrderChoice){
+              // 50/50 success/failure
+              const success = Math.random() < 0.5;
+              if(success){
+                // success: apply defined changes and show resultText as before
+                applyAttributeChanges(playerIndex, choice.changes || {});
+                await showCard(choice.resultText || "受注に成功しました", "");
+              } else {
+                // failure: show failure modal and grant small "learning" bonus for failing experience
+                // Grant +2 learning (tweakable)
+                applyAttributeChanges(playerIndex, { learning: 2 });
+                const failText = choice.resultText ? `${choice.resultText}\n\nしかし失敗からも学びがありました。学び +2` : "失敗からも学んだ！ 学び +2";
+                await showCard("失敗からも学んだ！", failText);
+              }
+            } else {
+              // not an order choice: normal behavior
+              applyAttributeChanges(playerIndex, choice.changes || {});
+              await showCard(choice.resultText || "選択結果", "");
+            }
           });
           actions.appendChild(btn);
         });
+
         const cancel = document.createElement('button'); cancel.type='button'; cancel.textContent='やめる';
         cancel.addEventListener('click', ()=> overlay.remove());
         actions.appendChild(cancel);
-        card.appendChild(h); card.appendChild(b); card.appendChild(actions); overlay.appendChild(card); document.body.appendChild(overlay);
+
+        card.appendChild(h); card.appendChild(b); card.appendChild(actions);
+        overlay.appendChild(card);
+        document.body.appendChild(overlay);
       }
 
       async function handleEventTile(playerIndex){
@@ -587,12 +624,10 @@
         });
       }
 
-      // Final results calculation & modal
-      // Score formula: weighted sum (adjust weights as desired)
+      // Final results calculation & modal (no CSV/JSON per request)
       const SCORE_WEIGHTS = { rating: 3.0, learning: 1.5, motivation: 1.2, mental: 1.0, responsibility: 2.0 };
 
       function computeFinalResults(){
-        // returns array of { index, name, score, attrs, finishedAt }
         const rows = state.players.map((p, i) => {
           const attrs = {
             learning: Number(p.learning || 0),
@@ -618,7 +653,6 @@
           };
         });
 
-        // sort by score desc, tie-breaker: finishedAt (earlier finish = better), then name
         rows.sort((a,b)=>{
           if(b.score !== a.score) return b.score - a.score;
           if(a.finished && b.finished){
@@ -629,7 +663,6 @@
           return a.name.localeCompare(b.name, 'ja');
         });
 
-        // add rank (1..n), handle ties (same score -> same rank)
         let lastScore = null, lastRank = 0, count = 0;
         rows.forEach(r=>{
           count++;
@@ -671,7 +704,6 @@
         table.appendChild(tbody);
         card.appendChild(table);
 
-        // actions: just close (CSV/JSON removed per request)
         const actions = document.createElement('div'); actions.style.display = 'flex'; actions.style.justifyContent='flex-end'; actions.style.gap='8px'; actions.style.marginTop='12px';
         const btnClose = document.createElement('button'); btnClose.className='primary'; btnClose.textContent='閉じる';
         btnClose.addEventListener('click', ()=> { overlay.remove(); });
@@ -695,7 +727,6 @@
           pushLog(`${pl.name}: ゴール！`, "ok");
           await showCard("ゴール", `${pl.name} がゴールしました`);
           renderPlayersPanel();
-          // if all finished -> show final results automatically after short delay
           const allFinished = state.players.length > 0 && state.players.every(p => !!p.finished);
           if(allFinished){
             setTimeout(()=> showFinalResultsModal(), 400);
@@ -705,7 +736,6 @@
         }
       }
 
-      // per-tile movement (moveTokenStep) and animateMove are used elsewhere in file.
       // Ensure updateRollState enables/disables roll button appropriately.
       function updateRollState(){
         const rbtn = document.getElementById('btn-roll');
