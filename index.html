@@ -14,7 +14,7 @@
       --green-light:#DFF3C6;
       --gray:#C4C4C4;
 
-      /* Desktop defaults (must not be touched by mobile overrides) */
+      /* Desktop defaults */
       --tile-size-desktop: 68px;
       --token-size-desktop: 30px;
       --tile-gap-desktop: 16px;
@@ -24,13 +24,16 @@
       /* Mobile break */
       --mobile-breakpoint: 680px;
       --bottom-bar-height-mobile: 76px;
+
+      /* Default mobile CSS hint (JS will compute effective size so CSS-only won't cause overlap) */
+      --tile-size-mobile: 36px;
+      --token-size-mobile: 18px;
+      --tile-gap-mobile: 8px;
+      --board-padding-mobile: 8px;
     }
 
-    /* Global reset */
     *{box-sizing:border-box}
-    /* Force bold everywhere per request */
     html, body, body * { font-weight: 900 !important; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
-
     html,body{height:100%; margin:0}
     body{
       display:flex; flex-direction:column; min-height:100vh; margin:0;
@@ -39,7 +42,6 @@
       -webkit-tap-highlight-color: rgba(0,0,0,0);
     }
 
-    /* Appbar */
     .appbar{position:sticky; top:0; z-index:1200; background:var(--white); border-bottom:1px solid rgba(0,0,0,0.06); display:flex; justify-content:center}
     .toolbar{width:100%; max-width:1300px; display:flex; gap:10px; align-items:center; padding:8px}
     .title{font-size:15px; margin-right:auto; color:var(--black)}
@@ -49,20 +51,14 @@
     button{padding:8px 12px; border-radius:8px; border:1px solid var(--gray); background:var(--white); cursor:pointer}
     button.primary{background:var(--green); color:var(--white); border-color:transparent}
 
-    /* focus styles: always green outline on focus */
     :focus { outline: 3px solid var(--green); outline-offset:2px; box-shadow: 0 0 0 6px var(--green-alpha); }
 
     .wrap{width:100%; max-width:1300px; margin:18px auto; display:grid; grid-template-columns:3fr 1fr; gap:12px; align-items:start; padding:0 12px}
     @media (max-width: 980px){ .wrap{grid-template-columns:1fr} }
 
-    /* Board (desktop defaults) */
     .board-wrap{background:var(--white); border:2px solid var(--gray); border-radius:14px; padding:var(--board-padding-desktop); position:relative; overflow:auto; min-height:520px}
-    .board{
-      position:relative; width:100%; height:820px; touch-action:none;
-      background: linear-gradient(180deg, rgba(0,0,0,0.01), rgba(0,0,0,0.00));
-    }
+    .board{ position:relative; width:100%; height:820px; touch-action:none; background: linear-gradient(180deg, rgba(0,0,0,0.01), rgba(0,0,0,0.00)); }
 
-    /* tiles - desktop sizes */
     .tile{
       position:absolute;
       width:var(--tile-size-desktop);
@@ -87,16 +83,8 @@
     .tile.client,
     .tile.workshop,
     .tile.bonus,
-    .tile.penalty {
-      border:3px solid var(--green);
-      background:#f7fff6;
-    }
-    .tile.goal{
-      background: var(--green);
-      color: #fff;
-      border-color: var(--green);
-      box-shadow: 0 10px 30px rgba(134,187,39,0.18);
-    }
+    .tile.penalty { border:3px solid var(--green); background:#f7fff6; }
+    .tile.goal{ background: var(--green); color: #fff; border-color: var(--green); box-shadow: 0 10px 30px rgba(134,187,39,0.18); }
 
     .start-marker{
       position:absolute;
@@ -124,7 +112,6 @@
     }
     .token.finished{ opacity:0.85; border-color:var(--gray) }
 
-    /* Sidebar / panels (desktop) */
     .sidebar{border:2px solid var(--gray); border-radius:14px; padding:14px}
     .stat{display:flex; justify-content:space-between; padding:10px; border-radius:10px}
     .players{margin-top:10px}
@@ -138,7 +125,6 @@
     .event-item{padding:8px; border-bottom:1px dashed #eee; cursor:pointer}
     .event-item:hover{background:#fbfffb}
 
-    /* Modal defaults */
     .modal-fallback{position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.42); z-index:9999}
     .modal-fallback .card{background:#fff; padding:18px; border-radius:12px; box-shadow:0 12px 30px rgba(0,0,0,0.12); max-width:720px; width:100%; max-height:88vh; overflow:auto; font-size:15px}
     .modal-bottom { align-items:flex-end; }
@@ -154,58 +140,33 @@
     .results-winner{background:linear-gradient(90deg, rgba(134,187,39,0.06), rgba(134,187,39,0.02));}
     .small-muted{color:#666; font-size:13px}
 
-    /* Bottom bar (mobile only, hidden on desktop) */
     .bottom-bar { display:none; }
 
-    /* ============================
-       MOBILE OVERRIDES (ONLY)
-       ============================ */
+    /* MOBILE OVERRIDES */
     @media (max-width: var(--mobile-breakpoint)) {
-      /*
-        Mobile grid layout:
-        - Tiles become a clean grid (S-shaped path top-to-bottom)
-        - Smaller tiles to fit tall, narrow screens
-        - All changes only in this block so desktop is untouched
-      */
-
       :root {
-        --tile-size-mobile: 36px;      /* smaller for tall screens */
+        --tile-size-mobile: 36px;
         --token-size-mobile: 18px;
         --tile-gap-mobile: 8px;
         --board-padding-mobile: 8px;
         --bottom-bar-height-mobile: 76px;
       }
 
-      /* Layout simplification */
       .wrap { grid-template-columns:1fr; margin:0; padding:0 6px; gap:8px; }
       .appbar { position:fixed; top:0; left:0; right:0; z-index:1400; }
       .toolbar { padding:8px 10px; align-items:center; gap:8px; }
-      .group#control-buttons { display:none; } /* hide desktop controls in header */
+      .group#control-buttons { display:none; } 
       .group#desktop-controls { display:none; }
       #player-names { display:none; }
 
-      /* Board sizing */
       .board-wrap{ padding:var(--board-padding-mobile); min-height: calc(100vh - var(--bottom-bar-height-mobile) - 120px); border-radius:10px; }
       .board { height: calc(100vh - var(--bottom-bar-height-mobile) - 140px); }
 
-      /* Grid tiles */
-      .tile{
-        width: var(--tile-size-mobile);
-        height: var(--tile-size-mobile);
-        font-size:12px;
-        padding:4px;
-        border-radius:6px;
-        transform: translate(-50%,-50%) rotate(0deg) !important; /* keep straight */
-      }
+      /* grid tiles: keep base styles but JS sets inline size to avoid overlap */
+      .tile{ font-size:12px; padding:4px; border-radius:6px; transform: translate(-50%,-50%) rotate(0deg) !important; }
 
-      /* tokens */
-      .token{
-        width: var(--token-size-mobile);
-        height: var(--token-size-mobile);
-        font-size:12px;
-      }
+      .token{ font-size:12px; }
 
-      /* Hide sidebar and show bottom bar */
       .sidebar { display:none; }
 
       .bottom-bar {
@@ -223,7 +184,6 @@
       }
       .bottom-bar button{ min-width:64px; height:48px; border-radius:10px; padding:10px 12px; font-size:15px; display:flex; align-items:center; justify-content:center; gap:8px; }
 
-      /* Mobile modal: bottom sheet with full-width choices */
       .modal-fallback .card{ padding:18px; font-size:16px; border-radius:12px; }
       .modal-bottom .card { height:88vh; padding:18px; border-radius:12px 12px 0 0; }
       .choice-btn{ display:block; width:100%; padding:12px 10px; margin-bottom:10px; border-radius:10px; font-size:14px; text-align:center; }
@@ -231,7 +191,7 @@
       .event-title{ font-size:18px; margin-bottom:10px; }
       .event-body{ font-size:15px; line-height:1.5; }
 
-      .start-marker { width: calc(var(--tile-size-mobile) * 1.15); height: calc(var(--tile-size-mobile) * 0.34); transform: translate(-50%,-150%); }
+      .start-marker { transform: translate(-50%,-150%); }
 
       :focus { outline: 4px solid var(--green); outline-offset:3px; box-shadow: 0 0 0 8px var(--green-alpha); }
     }
@@ -281,7 +241,6 @@
     </aside>
   </div>
 
-  <!-- bottom bar for mobile -->
   <div class="bottom-bar" id="bottom-bar" role="toolbar" aria-hidden="true">
     <button id="bb-btn-roll" aria-label="サイコロ">🎲 サイコロ</button>
     <button id="bb-btn-players" aria-label="プレイヤー">👥 プレイヤー</button>
@@ -296,7 +255,6 @@
     const MOBILE_BREAK = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--mobile-breakpoint')) || 680;
     const NUM_TILES = 60;
 
-    // color helpers
     function parseColorToRgb(str){
       if(!str) return null;
       str = String(str).trim();
@@ -327,7 +285,6 @@
       return lum > 0.55;
     }
 
-    // event templates (non-blocking)
     let EVENT_TEMPLATES = null;
     async function loadEventTemplatesExternal(){
       try{
@@ -345,6 +302,8 @@
     let isMobile = window.matchMedia(`(max-width: ${MOBILE_BREAK}px)`).matches;
     const state = { started:false, turn:0, currentPlayerIndex:0, players:[], animating:false, rng: Math.random };
     let tileCoords = [];
+    // store effective mobile sizes used for placement so tokens/start marker can be sized to match
+    let mobileLayout = { tileSize: null, tokenSize: null, cols: 6 };
 
     async function init(){
       EVENT_TEMPLATES = await loadEventTemplatesExternal();
@@ -371,6 +330,7 @@
       const playersCountSel = $("#players-count");
 
       playersCountSel.addEventListener('change', renderPlayerNameInputs);
+
       btnStart.addEventListener('click', startGame);
       btnRoll.addEventListener('click', rollTurn);
       btnReset.addEventListener('click', resetGame);
@@ -436,17 +396,28 @@
       logEl.scrollTop = logEl.scrollHeight;
     }
 
-    /* ===== Grid path for mobile: S-shaped top->bottom rows ===== */
-    function buildGridPath(N, rect, tileSize, gap){
-      const padding = Math.max(8, tileSize * 0.3);
+    /* ===== New: fixed 6 columns mobile grid (S-shaped) ===== */
+    function buildGridPathFixedCols(N, rect, requestedTileSize, gap, colsFixed = 6){
+      const padding = Math.max(8, requestedTileSize * 0.3);
       const usableW = Math.max(80, rect.width - padding*2);
-      // compute columns that fit
-      const cols = Math.max(3, Math.floor((usableW + gap) / (tileSize + gap)));
+      // force colsFixed (6) but ensure tile fits; compute effective tile size to avoid overlap
+      const cols = colsFixed;
+      const totalGap = (cols - 1) * gap;
+      let effectiveTileSize = Math.floor((usableW - totalGap) / cols);
+      const minTile = 28; // minimum tile size to keep touch targets usable
+      if(effectiveTileSize < minTile){
+        effectiveTileSize = minTile;
+      }
+      // if effectiveTileSize is larger than requested, cap to requested to keep visuals consistent
+      effectiveTileSize = Math.min(effectiveTileSize, requestedTileSize);
+      // now compute spacing to center the grid horizontally
+      const gridWidth = cols * effectiveTileSize + totalGap;
+      const startX = Math.max(padding + effectiveTileSize/2, (rect.width - gridWidth)/2 + effectiveTileSize/2);
+      const spacingX = effectiveTileSize + gap;
+      // rows
       const rows = Math.ceil(N / cols);
-      const spacingX = tileSize + gap;
-      const spacingY = tileSize + gap;
-      const startX = padding + tileSize/2;
-      const startY = padding + tileSize/2;
+      const spacingY = effectiveTileSize + gap;
+      const startY = padding + effectiveTileSize/2;
       const coords = [];
       for(let r=0;r<rows;r++){
         const rowArr = [];
@@ -455,7 +426,6 @@
           const y = startY + r * spacingY;
           rowArr.push({x,y,ang:0});
         }
-        // S-shape: even row left->right, odd row right->left
         if(r % 2 === 0){
           for(let i=0;i<rowArr.length;i++){
             if(coords.length < N) coords.push(rowArr[i]);
@@ -466,17 +436,18 @@
           }
         }
       }
-      // clamp within rect
-      const clampMargin = tileSize / 2 + 4;
+      // clamp
+      const clampMargin = effectiveTileSize / 2 + 4;
       for(const c of coords){
         c.x = Math.max(clampMargin, Math.min(rect.width - clampMargin, c.x));
         c.y = Math.max(clampMargin, Math.min(rect.height - clampMargin, c.y));
       }
       if(coords.length > N) coords.length = N;
-      return coords;
+      // return coords and effectiveTileSize so caller can size tiles/tokens accordingly
+      return { coords, effectiveTileSize, cols };
     }
 
-    /* Fallback path generator (desktop spiral-ish) */
+    /* fallback spiral path (desktop) kept unchanged */
     const BASE_JITTER = 12;
     function buildConnectedPath(N, containerW, containerH, tileSize, gap){
       const cx = containerW/2, cy = containerH/2;
@@ -576,22 +547,36 @@
       return coords;
     }
 
-    // Layout tiles: choose mobile-grid when isMobile
+    // layoutTiles chooses mobile grid when isMobile and sets inline sizes so CSS defined sizes won't overlap
     function layoutTiles(){
       const board = $("#board");
       if(!board) return;
       board.querySelectorAll(".tile").forEach(n=>n.remove());
       const rect = board.getBoundingClientRect();
       const isM = window.matchMedia(`(max-width: ${MOBILE_BREAK}px)`).matches;
-      const tileSize = isM ? getCssNumber('--tile-size-mobile', 36) : getCssNumber('--tile-size-desktop', 68);
+      const requestedTileSize = isM ? getCssNumber('--tile-size-mobile', 36) : getCssNumber('--tile-size-desktop', 68);
       const gap = isM ? getCssNumber('--tile-gap-mobile', 8) : getCssNumber('--tile-gap-desktop', 16);
 
       let coords = [];
+      let effectiveTileSize = requestedTileSize;
+      let cols = null;
+
       if(isM){
-        coords = buildGridPath(NUM_TILES, rect, tileSize, gap);
+        const grid = buildGridPathFixedCols(NUM_TILES, rect, requestedTileSize, gap, 6); // fixed 6 columns
+        coords = grid.coords;
+        effectiveTileSize = grid.effectiveTileSize;
+        cols = grid.cols;
+        // store for token sizing
+        mobileLayout.tileSize = effectiveTileSize;
+        mobileLayout.cols = cols;
+        mobileLayout.tokenSize = Math.max(12, Math.round(effectiveTileSize * 0.5));
       } else {
-        coords = buildConnectedPath(NUM_TILES, rect.width, rect.height, tileSize, gap);
+        coords = buildConnectedPath(NUM_TILES, rect.width, rect.height, requestedTileSize, gap);
+        mobileLayout.tileSize = null;
+        mobileLayout.tokenSize = null;
+        mobileLayout.cols = null;
       }
+
       tileCoords = coords;
 
       coords.forEach((c, idx)=>{
@@ -614,18 +599,32 @@
         }
         div.style.left = `${c.x}px`;
         div.style.top = `${c.y}px`;
-        // on mobile we keep tiles unrotated for clean grid
         const rot = (isM ? 0 : (c.ang || ((Math.random()*2-1)*6)));
         div.style.transform = `translate(-50%,-50%) rotate(${rot}deg)`;
+        // if mobile, set inline size to match computed effectiveTileSize so tiles don't visually overlap
+        if(isM && mobileLayout.tileSize){
+          div.style.width = `${mobileLayout.tileSize}px`;
+          div.style.height = `${mobileLayout.tileSize}px`;
+          div.style.borderRadius = '6px';
+        } else {
+          div.style.width = ''; div.style.height = '';
+        }
         board.appendChild(div);
       });
 
-      // align START_MARKER to tile 0
+      // align START_MARKER to tile 0 and size it to match mobile tile if present
       const START_MARKER = $("#start-marker");
       if(tileCoords && tileCoords[0] && START_MARKER){
         const t0 = tileCoords[0];
         START_MARKER.style.left = `${t0.x}px`;
         START_MARKER.style.top = `${t0.y}px`;
+        if(mobileLayout.tileSize){
+          START_MARKER.style.width = `${Math.round(mobileLayout.tileSize * 1.15)}px`;
+          START_MARKER.style.height = `${Math.round(mobileLayout.tileSize * 0.34)}px`;
+        } else {
+          START_MARKER.style.width = '';
+          START_MARKER.style.height = '';
+        }
         START_MARKER.style.display = 'grid';
       } else if(START_MARKER){
         START_MARKER.style.display = 'none';
@@ -634,7 +633,7 @@
       placeAllTokens();
     }
 
-    // Tokens: ensure tokens exist and are sized by CSS; placement uses tileCoords
+    // tokens: set inline size on mobile to match computed token size
     function ensureToken(i){
       let t = document.getElementById(`token-${i}`);
       if(!t){
@@ -645,6 +644,16 @@
         t.style.background = bg;
         if(shouldUseDarkTextForBg(bg)) t.style.color = '#000'; else t.style.color = '#fff';
         document.getElementById('board').appendChild(t);
+      }
+      // size token to match mobileLayout if mobile
+      if(mobileLayout.tokenSize){
+        t.style.width = `${mobileLayout.tokenSize}px`;
+        t.style.height = `${mobileLayout.tokenSize}px`;
+        t.style.fontSize = Math.max(10, Math.round(mobileLayout.tokenSize * 0.6)) + 'px';
+      } else {
+        t.style.width = '';
+        t.style.height = '';
+        t.style.fontSize = '';
       }
       return t;
     }
@@ -658,10 +667,7 @@
         groups.get(pos).push(i);
       });
 
-      // compute current tile size to scale offsets
-      const tileSize = window.matchMedia(`(max-width: ${MOBILE_BREAK}px)`).matches
-        ? getCssNumber('--tile-size-mobile', 36)
-        : getCssNumber('--tile-size-desktop', 68);
+      const tileSize = mobileLayout.tileSize || getCssNumber('--tile-size-desktop', 68);
 
       if(groups.has("__start")){
         const startIdxs = groups.get("__start");
@@ -671,8 +677,8 @@
         startIdxs.forEach((pi,k)=>{
           const t = ensureToken(pi);
           if(shouldUseDarkTextForBg(t.style.background)) t.style.color = '#000'; else t.style.color = '#fff';
-          const offX = ((k % 2) - 0.5) * Math.max(10, tileSize*0.32);
-          const offY = (Math.floor(k/2) - 0.5) * Math.max(10, tileSize*0.32);
+          const offX = ((k % 2) - 0.5) * Math.max(8, tileSize*0.32);
+          const offY = (Math.floor(k/2) - 0.5) * Math.max(8, tileSize*0.32);
           t.style.transform = `translate(${sx + offX}px, ${sy + offY}px)`;
         });
       }
@@ -682,7 +688,7 @@
         const center = tileCoords[pos];
         if(!center) return;
         const n = idxs.length;
-        const baseR = Math.max(10, tileSize * 0.28);
+        const baseR = Math.max(8, tileSize * 0.28);
         if(n === 1){
           const t = ensureToken(idxs[0]);
           if(shouldUseDarkTextForBg(t.style.background)) t.style.color = '#000'; else t.style.color = '#fff';
@@ -716,7 +722,6 @@
       });
     }
 
-    // movement & other game logic remain unchanged (omitted comments for brevity)
     function moveTokenStep(playerIndex, pos){
       return new Promise(resolve=>{
         const t = ensureToken(playerIndex);
@@ -827,7 +832,6 @@
       });
     }
 
-    // players/events/modals/other logic remain the same as previous versions
     function renderPlayersPanel(){
       const playersPanelEl = $("#players-panel");
       if(!playersPanelEl) return;
@@ -866,7 +870,6 @@
       }
     }
 
-    // modals, event choice, applyAttributeChanges, resolveCell, final results: reuse previous logic
     function removeFallbacks(){ document.querySelectorAll('.modal-fallback').forEach(e=>e.remove()); }
     function createModalCard(isBottom){
       removeFallbacks();
@@ -1023,7 +1026,6 @@
       }
     }
 
-    // final results and other utilities
     const SCORE_WEIGHTS = { rating: 3.0, learning: 1.5, motivation: 1.2, mental: 1.0, responsibility: 2.0 };
     function computeFinalResults(){
       const rows = state.players.map((p, i) => {
@@ -1105,7 +1107,6 @@
       btnClose.focus();
     }
 
-    // start/reset
     function startGame(){
       if(state.started) return;
       const names = getPlayerNames();
@@ -1146,11 +1147,9 @@
       updateRollState();
     }
 
-    // expose for debugging
     window.createModalCard = createModalCard;
     window.__game = { state, layoutTiles, startGame, resetGame };
 
-    // helper
     function getCssNumber(name, fallback){
       const v = getComputedStyle(document.documentElement).getPropertyValue(name);
       const n = parseFloat(v);
