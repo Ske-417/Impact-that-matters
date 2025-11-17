@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <style>
     :root{
-      --black:#000000; --white:#FFFFFF; --green:#86BB27; --green-light:#DFF3C6; --gray:#C4C4C4;
+      --black:#000000; --white:#FFFFFF; --green:#86BB27; --gray:#C4C4C4;
       --cell-size:68px;
       --tile-size: var(--cell-size);
       --tile-gap: 16px;
@@ -127,7 +127,7 @@
       renderPlayerNameInputs();
       function getPlayerNames(){ return Array.from(playerNamesWrap.querySelectorAll("input")).map((el,idx)=> el.value.trim() || `プレイヤー${idx+1}`); }
 
-      // events (kept same as earlier).
+      // events kept the same (omitted here for brevity)
       const EVENT_TEMPLATES = {
         junior: [ /* ... */ ],
         mid: [ /* ... */ ],
@@ -145,13 +145,7 @@
         if(!pl) return null;
         const stage = eventStageForPlayer(pl);
         const pool = EVENT_TEMPLATES[stage] || EVENT_TEMPLATES.junior;
-        const weights = pool.map(c => 1);
-        let r = state.rng() * weights.reduce((a,b)=>a+b,0);
-        for(let i=0;i<pool.length;i++){
-          r -= weights[i];
-          if(r <= 0) return pool[i];
-        }
-        return pool[pool.length-1];
+        return pool[Math.floor(state.rng()*pool.length)];
       }
 
       function removeFallbacks(){ document.querySelectorAll('.modal-fallback').forEach(e=>e.remove()); }
@@ -249,42 +243,44 @@
         if(tmpl.choices && Array.isArray(tmpl.choices)) await showChoiceModal(playerIndex, tmpl); else await showEventModal(playerIndex, tmpl);
       }
 
-      /* Spiral tuned for stronger visual convergence:
-         - increase 'b' slightly for tighter winding toward center
-         - reduce theta step so more samples (visible smooth turns)
-         - keep gentle perpendicular jitter so spiral remains legible and non-uniform
-         - use gentle overlap resolution that preserves the spiral ordering
-      */
+      /* Stronger convergence spiral, start at top-left, clockwise sampling */
       function buildConnectedPath(N, containerW, containerH, tileSize, gap){
         const cx = containerW/2, cy = containerH/2;
         const coords = [];
         const minCenter = tileSize + 6;
         const spacing = Math.max(tileSize + Math.round(gap*0.6), tileSize + 8);
 
-        // stronger convergence: raise bMultiplier
-        const a = tileSize * 0.85; // slightly tighter start radius
+        // make spiral converge stronger
+        const a = tileSize * 0.7;
         const baseB = spacing / (2 * Math.PI) * 0.95;
-        const bMultiplier = 1.25; // increase to make spiral wind in more quickly
+        const bMultiplier = 1.9; // stronger convergence toward the center
         const b = baseB * bMultiplier;
 
         const maxR = Math.min(containerW, containerH) * 0.44;
         const thetaMax = Math.max(4 * Math.PI, (maxR - a) / b);
-        const step = 0.06; // smaller step = smoother, more turns
 
+        // smaller step gives smoother and denser winding -> stronger visual convergence
+        const step = 0.05;
+
+        // Start angle chosen so the first (outermost) sample is near top-left.
+        const startAngle = -3 * Math.PI / 4; // -135deg -> top-left
+
+        // Sample from outer -> inner (theta decreases). We compute angle such that
+        // angle(thetaMax) == startAngle and angle decreases with theta -> clockwise from start.
         let theta = thetaMax;
         let last = null;
         while(coords.length < N - 1 && theta > 0){
           const r = a + b * theta;
-          const angle = theta - Math.PI/2;
+          const angle = (theta - thetaMax) + startAngle; // ensures first point at startAngle
           const baseX = cx + Math.cos(angle) * r;
           const baseY = cy + Math.sin(angle) * r;
 
-          // perpendicular jitter bounded (kept subtle so spiral remains clear)
+          // perpendicular jitter (very gentle) to keep organic look
           const perpX = -Math.sin(angle), perpY = Math.cos(angle);
-          const jitterMax = Math.min(12, (spacing - minCenter) * 0.6, BASE_JITTER * 0.9);
-          const jitter = (Math.random()*2 -1) * jitterMax * 0.45; // slightly smaller jitter
-          const x = Math.round(baseX + perpX * jitter + (Math.random()*2-1) * (jitterMax*0.12));
-          const y = Math.round(baseY + perpY * jitter + (Math.random()*2-1) * (jitterMax*0.12));
+          const jitterMax = Math.min(12, (spacing - minCenter) * 0.6, BASE_JITTER * 0.8);
+          const jitter = (Math.random()*2 -1) * jitterMax * 0.38;
+          const x = Math.round(baseX + perpX * jitter + (Math.random()*2-1) * (jitterMax*0.1));
+          const y = Math.round(baseY + perpY * jitter + (Math.random()*2-1) * (jitterMax*0.1));
 
           if(!last){
             coords.push({x,y,ang:(Math.random()*2-1)*6});
@@ -292,7 +288,7 @@
           } else {
             const dx = x - last.x, dy = y - last.y;
             const d = Math.hypot(dx,dy);
-            if(d >= spacing * 0.72){ // allow slightly tighter spacing inward
+            if(d >= spacing * 0.7){ // allow slightly tighter spacing inward to achieve convergence
               coords.push({x,y,ang:(Math.random()*2-1)*6});
               last = {x,y};
             }
@@ -300,12 +296,12 @@
           theta -= step;
         }
 
-        // fill if needed
+        // If still short, fill modestly toward center
         if(coords.length < N - 1){
           let i = coords.length;
           while(coords.length < N - 1){
             const t = (i / Math.max(1, N - 1)) * Math.PI * 2;
-            const r = Math.max(tileSize * 1.0, maxR * (0.45 + 0.45 * (1 - i/(N-1))));
+            const r = Math.max(tileSize * 0.9, maxR * (0.45 + 0.45 * (1 - i/(N-1))));
             const x = Math.round(cx + Math.cos(t) * r);
             const y = Math.round(cy + Math.sin(t) * r);
             coords.push({x,y,ang:(Math.random()*2-1)*6});
@@ -313,24 +309,24 @@
           }
         }
 
-        // center goal
+        // final goal exactly at center
         coords.push({x: Math.round(cx), y: Math.round(cy), ang:0});
 
-        // gentle overlap resolution while preserving spiral
+        // gentle overlap resolution preserving spiral order/shape
         enforceNoOverlapPreserveSpiral(coords, minCenter, containerW, containerH, tileSize);
 
-        // clamp
+        // clamp and return
         const clampMargin = tileSize;
         for(const c of coords){ c.x = Math.max(clampMargin, Math.min(containerW - clampMargin, c.x)); c.y = Math.max(clampMargin, Math.min(containerH - clampMargin, c.y)); }
         if(coords.length > N) coords.length = N;
         return coords;
       }
 
-      // reuse gentle repulsion from earlier, preserving spiral shape
+      // gentle repulsion that tries to preserve spiral ordering
       function enforceNoOverlapPreserveSpiral(points, minD, w, h, tileSize){
         if(!Array.isArray(points)) return;
         const centerIdx = points.length - 1;
-        const maxPasses = 60;
+        const maxPasses = 80;
         for(let pass=0; pass<maxPasses; pass++){
           let moved = false;
           for(let i=0;i<points.length;i++){
@@ -343,8 +339,8 @@
                 const overlap = (minD - d);
                 const ux = dx / d, uy = dy / d;
                 const perpX = -uy, perpY = ux;
-                const moveMain = Math.max(0.35, overlap * 0.4);
-                const movePerp = Math.min(2.0, overlap * 0.18);
+                const moveMain = Math.max(0.35, overlap * 0.38);
+                const movePerp = Math.min(2.0, overlap * 0.16);
                 if(i === centerIdx){
                   b.x = Math.round(b.x + ux * moveMain + perpX * (Math.random() - 0.5) * movePerp);
                   b.y = Math.round(b.y + uy * moveMain + perpY * (Math.random() - 0.5) * movePerp);
@@ -367,13 +363,14 @@
             }
           }
           if(!moved) break;
-          if(pass > 45) minD *= 0.998;
+          if(pass > 60) minD *= 0.998;
         }
 
+        // fallback safety
         for(let i=0;i<points.length;i++){
           for(let j=i+1;j<points.length;j++){
             const dx = points[j].x - points[i].x, dy = points[j].y - points[i].y;
-            if(Math.hypot(dx,dy) < tileSize * 0.9){
+            if(Math.hypot(dx,dy) < tileSize * 0.85){
               const rect = board.getBoundingClientRect();
               const fallback = buildSpiralGridFallback(points.length, rect.width, rect.height, tileSize, GAP);
               for(let k=0;k<points.length && k<fallback.length;k++){
@@ -402,7 +399,7 @@
         return coords;
       }
 
-      // tile layout and START align
+      // tile layout and START alignment: ensure START at left-top (tile 0) and path clockwise
       function layoutTiles(){
         board.querySelectorAll(".tile").forEach(n=>n.remove());
         const rect = board.getBoundingClientRect();
@@ -422,7 +419,17 @@
           div.style.transform = `translate(-50%,-50%) rotate(${c.ang || 0}deg)`;
           board.appendChild(div);
         });
-        if(tileCoords && tileCoords[0]){ const t0 = tileCoords[0]; START_MARKER.style.left = `${t0.x}px`; START_MARKER.style.top = `${t0.y}px`; START_MARKER.style.display = 'grid'; } else { START_MARKER.style.display = 'none'; }
+
+        // place START marker at tile 0 (outermost, top-left)
+        if(tileCoords && tileCoords[0]){
+          const t0 = tileCoords[0];
+          START_MARKER.style.left = `${t0.x}px`;
+          START_MARKER.style.top = `${t0.y}px`;
+          START_MARKER.style.display = 'grid';
+        } else {
+          START_MARKER.style.display = 'none';
+        }
+
         placeAllTokens();
       }
 
@@ -474,6 +481,7 @@
 
       function pushLog(text, kind){ const p = document.createElement("div"); p.textContent = `[${(new Date()).toLocaleTimeString()}] ${text}`; if(kind === "ok") p.style.color = "green"; if(kind === "bad") p.style.color = "#333"; logEl.appendChild(p); logEl.scrollTop = logEl.scrollHeight; }
 
+      // movement/game loop unchanged...
       function moveTokenStep(playerIndex, pos){
         return new Promise(resolve=>{
           const t = ensureToken(playerIndex);
@@ -525,7 +533,6 @@
       }
 
       function updateRollState(){ const rbtn = document.getElementById('btn-roll'); if(!rbtn) return; rbtn.disabled = !(state.started && !state.animating); }
-
       function nextPlayerTurn(){ const total = state.players.length; if(total === 0) return; let i = state.currentPlayerIndex; for(let c=0;c<total;c++){ i = (i+1) % total; const cand = state.players[i]; if(!cand) continue; if(cand.finished) continue; state.currentPlayerIndex = i; statCurrentEl.textContent = state.players[state.currentPlayerIndex].name; highlightActive(); return; } statCurrentEl.textContent = "-"; }
       function highlightActive(){ Array.from(playersPanelEl.children).forEach((row, idx)=>{ if(idx === state.currentPlayerIndex) row.style.boxShadow = "0 0 0 3px rgba(134,187,39,0.12) inset"; else row.style.boxShadow = ""; }); highlightActiveToken(); }
       function highlightActiveToken(){ state.players.forEach((pl,i)=>{ const t = document.getElementById(`token-${i}`); if(!t) return; if(i === state.currentPlayerIndex) t.style.outline = "3px solid rgba(0,0,0,0.08)"; else t.style.outline = "none"; }); }
@@ -540,7 +547,7 @@
 
       attachHandlers();
       layoutTiles();
-      pushLog("UI ready — 螺旋の収束をやや強め、ターン（らせん）の見やすさを高めました。");
+      pushLog("UI ready — 収束率を強め、スタートを左上、時計回りの導線に合わせました。");
     }
   })();
   </script>
