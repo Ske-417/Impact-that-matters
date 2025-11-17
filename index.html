@@ -16,23 +16,35 @@
       --token-move-ms:140ms; /* per-tile move duration */
     }
     *{box-sizing:border-box}
+
+    /* Make all text bold as requested */
+    /* Use !important to override any specific lighter rules remaining in the file */
+    html, body, body * { font-weight: 900 !important; }
+
     html,body{height:100%; margin:0}
     body{
       display:flex; flex-direction:column; min-height:100vh; margin:0;
       font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,"Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic","Meiryo",sans-serif;
-      color:var(--black); background:var(--white); font-weight:900;
+      color:var(--black); background:var(--white);
     }
 
     /* Appbar */
     .appbar{position:sticky; top:0; z-index:1100; background:var(--white); border-bottom:1px solid rgba(0,0,0,0.06); display:flex; justify-content:center}
     .toolbar{width:100%; max-width:1300px; display:flex; gap:10px; align-items:center; padding:8px}
-    .title{font-weight:900; font-size:15px; margin-right:auto; color:var(--black)}
+    .title{font-size:15px; margin-right:auto; color:var(--black)}
     .group{display:flex; gap:8px; align-items:center; padding:6px 8px; border:1px solid var(--gray); border-radius:10px; background:var(--white)}
-    select,input[type="text"]{padding:8px 10px; border-radius:8px; border:1px solid var(--gray)}
+    select,input[type="text"]{padding:8px 10px; border-radius:8px; border:1px solid var(--gray); font-weight:900}
 
     button{padding:8px 12px; border-radius:8px; border:1px solid var(--gray); background:var(--white); cursor:pointer}
     button.primary{background:var(--green); color:var(--white); border-color:transparent}
-    #btn-roll, #btn-reset{ font-weight:900; }
+    #btn-roll, #btn-reset{ }
+
+    /* Focus styles: ensure green outline on focus */
+    button:focus, button:focus-visible, .choice-btn:focus, .choice-btn:focus-visible, input:focus, select:focus {
+      outline: 3px solid var(--green);
+      outline-offset: 2px;
+      box-shadow: 0 0 0 4px rgba(134,187,39,0.08);
+    }
 
     .wrap{width:100%; max-width:1300px; margin:18px auto; display:grid; grid-template-columns:3fr 1fr; gap:12px; align-items:start; padding:0 12px}
     @media (max-width:980px){ .wrap{grid-template-columns:1fr} }
@@ -49,12 +61,12 @@
       position:absolute;
       width:var(--tile-size);
       height:var(--tile-size);
-      background:#f6f8fb; /* light background so tiles are visible on white board */
+      background:#f6f8fb;
       border:2px solid rgba(0,0,0,0.06);
       border-radius:8px;
       transform: translate(-50%,-50%);
       display:grid; place-items:center;
-      font-weight:900; color:var(--black);
+      color:var(--black);
       box-shadow: 0 6px 14px rgba(14,20,25,0.06);
       transition: transform 120ms linear;
       z-index:2;
@@ -62,20 +74,19 @@
     }
     .tile:hover{ box-shadow: 0 10px 26px rgba(14,20,25,0.12); }
 
-    /* eventish tiles: green border, no inside text per request */
+    /* eventish tiles: green border */
     .tile.event,
     .tile.client,
     .tile.workshop,
     .tile.bonus,
     .tile.penalty {
       border:3px solid var(--green);
-      background:#f7fff6; /* subtle green tint */
+      background:#f7fff6;
     }
     .tile.goal{
       background: var(--green);
       color: #fff;
       border-color: var(--green);
-      font-weight:900;
       box-shadow: 0 10px 30px rgba(134,187,39,0.18);
     }
 
@@ -86,22 +97,22 @@
       height:calc(var(--tile-size) * 0.28);
       display:grid; place-items:center;
       border-radius:6px; border:1px solid rgba(0,0,0,0.08);
-      color:var(--black); font-weight:900; background:rgba(134,187,39,0.08);
+      color:var(--black); background:rgba(134,187,39,0.08);
       z-index:6;
-      transform: translate(-50%,-125%); /* positioned above the tile */
+      transform: translate(-50%,-125%);
       pointer-events:none;
       font-size:12px;
     }
 
     .token{
       position:absolute;
-      width:var(--token-size); height:var(--token-size); border-radius:50%; display:grid; place-items:center; font-weight:900;
+      width:var(--token-size); height:var(--token-size); border-radius:50%; display:grid; place-items:center;
       border:2px solid #000; transform: translate(-50%,-50%);
       box-shadow:0 8px 20px rgba(0,0,0,0.08);
       pointer-events:none;
       transition: transform var(--token-move-ms) linear;
       z-index:30;
-      color: #fff; /* default, may be overridden via JS based on background */
+      color: #fff;
     }
     .token.finished{ opacity:0.85; border-color:var(--gray) }
 
@@ -109,7 +120,7 @@
     .stat{display:flex; justify-content:space-between; padding:10px; border-radius:10px}
     .players{margin-top:10px}
     .player-row{display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:8px; border-radius:10px; border:1px solid var(--gray); align-items:center}
-    .attr-list{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; font-weight:700}
+    .attr-list{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;}
     .log{margin-top:12px; border:1px solid var(--gray); border-radius:10px; padding:10px; max-height:300px; overflow:auto; font-size:13px}
 
     /* events panel */
@@ -122,16 +133,16 @@
     /* modal fallback */
     .modal-fallback{position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.42); z-index:9999}
     .modal-fallback .card{background:#fff; padding:16px; border-radius:10px; box-shadow:0 12px 30px rgba(0,0,0,0.12); max-width:720px}
-    .event-title{font-weight:900; margin-bottom:8px}
+    .event-title{margin-bottom:8px}
     .event-body{white-space:pre-wrap; margin-bottom:12px; line-height:1.5}
-    .event-changes{font-weight:700; color:var(--green)}
+    .event-changes{color:var(--green)}
     .choice-btn{margin-right:8px}
 
     /* final results table */
     .results-table{width:100%; border-collapse:collapse; margin-top:8px}
-    .results-table th, .results-table td{padding:8px; border-bottom:1px solid #eee; text-align:left; font-weight:700}
+    .results-table th, .results-table td{padding:8px; border-bottom:1px solid #eee; text-align:left;}
     .results-winner{background:linear-gradient(90deg, rgba(134,187,39,0.06), rgba(134,187,39,0.02));}
-    .small-muted{font-weight:400; color:#666; font-size:13px}
+    .small-muted{color:#666; font-size:13px}
   </style>
 </head>
 <body>
@@ -211,7 +222,6 @@
     function parseColorToRgb(str){
       if(!str) return null;
       str = String(str).trim();
-      // hex: #rrggbb or #rgb
       if(str[0] === '#'){
         let hex = str.slice(1);
         if(hex.length === 3) hex = hex.split('').map(ch => ch + ch).join('');
@@ -221,7 +231,6 @@
         const b = parseInt(hex.slice(4,6),16);
         return { r, g, b };
       }
-      // rgb(a): rgb(r,g,b) or rgba(r,g,b,a)
       const m = str.match(/rgba?\(\s*([0-9.]+)[\s,]+([0-9.]+)[\s,]+([0-9.]+)(?:[\s,\/]+[0-9.]+)?\s*\)/i);
       if(m){
         return { r: Math.round(Number(m[1])), g: Math.round(Number(m[2])), b: Math.round(Number(m[3])) };
@@ -230,20 +239,15 @@
     }
     function perceivedLuminance(rgb){
       if(!rgb) return 0;
-      // sRGB luminance approximation
       const r = rgb.r/255, g = rgb.g/255, b = rgb.b/255;
-      // linearize
       const lin = v => (v <= 0.03928) ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4);
       const R = lin(r), G = lin(g), B = lin(b);
-      // relative luminance
-      return 0.2126*R + 0.7152*G + 0.0722*B; // 0 (dark) .. 1 (bright)
+      return 0.2126*R + 0.7152*G + 0.0722*B;
     }
     function shouldUseDarkTextForBg(bg){
       const rgb = parseColorToRgb(bg);
       if(!rgb) return false;
       const lum = perceivedLuminance(rgb);
-      // threshold: use black text when background is bright enough.
-      // 0.55 is a conservative threshold for pale green / light gray.
       return lum > 0.55;
     }
 
@@ -332,7 +336,6 @@
         const stage = eventStageForPlayer(pl);
         const pool = (EVENT_TEMPLATES && EVENT_TEMPLATES[stage]) ? EVENT_TEMPLATES[stage] : [];
         if(!pool || !pool.length) return null;
-        // weighting: prefer events that address low attributes
         const weights = pool.map(c => {
           let w = 1;
           const ch = c.changes || {};
@@ -408,26 +411,20 @@
           btn.textContent = choice.label;
 
           btn.addEventListener('click', async ()=> {
-            // Close preview overlay
             overlay.remove();
 
             const isOrderChoice = /受注/.test(choice.label);
             if(isOrderChoice){
-              // 50/50 success/failure
               const success = Math.random() < 0.5;
               if(success){
-                // success: apply defined changes and show resultText as before
                 applyAttributeChanges(playerIndex, choice.changes || {});
                 await showCard(choice.resultText || "受注に成功しました", "");
               } else {
-                // failure: show failure modal and grant small "learning" bonus for failing experience
-                // Grant +2 learning (tweakable)
                 applyAttributeChanges(playerIndex, { learning: 2 });
                 const failText = choice.resultText ? `${choice.resultText}\n\nしかし失敗からも学びがありました。学び +2` : "失敗からも学んだ！ 学び +2";
                 await showCard("失敗からも学んだ！", failText);
               }
             } else {
-              // not an order choice: normal behavior
               applyAttributeChanges(playerIndex, choice.changes || {});
               await showCard(choice.resultText || "選択結果", "");
             }
@@ -505,7 +502,6 @@
             }
             startIdx = best;
           } else {
-            // prefer point close to top-left to make tile 0 be left-top-ish
             let best = 0, bestD = Infinity;
             const topLeft = {x: ring.l + 6, y: ring.t + 6};
             for(let k=0;k<pts.length;k++){
@@ -633,7 +629,6 @@
           const sy = (sRect.top - bRect.top) + sRect.height/2;
           startIdxs.forEach((pi,k)=>{
             const t = ensureToken(pi);
-            // if background has changed or palette updated, ensure contrast still valid
             if(shouldUseDarkTextForBg(t.style.background)) t.style.color = '#000'; else t.style.color = '#fff';
             const offX = ((k % 2) - 0.5) * 18;
             const offY = (Math.floor(k/2) - 0.5) * 18;
@@ -985,9 +980,9 @@
     }
 
     // init is attached at top via load listener
-    // helper declaration order
-    function renderEventsPanel(){ /* placeholder in case of external templates preview */ }
-    function getPlayerNames(){ return []; }
+    // placeholder helpers to avoid console errors if referenced before defined
+    function renderEventsPanel(){ if(typeof EVENT_TEMPLATES === 'object' && EVENT_TEMPLATES) { /* actual render done in init */ } }
+    function getPlayerNames(){ return Array.from(document.querySelectorAll('#player-names input')).map((el,idx)=> el.value.trim() || `プレイヤー${idx+1}`); }
   })();
   </script>
 </body>
