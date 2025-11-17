@@ -217,7 +217,7 @@
       .modal-bottom .card { height:88vh; padding:18px; border-radius:12px 12px 0 0; }
       .choice-btn{ display:block; width:100%; padding:14px 12px; margin-bottom:10px; border-radius:10px; font-size:15px; text-align:center; }
 
-      /* rules content style (read-only plain text) */
+      /* rules content style (plain white background, bold text) */
       .rules-content {
         width:100%;
         min-height:220px;
@@ -227,7 +227,7 @@
         font-size:14px;
         font-weight:900;
         font-family:inherit;
-        background:#f5f5f5;
+        background:#ffffff; /* plain white per request */
         white-space:pre-wrap;
         color:#222;
       }
@@ -240,7 +240,7 @@
       :focus { outline: 4px solid var(--green); outline-offset:3px; box-shadow: 0 0 0 8px var(--green-alpha); }
     }
 
-    /* Desktop modal rules content */
+    /* Desktop modal rules content - plain white background and bold */
     .rules-content {
       width:100%;
       min-height:260px;
@@ -250,7 +250,7 @@
       font-size:14px;
       font-weight:900;
       font-family:inherit;
-      background:#f9f9f9;
+      background:#ffffff; /* plain white */
       white-space:pre-wrap;
       color:#222;
     }
@@ -985,18 +985,17 @@
       close.focus();
     }
 
-    // --- RULES modal (read-only plain text) ---
+    // --- RULES modal (read-only plain text "Bon!" in bold on white background) ---
     function openRulesModal(){
       const isBottom = isMobile;
       const { overlay, card } = createModalCard(isBottom);
       const h = document.createElement('div'); h.className='event-title'; h.textContent = '遊び方 / ルール';
       const body = document.createElement('div'); body.className = 'event-body';
-      // plain non-editable text block with bold initial text
+      // plain non-editable text block with bold "Bon!"
       const content = document.createElement('div');
       content.className = 'rules-content';
-      // use <strong> to ensure bold rendering; we also set font-weight in CSS but keep <strong> as requested
       const strong = document.createElement('strong');
-      strong.textContent = 'ここにルールを入れる';
+      strong.textContent = 'Bon！';
       content.appendChild(strong);
       body.appendChild(content);
 
@@ -1006,7 +1005,7 @@
       actions.appendChild(close);
 
       card.appendChild(h); card.appendChild(body); card.appendChild(actions);
-      // focus close button so users can't accidentally focus text
+      // focus close button so users don't accidentally focus the text
       close.focus();
     }
 
