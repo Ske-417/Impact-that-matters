@@ -7,21 +7,28 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <style>
     :root{
-      --black:#000000; --white:#FFFFFF; --green:#86BB27; --green-alpha: rgba(134,187,39,0.12);
-      --green-light:#DFF3C6; --gray:#C4C4C4;
-      --cell-size:68px; /* default desktop tile size */
-      --tile-size: var(--cell-size);
-      --tile-gap: 16px; /* baseline gap */
-      --board-padding: 24px;
-      --token-size:30px;
-      --token-move-ms:140ms; /* per-tile move duration */
-      --bottom-bar-height:64px;
+      --black:#000000;
+      --white:#FFFFFF;
+      --green:#86BB27;
+      --green-alpha: rgba(134,187,39,0.12);
+      --green-light:#DFF3C6;
+      --gray:#C4C4C4;
+
+      /* Desktop defaults (must not be touched by mobile overrides) */
+      --tile-size-desktop: 68px;
+      --token-size-desktop: 30px;
+      --tile-gap-desktop: 16px;
+      --board-padding-desktop: 24px;
+      --token-move-ms:140ms;
+
+      /* Mobile defaults (used only inside media query) */
       --mobile-breakpoint: 680px;
+      --bottom-bar-height-mobile: 72px;
     }
 
-    /* GLOBAL */
+    /* Global reset */
     *{box-sizing:border-box}
-    /* Make all text bold */
+    /* Force bold everywhere per request */
     html, body, body * { font-weight: 900 !important; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
 
     html,body{height:100%; margin:0}
@@ -32,42 +39,33 @@
       -webkit-tap-highlight-color: rgba(0,0,0,0);
     }
 
-    /* Appbar */
+    /* ---- Appbar / toolbar ---- */
     .appbar{position:sticky; top:0; z-index:1200; background:var(--white); border-bottom:1px solid rgba(0,0,0,0.06); display:flex; justify-content:center}
     .toolbar{width:100%; max-width:1300px; display:flex; gap:10px; align-items:center; padding:8px}
     .title{font-size:15px; margin-right:auto; color:var(--black)}
     .group{display:flex; gap:8px; align-items:center; padding:6px 8px; border:1px solid var(--gray); border-radius:10px; background:var(--white)}
     select,input[type="text"]{padding:8px 10px; border-radius:8px; border:1px solid var(--gray); font-weight:900}
 
-    button{padding:8px 12px; border-radius:8px; border:1px solid var(--gray); background:var(--white); cursor:pointer; -webkit-tap-highlight-color: transparent}
+    button{padding:8px 12px; border-radius:8px; border:1px solid var(--gray); background:var(--white); cursor:pointer}
     button.primary{background:var(--green); color:var(--white); border-color:transparent}
-    #btn-roll, #btn-reset{ font-weight:900; }
 
     /* focus styles: always green outline on focus */
     :focus { outline: 3px solid var(--green); outline-offset:2px; box-shadow: 0 0 0 6px var(--green-alpha); }
 
     .wrap{width:100%; max-width:1300px; margin:18px auto; display:grid; grid-template-columns:3fr 1fr; gap:12px; align-items:start; padding:0 12px}
-    @media (max-width: var(--mobile-breakpoint)){ .wrap{grid-template-columns:1fr; margin:10px auto; padding:0 8px; gap:8px} }
+    @media (max-width: 980px){ .wrap{grid-template-columns:1fr} }
 
-    /* Board */
-    .board-wrap{background:var(--white); border:2px solid var(--gray); border-radius:14px; padding:var(--board-padding); position:relative; overflow:auto; min-height:520px}
+    /* ---- Board / tiles (desktop variables) ---- */
+    .board-wrap{background:var(--white); border:2px solid var(--gray); border-radius:14px; padding:var(--board-padding-desktop); position:relative; overflow:auto; min-height:520px}
     .board{
       position:relative; width:100%; height:820px; touch-action:none;
       background: linear-gradient(180deg, rgba(0,0,0,0.01), rgba(0,0,0,0.00));
     }
-    @media (max-width: var(--mobile-breakpoint)){
-      /* make board area bigger and avoid being crowded by header/bottom bar */
-      .board { height: calc(100vh - var(--bottom-bar-height) - 120px); }
-      .appbar .title{ font-size:13px; }
-      .appbar .group{ padding:6px; gap:6px; }
-      .board-wrap{ padding:12px; min-height: calc(100vh - var(--bottom-bar-height) - 160px); }
-    }
 
-    /* tiles */
     .tile{
       position:absolute;
-      width:var(--tile-size);
-      height:var(--tile-size);
+      width:var(--tile-size-desktop);
+      height:var(--tile-size-desktop);
       background:#f6f8fb;
       border:2px solid rgba(0,0,0,0.06);
       border-radius:8px;
@@ -99,11 +97,10 @@
       box-shadow: 0 10px 30px rgba(134,187,39,0.18);
     }
 
-    /* START_MARKER */
     .start-marker{
       position:absolute;
-      width:calc(var(--tile-size) * 0.95);
-      height:calc(var(--tile-size) * 0.28);
+      width:calc(var(--tile-size-desktop) * 0.9);
+      height:calc(var(--tile-size-desktop) * 0.28);
       display:grid; place-items:center;
       border-radius:6px; border:1px solid rgba(0,0,0,0.08);
       color:var(--black); background:rgba(134,187,39,0.08);
@@ -113,10 +110,9 @@
       font-size:12px;
     }
 
-    /* token */
     .token{
       position:absolute;
-      width:var(--token-size); height:var(--token-size); border-radius:50%; display:grid; place-items:center;
+      width:var(--token-size-desktop); height:var(--token-size-desktop); border-radius:50%; display:grid; place-items:center;
       border:2px solid #000; transform: translate(-50%,-50%);
       box-shadow:0 8px 20px rgba(0,0,0,0.08);
       pointer-events:none;
@@ -127,7 +123,7 @@
     }
     .token.finished{ opacity:0.85; border-color:var(--gray) }
 
-    /* sidebar */
+    /* Sidebar / panels (desktop) */
     .sidebar{border:2px solid var(--gray); border-radius:14px; padding:14px}
     .stat{display:flex; justify-content:space-between; padding:10px; border-radius:10px}
     .players{margin-top:10px}
@@ -135,17 +131,15 @@
     .attr-list{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;}
     .log{margin-top:12px; border:1px solid var(--gray); border-radius:10px; padding:10px; max-height:300px; overflow:auto; font-size:13px}
 
-    /* events panel */
     .events-panel{margin-top:12px}
     .events-tabs{display:flex; gap:6px; margin-bottom:8px}
     .events-list{max-height:260px; overflow:auto; border:1px solid #eee; border-radius:8px; padding:6px}
     .event-item{padding:8px; border-bottom:1px dashed #eee; cursor:pointer}
     .event-item:hover{background:#fbfffb}
 
-    /* modal / bottom-sheet */
+    /* Modal defaults */
     .modal-fallback{position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.42); z-index:9999}
     .modal-fallback .card{background:#fff; padding:18px; border-radius:12px; box-shadow:0 12px 30px rgba(0,0,0,0.12); max-width:720px; width:100%; max-height:88vh; overflow:auto; font-size:15px}
-    /* mobile bottom-sheet variant */
     .modal-bottom { align-items:flex-end; }
     .modal-bottom .card { border-radius:12px 12px 0 0; max-width:none; height:88vh; padding:18px; }
 
@@ -154,42 +148,98 @@
     .event-changes{color:var(--green)}
     .choice-btn{margin-right:8px}
 
-    /* final results */
     .results-table{width:100%; border-collapse:collapse; margin-top:8px}
     .results-table th, .results-table td{padding:8px; border-bottom:1px solid #eee; text-align:left;}
     .results-winner{background:linear-gradient(90deg, rgba(134,187,39,0.06), rgba(134,187,39,0.02));}
     .small-muted{color:#666; font-size:13px}
 
-    /* bottom-bar for mobile */
+    /* Bottom bar (mobile only, hidden on desktop) */
     .bottom-bar { display:none; }
-    @media (max-width: var(--mobile-breakpoint)){
-      /* increase touch targets, spacing, and font sizes for readability */
-      :root { --tile-size: 62px; --token-size:34px; --tile-gap:14px; --board-padding:12px; --bottom-bar-height:72px; }
-      .sidebar { display: none; }
-      .bottom-bar { display:flex; position:fixed; inset:auto 0 0 0; height:var(--bottom-bar-height); background:var(--white); border-top:1px solid rgba(0,0,0,0.06); align-items:center; justify-content:space-around; z-index:1300; padding:8px 12px; gap:8px; }
-      .bottom-bar button{ min-width:64px; height:48px; border-radius:10px; padding:10px 12px; font-size:15px; display:flex; align-items:center; justify-content:center; gap:8px; }
+
+    /* ============================
+       MOBILE OVERRIDES (ONLY)
+       ============================ */
+    @media (max-width: var(--mobile-breakpoint)) {
+      /*
+        Important: All mobile-specific changes go inside this media query so desktop is untouched.
+        We're allowed to change layout/size aggressively for mobile as user requested.
+      */
+
+      /* Larger tap targets and simplified header */
+      :root {
+        --tile-size-mobile: 48px;      /* make tiles smaller to show more board area */
+        --token-size-mobile: 24px;
+        --tile-gap-mobile: 10px;
+        --board-padding-mobile: 10px;
+        --bottom-bar-height-mobile: 76px;
+      }
+
+      /* Layout simplification */
+      .wrap { grid-template-columns:1fr; margin:0; padding:0 6px; gap:8px; }
       .appbar { position:fixed; top:0; left:0; right:0; z-index:1400; }
-      .wrap { margin-top: var(--bottom-bar-height); } /* prevent content under appbar */
-      .appbar .toolbar { padding:8px 10px; }
-      .appbar .group{ display:none; } /* hide extra controls to free space */
-      .appbar .title{ margin-right:0; padding-left:10px; }
-      .board { border-radius:10px; }
+      .toolbar { padding:8px 10px; align-items:center; gap:8px; }
+      .group#control-buttons { display:none; } /* hide desktop controls in header */
+      .group#desktop-controls { display:none; }
+      #player-names { display:none; }
 
-      /* modal readability */
-      .modal-fallback .card { padding:18px; font-size:17px; }
-      .event-title { font-size:20px; }
-      .event-body { font-size:16px; }
+      /* Board sizing to fit above bottom bar and below header */
+      .board-wrap{ padding:var(--board-padding-mobile); min-height: calc(100vh - var(--bottom-bar-height-mobile) - 120px); border-radius:10px; }
+      .board { height: calc(100vh - var(--bottom-bar-height-mobile) - 140px); }
 
-      /* choice buttons full width stack */
-      .choice-btn { display:block; width:100%; padding:14px 12px; margin-bottom:10px; border-radius:10px; font-size:15px; text-align:center; }
+      /* Smaller tiles for better fit, but text size slightly bigger for legibility */
+      .tile{
+        width: var(--tile-size-mobile);
+        height: var(--tile-size-mobile);
+        font-size:13px;
+        padding:6px;
+        border-radius:8px;
+      }
 
-      /* enlarge log and player list within bottom sheet clones */
+      /* tokens smaller but more legible */
+      .token{
+        width: var(--token-size-mobile);
+        height: var(--token-size-mobile);
+        font-size:13px;
+      }
+
+      /* Hide sidebar and enlarge bottom bar */
+      .sidebar { display:none; }
+
+      .bottom-bar {
+        display:flex;
+        position:fixed;
+        inset:auto 0 0 0;
+        height: var(--bottom-bar-height-mobile);
+        background:var(--white);
+        border-top:1px solid rgba(0,0,0,0.06);
+        align-items:center;
+        justify-content:space-around;
+        z-index:1500;
+        padding:8px 10px;
+        gap:8px;
+      }
+      .bottom-bar button{ min-width:64px; height:48px; border-radius:10px; padding:10px 12px; font-size:15px; display:flex; align-items:center; justify-content:center; gap:8px; }
+
+      /* Mobile modal: full-height bottom sheet with large buttons */
+      .modal-fallback .card{ padding:18px; font-size:16px; border-radius:12px; }
+      .modal-bottom .card { height:88vh; padding:18px; border-radius:12px 12px 0 0; }
+      .choice-btn{ display:block; width:100%; padding:14px 12px; margin-bottom:10px; border-radius:10px; font-size:15px; text-align:center; }
+
+      /* make modal content more readable */
+      .event-title{ font-size:20px; margin-bottom:12px; }
+      .event-body{ font-size:16px; line-height:1.6; }
+
+      /* increase space for start marker and board padding */
+      .start-marker { width: calc(var(--tile-size-mobile) * 1.2); height: calc(var(--tile-size-mobile) * 0.36); transform: translate(-50%,-150%); }
+
+      /* ensure focus ring is large and green on mobile */
+      :focus { outline: 4px solid var(--green); outline-offset:3px; box-shadow: 0 0 0 8px var(--green-alpha); }
+
+      /* Slight tweaks to cloned panels inside bottom sheet */
       .modal-bottom .card .player-row { padding:12px; gap:10px; }
       .modal-bottom .card .log { max-height:60vh; overflow:auto; padding:12px; }
-
-      /* slightly larger tiles text for legibility */
-      .tile { font-size:13px; padding:6px; }
     }
+
   </style>
 </head>
 <body>
@@ -204,7 +254,7 @@
 
       <div class="group" id="player-names" aria-label="プレイヤー名入力"></div>
 
-      <div class="group" style="margin-left:auto;" id="control-buttons">
+      <div class="group" id="control-buttons" style="margin-left:auto;">
         <div class="dice" id="dice" aria-live="polite" aria-atomic="true">-</div>
         <button id="btn-start" class="primary">開始</button>
         <button id="btn-roll" disabled>サイコロ</button>
@@ -215,13 +265,13 @@
   </div>
 
   <div class="wrap" id="wrap">
-    <div class="board-wrap" aria-hidden="false">
+    <div class="board-wrap">
       <div class="board" id="board" aria-label="ボード">
         <div class="start-marker" id="start-marker">START</div>
       </div>
     </div>
 
-    <aside class="sidebar" id="sidebar" aria-hidden="false">
+    <aside class="sidebar" id="sidebar">
       <div class="stat"><span>ターン</span><strong id="stat-turn">0</strong></div>
       <div class="stat"><span>手番</span><strong id="stat-current">-</strong></div>
 
@@ -246,12 +296,14 @@
 
   <script>
   (function(){
+    // Initialization on load
     window.addEventListener('load', init);
 
+    // Mobile breakpoint must match CSS
     const MOBILE_BREAK = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--mobile-breakpoint')) || 680;
     const NUM_TILES = 60;
 
-    // Color helpers used for token contrast
+    // Color helpers for token text contrast
     function parseColorToRgb(str){
       if(!str) return null;
       str = String(str).trim();
@@ -284,7 +336,7 @@
       return lum > 0.55;
     }
 
-    // Attempt to load external templates, but do not block UI if absent
+    // Try to load event templates but don't block UI
     let EVENT_TEMPLATES = null;
     async function loadEventTemplatesExternal(){
       try{
@@ -294,7 +346,6 @@
         if(!json || (!json.junior && !json.mid && !json.senior)) throw new Error('Invalid JSON shape');
         return json;
       }catch(e){
-        // non-blocking
         return null;
       }
     }
@@ -302,10 +353,8 @@
     const $ = s => document.querySelector(s);
     let isMobile = window.matchMedia(`(max-width: ${MOBILE_BREAK}px)`).matches;
 
-    // state
     const state = { started:false, turn:0, currentPlayerIndex:0, players:[], animating:false, rng: Math.random };
 
-    // tile coords
     let tileCoords = [];
 
     async function init(){
@@ -317,15 +366,13 @@
       renderEventsPanel();
       updateBottomBarVisibility();
       updateRollState();
-      window.addEventListener('resize', resizeHandler);
+      window.addEventListener('resize', onResize);
     }
 
-    function resizeHandler(){
+    function onResize(){
       const prev = isMobile;
       isMobile = window.matchMedia(`(max-width: ${MOBILE_BREAK}px)`).matches;
-      if(prev !== isMobile){
-        updateBottomBarVisibility();
-      }
+      if(prev !== isMobile) updateBottomBarVisibility();
       layoutTiles();
     }
 
@@ -346,7 +393,6 @@
       if(bbLog) bbLog.addEventListener('click', ()=> openBottomSheet('log'));
       if(bbResults) bbResults.addEventListener('click', showFinalResultsModal);
 
-      // keyboard convenience
       window.addEventListener("keydown", (e)=>{
         if((e.key === " " || e.key === "Enter") && state.started && !state.animating){
           e.preventDefault();
@@ -361,7 +407,6 @@
       if(isMobile){
         bb.setAttribute('aria-hidden','false');
         bb.style.display = 'flex';
-        // hide desktop-only controls to reduce clutter
         const desktopControls = document.getElementById('desktop-controls');
         if(desktopControls) desktopControls.style.display = 'none';
         const playerNames = document.getElementById('player-names');
@@ -376,7 +421,6 @@
       }
     }
 
-    // player name inputs
     function renderPlayerNameInputs(){
       const wrap = $("#player-names");
       if(!wrap) return;
@@ -404,13 +448,14 @@
       logEl.scrollTop = logEl.scrollHeight;
     }
 
-    /* Path generation - same algorithm but uses current CSS vars (tile size) */
+    /* === Path generation (keeps desktop path behavior) === */
     const BASE_JITTER = 12;
     function getCssNumber(name, fallback){
       const v = getComputedStyle(document.documentElement).getPropertyValue(name);
       const n = parseFloat(v);
       return Number.isFinite(n) ? n : fallback;
     }
+
     function buildConnectedPath(N, containerW, containerH, tileSize, gap){
       const cx = containerW/2, cy = containerH/2;
       const coords = [];
@@ -509,14 +554,19 @@
       return coords;
     }
 
-    // layout tiles using current CSS values
+    // Layout tiles reading appropriate CSS vars (desktop vs mobile)
     function layoutTiles(){
       const board = $("#board");
       if(!board) return;
       board.querySelectorAll(".tile").forEach(n=>n.remove());
       const rect = board.getBoundingClientRect();
-      const tileSize = getCssNumber('--tile-size', 68);
-      const gap = getCssNumber('--tile-gap', 16);
+      // choose tile size and gap based on media query
+      const tileSize = window.matchMedia(`(max-width: ${MOBILE_BREAK}px)`).matches
+        ? getCssNumber('--tile-size-mobile', 48)
+        : getCssNumber('--tile-size-desktop', 68);
+      const gap = window.matchMedia(`(max-width: ${MOBILE_BREAK}px)`).matches
+        ? getCssNumber('--tile-gap-mobile', 10)
+        : getCssNumber('--tile-gap-desktop', 16);
       const coords = buildConnectedPath(NUM_TILES, rect.width, rect.height, tileSize, gap);
       tileCoords = coords;
       coords.forEach((c, idx)=>{
@@ -544,7 +594,6 @@
         board.appendChild(div);
       });
 
-      // align START_MARKER to tile 0
       const START_MARKER = $("#start-marker");
       if(tileCoords && tileCoords[0] && START_MARKER){
         const t0 = tileCoords[0];
@@ -558,12 +607,13 @@
       placeAllTokens();
     }
 
-    // Tokens
+    // Token creation & placement with contrast handling
     function ensureToken(i){
       let t = document.getElementById(`token-${i}`);
       if(!t){
         t = document.createElement("div"); t.className = "token"; t.id = `token-${i}`;
         t.textContent = String(i+1);
+        // palette: desktop and mobile share palette but sizes differ by CSS
         const palette = ["#86BB27","#DFF3C6","#C4C4C4","#2B2B2B"];
         const bg = palette[i % palette.length];
         t.style.background = bg;
@@ -601,7 +651,7 @@
         const center = tileCoords[pos];
         if(!center) return;
         const n = idxs.length;
-        const baseR = Math.max(16, getCssNumber('--tile-size',68) * 0.28);
+        const baseR = Math.max(16, getCssNumber(window.matchMedia(`(max-width: ${MOBILE_BREAK}px)`).matches ? '--tile-size-mobile' : '--tile-size-desktop', 48) * 0.28);
         if(n === 1){
           const t = ensureToken(idxs[0]);
           if(shouldUseDarkTextForBg(t.style.background)) t.style.color = '#000'; else t.style.color = '#fff';
@@ -635,7 +685,7 @@
       });
     }
 
-    // Movement animation (unchanged)
+    // Movement animation (keeps same behavior)
     function moveTokenStep(playerIndex, pos){
       return new Promise(resolve=>{
         const t = ensureToken(playerIndex);
@@ -694,7 +744,7 @@
       finally{ state.animating = false; updateRollState(); }
     }
 
-    // roll / state
+    // Roll / turn logic + UI sync for mobile bottom bar
     function updateRollState(){
       const rbtn = document.getElementById('btn-roll');
       const bbRoll = document.getElementById('bb-btn-roll');
@@ -747,7 +797,7 @@
       });
     }
 
-    // players panel
+    // Players panel rendering
     function renderPlayersPanel(){
       const playersPanelEl = $("#players-panel");
       if(!playersPanelEl) return;
@@ -768,7 +818,7 @@
       highlightActive();
     }
 
-    // events panel (light)
+    // Events panel rendering
     function renderEventsPanel(){
       const list = $("#events-list");
       if(!list) return;
@@ -787,7 +837,7 @@
       }
     }
 
-    // event selection logic
+    // Event picking and modal helpers (desktop modal vs mobile bottom-sheet)
     function eventStageForPlayer(pl){
       const pos = typeof pl.position === "number" ? pl.position : 0;
       if(pos >= 30) return "senior";
@@ -818,7 +868,6 @@
       return pool[pool.length-1];
     }
 
-    // modal helpers: desktop modal vs mobile bottom-sheet
     function removeFallbacks(){ document.querySelectorAll('.modal-fallback').forEach(e=>e.remove()); }
     function createModalCard(isBottom){
       removeFallbacks();
@@ -851,7 +900,6 @@
       const h = document.createElement('div'); h.className='event-title'; h.textContent = (kind === 'players' ? 'プレイヤー' : 'ログ');
       const content = document.createElement('div'); content.style.overflow='auto'; content.style.maxHeight='70vh';
       if(kind === 'players'){
-        // clone players panel for readable view
         const clone = $("#players-panel").cloneNode(true);
         clone.style.display = 'block';
         content.appendChild(clone);
@@ -868,7 +916,6 @@
       close.focus();
     }
 
-    // events modals
     function applyAttributeChanges(playerIndex, changes){
       const pl = state.players[playerIndex];
       if(!pl) return;
@@ -915,9 +962,7 @@
       const actions = document.createElement('div'); actions.style.display = 'flex'; actions.style.justifyContent = 'flex-end'; actions.style.gap = '8px';
       (tmpl.choices||[]).forEach(choice=>{
         const btn = document.createElement('button'); btn.type='button'; btn.className='choice-btn'; btn.textContent = choice.label;
-        if(isBottom){
-          btn.style.display = 'block'; btn.style.width = '100%'; btn.style.marginBottom = '10px';
-        }
+        if(isBottom){ btn.style.display = 'block'; btn.style.width = '100%'; btn.style.marginBottom = '10px'; }
         btn.addEventListener('click', async ()=> {
           overlay.remove();
           const isOrderChoice = /受注/.test(choice.label);
@@ -957,7 +1002,6 @@
       }
     }
 
-    // resolve cell and goal
     async function resolveCell(playerIndex, pathIndex){
       const pl = state.players[playerIndex];
       if(pl == null) return;
@@ -980,7 +1024,7 @@
       }
     }
 
-    // final results
+    // Final results (same as before)
     const SCORE_WEIGHTS = { rating: 3.0, learning: 1.5, motivation: 1.2, mental: 1.0, responsibility: 2.0 };
     function computeFinalResults(){
       const rows = state.players.map((p, i) => {
@@ -1062,7 +1106,7 @@
       btnClose.focus();
     }
 
-    // start / reset
+    // Start / Reset
     function startGame(){
       if(state.started) return;
       const names = getPlayerNames();
@@ -1103,7 +1147,7 @@
       updateRollState();
     }
 
-    // small helpers exposure
+    // expose helpers for debugging
     window.createModalCard = createModalCard;
     window.__game = { state, layoutTiles, startGame, resetGame };
 
