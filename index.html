@@ -145,6 +145,8 @@
     .modal-bottom { align-items:flex-end; }
     .modal-bottom .card { border-radius:12px 12px 0 0; max-width:none; height:88vh; padding:18px; }
 
+    
+
     .event-title{margin-bottom:8px; font-size:18px}
     .event-body{white-space:pre-wrap; margin-bottom:12px; line-height:1.6; font-size:15px}
     .event-changes{color:var(--green)}
@@ -231,6 +233,7 @@
         white-space:pre-wrap;
         color:#222;
       }
+      .rules-content .bracket { color: var(--green); }
 
       .event-title{ font-size:20px; margin-bottom:12px; }
       .event-body{ font-size:16px; line-height:1.6; }
@@ -254,6 +257,7 @@
       white-space:pre-wrap;
       color:#222;
     }
+    .rules-content .bracket { color: var(--green); }
   </style>
 </head>
 <body>
@@ -989,14 +993,53 @@
     function openRulesModal(){
       const isBottom = isMobile;
       const { overlay, card } = createModalCard(isBottom);
+
       const h = document.createElement('div'); h.className='event-title'; h.textContent = '遊び方 / ルール';
+
       const body = document.createElement('div'); body.className = 'event-body';
-      // plain non-editable text block with bold "Bon!"
+
       const content = document.createElement('div');
       content.className = 'rules-content';
-      const strong = document.createElement('strong');
-      strong.textContent = 'Bon！';
-      content.appendChild(strong);
+
+      // Build the requested content with bracketed parts wrapped in .bracket (green).
+      content.innerHTML = ''
+        + '<p>このすごろくは「もし自分がDTCに入社した場合、どのような人生が歩めるのか。」をテーマにした、Webシュミレーションゲームです。</p>'
+        + '<p><span class="bracket">【ルール】</span></p>'
+        + '<p>大きく3つの画面に分かれています。</p>'
+        + '<ul>'
+        + '<li>・<span class="bracket">操作バー（画面上部）</span></li>'
+        + '<li>・<span class="bracket">ゲームボード（画面左部）</span></li>'
+        + '<li>・<span class="bracket">情報（画面右部）</span></li>'
+        + '</ul>'
+
+        + '<p><span class="bracket">【操作バー】</span></p>'
+        + '<ul>'
+        + '<li>・人数：4人まで追加することができます。プレイヤー名を押すことで名前を変更することもできます。</li>'
+        + '<li>・開始ボタン：ゲームをスタートさせます。</li>'
+        + '<li>・サイコロ：サイコロを振ってランダムにマスを進めることができます。出目は開始ボタンの左側に表示されます。</li>'
+        + '<li>・結果：その時点でのスコアや順位が表示されます</li>'
+        + '<li>・リセット：ゲームがリセットされます</li>'
+        + '</ul>'
+
+        + '<p><span class="bracket">【ゲームボード】</span></p>'
+        + '<ul>'
+        + '<li>・ここでゲームが進んでいきます。最終的に画面右部に表示される学びや評価などの合計スコアが高い人の勝利となります</li>'
+        + '<li>・スタートから始まりゴールまでいったら終了です。</li>'
+        + '<li>・白いマスは何も効果がないマス、緑のマスは何かが起こります。</li>'
+        + '</ul>'
+
+        + '<p><span class="bracket">【情報】</span></p>'
+        + '<ul>'
+        + '<li>・現在のターン数</li>'
+        + '<li>・手番プレイヤー名</li>'
+        + '<li>・それぞれのプレイヤー名の現在の「学び」「評価」「メンタル」「モチベ」「責任」の度数</li>'
+        + '<li>・行動履歴</li>'
+        + '</ul>'
+
+        + '<p>が書かれています。</p>'
+        + '<p>【】とその中に入っている文字は緑色、それ以外は黒で、色に関係なく全て太字でお願いします。</p>'
+        ;
+
       body.appendChild(content);
 
       const actions = document.createElement('div'); actions.style.display = 'flex'; actions.style.justifyContent = 'flex-end'; actions.style.gap = '8px';
@@ -1005,10 +1048,8 @@
       actions.appendChild(close);
 
       card.appendChild(h); card.appendChild(body); card.appendChild(actions);
-      // focus close button so users don't accidentally focus the text
       close.focus();
     }
-
     // --- other game/event functions remain unchanged from prior implementation ---
     function applyAttributeChanges(playerIndex, changes){
       const pl = state.players[playerIndex];
