@@ -491,7 +491,7 @@
       const p = document.createElement("div");
       p.textContent = `[${(new Date()).toLocaleTimeString()}] ${text}`;
       if(kind === "ok") p.style.color = "green";
-      if(kind === "bad") p.style.color = "#333";
+      if(kind === "bad") p.style.color = "gray";
       logEl.appendChild(p);
       logEl.scrollTop = logEl.scrollHeight;
     }
