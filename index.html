@@ -162,7 +162,6 @@
       .board-wrap{ padding:var(--board-padding-mobile); min-height: calc(100vh - var(--bottom-bar-height-mobile) - 120px); border-radius:10px; }
       .board { height: calc(100vh - var(--bottom-bar-height-mobile) - 140px); }
 
-      /* grid tiles: keep base styles but JS sets inline size to avoid overlap */
       .tile{ font-size:12px; padding:4px; border-radius:6px; transform: translate(-50%,-50%) rotate(0deg) !important; }
 
       .token{ font-size:12px; }
@@ -285,6 +284,26 @@
       return lum > 0.55;
     }
 
+    // --- DEFAULT FALLBACK EVENT TEMPLATES (used when event-templates.json is missing) ---
+    const DEFAULT_EVENT_TEMPLATES = {
+      junior: [
+        { title: "新人ワークショップ", body: "チームで小さなワークショップを実施。学びが増える。", changes: { learning: 5, motivation: 2 } },
+        { title: "簡単なバグ対応", body: "簡単な修正を担当。評価が少し上がる。", changes: { rating: 3 } }
+      ],
+      mid: [
+        { title: "受注チャンス", body: "新しい受注の相談が来た。受注できるか選択しよう。", choices: [
+            { label: "受注する（挑戦）", changes: { responsibility: 2, learning: 3 }, resultText: "受注に挑戦しました" },
+            { label: "断る（安全）", changes: { mental: 2 }, resultText: "今回は見送りました" }
+        ]},
+        { title: "顧客改善提案", body: "顧客へ改善提案を行った。評価が上がる。", changes: { rating: 5 } }
+      ],
+      senior: [
+        { title: "大規模案件対応", body: "大きな案件をリード。責任と学びが大きく増えるがリスクもある。", changes: { responsibility: 6, learning: 4 } },
+        { title: "プロジェクトレビュー", body: "レビューでチームの質を向上させた。評価が上がる。", changes: { rating: 6 } }
+      ]
+    };
+
+    // event templates loaded from external file (non-blocking)
     let EVENT_TEMPLATES = null;
     async function loadEventTemplatesExternal(){
       try{
@@ -292,8 +311,10 @@
         if(!res.ok) throw new Error('HTTP ' + res.status);
         const json = await res.json();
         if(!json || (!json.junior && !json.mid && !json.senior)) throw new Error('Invalid JSON shape');
+        console.info('Loaded external event-templates.json');
         return json;
       }catch(e){
+        console.warn('event-templates.json not available or invalid, using default fallback templates. Error:', e && e.message);
         return null;
       }
     }
@@ -302,11 +323,14 @@
     let isMobile = window.matchMedia(`(max-width: ${MOBILE_BREAK}px)`).matches;
     const state = { started:false, turn:0, currentPlayerIndex:0, players:[], animating:false, rng: Math.random };
     let tileCoords = [];
-    // store effective mobile sizes used for placement so tokens/start marker can be sized to match
     let mobileLayout = { tileSize: null, tokenSize: null, cols: 6 };
 
     async function init(){
-      EVENT_TEMPLATES = await loadEventTemplatesExternal();
+      // ensure EVENT_TEMPLATES always has something so event tiles continue to work
+      const ext = await loadEventTemplatesExternal();
+      EVENT_TEMPLATES = ext || DEFAULT_EVENT_TEMPLATES;
+      if(!ext) console.info('Using DEFAULT_EVENT_TEMPLATES as fallback.');
+
       bindUI();
       renderPlayerNameInputs();
       layoutTiles();
@@ -408,9 +432,9 @@
       if(effectiveTileSize < minTile){
         effectiveTileSize = minTile;
       }
-      // if effectiveTileSize is larger than requested, cap to requested to keep visuals consistent
+      // if effectiveTileSize is larger than requested, cap to requested
       effectiveTileSize = Math.min(effectiveTileSize, requestedTileSize);
-      // now compute spacing to center the grid horizontally
+      // compute spacing to center the grid horizontally
       const gridWidth = cols * effectiveTileSize + totalGap;
       const startX = Math.max(padding + effectiveTileSize/2, (rect.width - gridWidth)/2 + effectiveTileSize/2);
       const spacingX = effectiveTileSize + gap;
@@ -443,7 +467,6 @@
         c.y = Math.max(clampMargin, Math.min(rect.height - clampMargin, c.y));
       }
       if(coords.length > N) coords.length = N;
-      // return coords and effectiveTileSize so caller can size tiles/tokens accordingly
       return { coords, effectiveTileSize, cols };
     }
 
@@ -566,7 +589,6 @@
         coords = grid.coords;
         effectiveTileSize = grid.effectiveTileSize;
         cols = grid.cols;
-        // store for token sizing
         mobileLayout.tileSize = effectiveTileSize;
         mobileLayout.cols = cols;
         mobileLayout.tokenSize = Math.max(12, Math.round(effectiveTileSize * 0.5));
@@ -601,7 +623,6 @@
         div.style.top = `${c.y}px`;
         const rot = (isM ? 0 : (c.ang || ((Math.random()*2-1)*6)));
         div.style.transform = `translate(-50%,-50%) rotate(${rot}deg)`;
-        // if mobile, set inline size to match computed effectiveTileSize so tiles don't visually overlap
         if(isM && mobileLayout.tileSize){
           div.style.width = `${mobileLayout.tileSize}px`;
           div.style.height = `${mobileLayout.tileSize}px`;
@@ -645,7 +666,6 @@
         if(shouldUseDarkTextForBg(bg)) t.style.color = '#000'; else t.style.color = '#fff';
         document.getElementById('board').appendChild(t);
       }
-      // size token to match mobileLayout if mobile
       if(mobileLayout.tokenSize){
         t.style.width = `${mobileLayout.tokenSize}px`;
         t.style.height = `${mobileLayout.tokenSize}px`;
@@ -995,13 +1015,51 @@
     }
 
     async function handleEventTile(playerIndex){
+      // pick event based on player's stage and templates; fallback templates are present by default now
       const tmpl = pickEventForPlayer(playerIndex);
-      if(!tmpl) return;
+      if(!tmpl){
+        // helpful debug message when no template found
+        console.info('No event template available for player', playerIndex);
+        return;
+      }
       if(tmpl.choices && Array.isArray(tmpl.choices)){
         await showChoiceModal(playerIndex, tmpl);
       } else {
         await showEventModal(playerIndex, tmpl);
       }
+    }
+
+    function eventStageForPlayer(pl){
+      const pos = typeof pl.position === "number" ? pl.position : 0;
+      if(pos >= 30) return "senior";
+      if(pos >= 15) return "mid";
+      return "junior";
+    }
+    function pickEventForPlayer(playerIndex){
+      const pl = state.players[playerIndex];
+      if(!pl) return null;
+      const stage = eventStageForPlayer(pl);
+      const pool = (EVENT_TEMPLATES && EVENT_TEMPLATES[stage]) ? EVENT_TEMPLATES[stage] : [];
+      if(!pool || !pool.length) {
+        console.warn('No events in pool for stage', stage);
+        return null;
+      }
+      const weights = pool.map(c => {
+        let w = 1;
+        const ch = c.changes || {};
+        if((pl.learning||0) < 40 && (ch.learning || 0) > 0) w += 1.6;
+        if((pl.motivation||0) < 40 && (ch.motivation || 0) > 0) w += 1.4;
+        if((pl.rating||0) < 40 && (ch.rating || 0) > 0) w += 1.2;
+        if(c.choices) w += 0.3;
+        return w;
+      });
+      const total = weights.reduce((a,b)=>a+b,0);
+      let r = state.rng() * total;
+      for(let i=0;i<pool.length;i++){
+        r -= weights[i];
+        if(r <= 0) return pool[i];
+      }
+      return pool[pool.length-1];
     }
 
     async function resolveCell(playerIndex, pathIndex){
