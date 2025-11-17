@@ -7,18 +7,21 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <style>
     :root{
-      --black:#000000; --white:#FFFFFF; --green:#86BB27; --green-light:#DFF3C6; --gray:#C4C4C4;
+      --black:#000000; --white:#FFFFFF; --green:#86BB27; --green-alpha: rgba(134,187,39,0.12);
+      --green-light:#DFF3C6; --gray:#C4C4C4;
       --cell-size:68px; /* tile size */
       --tile-size: var(--cell-size);
       --tile-gap: 16px; /* baseline gap */
       --board-padding: 24px;
       --token-size:30px;
       --token-move-ms:140ms; /* per-tile move duration */
+      --bottom-bar-height:64px;
+      --mobile-breakpoint: 680px;
     }
-    *{box-sizing:border-box}
 
-    /* Make all text bold as requested */
-    /* Use !important to override any specific lighter rules remaining in the file */
+    /* GLOBAL */
+    *{box-sizing:border-box}
+    /* Make all text bold */
     html, body, body * { font-weight: 900 !important; }
 
     html,body{height:100%; margin:0}
@@ -29,7 +32,7 @@
     }
 
     /* Appbar */
-    .appbar{position:sticky; top:0; z-index:1100; background:var(--white); border-bottom:1px solid rgba(0,0,0,0.06); display:flex; justify-content:center}
+    .appbar{position:sticky; top:0; z-index:1200; background:var(--white); border-bottom:1px solid rgba(0,0,0,0.06); display:flex; justify-content:center}
     .toolbar{width:100%; max-width:1300px; display:flex; gap:10px; align-items:center; padding:8px}
     .title{font-size:15px; margin-right:auto; color:var(--black)}
     .group{display:flex; gap:8px; align-items:center; padding:6px 8px; border:1px solid var(--gray); border-radius:10px; background:var(--white)}
@@ -37,26 +40,23 @@
 
     button{padding:8px 12px; border-radius:8px; border:1px solid var(--gray); background:var(--white); cursor:pointer}
     button.primary{background:var(--green); color:var(--white); border-color:transparent}
-    #btn-roll, #btn-reset{ }
+    #btn-roll, #btn-reset{ font-weight:900; }
 
-    /* Focus styles: ensure green outline on focus */
-    button:focus, button:focus-visible, .choice-btn:focus, .choice-btn:focus-visible, input:focus, select:focus {
-      outline: 3px solid var(--green);
-      outline-offset: 2px;
-      box-shadow: 0 0 0 4px rgba(134,187,39,0.08);
-    }
+    /* focus styles: always green outline on focus */
+    :focus { outline: 3px solid var(--green); outline-offset:2px; box-shadow: 0 0 0 6px var(--green-alpha); }
 
     .wrap{width:100%; max-width:1300px; margin:18px auto; display:grid; grid-template-columns:3fr 1fr; gap:12px; align-items:start; padding:0 12px}
-    @media (max-width:980px){ .wrap{grid-template-columns:1fr} }
+    @media (max-width: var(--mobile-breakpoint)){ .wrap{grid-template-columns:1fr; margin:12px auto; padding:0 8px; gap:8px} }
 
     /* Board */
     .board-wrap{background:var(--white); border:2px solid var(--gray); border-radius:14px; padding:var(--board-padding); position:relative; overflow:auto; min-height:520px}
     .board{
-      position:relative; width:100%; height:820px; touch-action:none; /* slightly taller */
+      position:relative; width:100%; height:820px; touch-action:none;
       background: linear-gradient(180deg, rgba(0,0,0,0.01), rgba(0,0,0,0.00));
     }
+    @media (max-width: var(--mobile-breakpoint)){ .board { height: calc(100vh - var(--bottom-bar-height) - 140px); } }
 
-    /* tiles - visible */
+    /* tiles */
     .tile{
       position:absolute;
       width:var(--tile-size);
@@ -74,7 +74,6 @@
     }
     .tile:hover{ box-shadow: 0 10px 26px rgba(14,20,25,0.12); }
 
-    /* eventish tiles: green border */
     .tile.event,
     .tile.client,
     .tile.workshop,
@@ -90,7 +89,7 @@
       box-shadow: 0 10px 30px rgba(134,187,39,0.18);
     }
 
-    /* START_MARKER aligned to tile0 and placed slightly above */
+    /* START_MARKER */
     .start-marker{
       position:absolute;
       width:calc(var(--tile-size) * 0.9);
@@ -104,6 +103,7 @@
       font-size:12px;
     }
 
+    /* token */
     .token{
       position:absolute;
       width:var(--token-size); height:var(--token-size); border-radius:50%; display:grid; place-items:center;
@@ -113,9 +113,11 @@
       transition: transform var(--token-move-ms) linear;
       z-index:30;
       color: #fff;
+      font-size:12px;
     }
     .token.finished{ opacity:0.85; border-color:var(--gray) }
 
+    /* sidebar */
     .sidebar{border:2px solid var(--gray); border-radius:14px; padding:14px}
     .stat{display:flex; justify-content:space-between; padding:10px; border-radius:10px}
     .players{margin-top:10px}
@@ -130,19 +132,35 @@
     .event-item{padding:8px; border-bottom:1px dashed #eee; cursor:pointer}
     .event-item:hover{background:#fbfffb}
 
-    /* modal fallback */
+    /* modal / bottom-sheet */
     .modal-fallback{position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.42); z-index:9999}
-    .modal-fallback .card{background:#fff; padding:16px; border-radius:10px; box-shadow:0 12px 30px rgba(0,0,0,0.12); max-width:720px}
+    .modal-fallback .card{background:#fff; padding:16px; border-radius:10px; box-shadow:0 12px 30px rgba(0,0,0,0.12); max-width:720px; width:100%; max-height:90vh; overflow:auto}
+    /* mobile bottom-sheet variant */
+    .modal-bottom { align-items:flex-end; }
+    .modal-bottom .card { border-radius:12px 12px 0 0; max-width:none; height:88vh; padding:16px; }
+
     .event-title{margin-bottom:8px}
     .event-body{white-space:pre-wrap; margin-bottom:12px; line-height:1.5}
     .event-changes{color:var(--green)}
     .choice-btn{margin-right:8px}
 
-    /* final results table */
+    /* final results */
     .results-table{width:100%; border-collapse:collapse; margin-top:8px}
     .results-table th, .results-table td{padding:8px; border-bottom:1px solid #eee; text-align:left;}
     .results-winner{background:linear-gradient(90deg, rgba(134,187,39,0.06), rgba(134,187,39,0.02));}
     .small-muted{color:#666; font-size:13px}
+
+    /* bottom-bar for mobile */
+    .bottom-bar { display:none; }
+    @media (max-width: var(--mobile-breakpoint)){
+      .sidebar { display: none; }
+      .bottom-bar { display:flex; position:fixed; inset:auto 0 0 0; height:var(--bottom-bar-height); background:var(--white); border-top:1px solid rgba(0,0,0,0.06); align-items:center; justify-content:space-around; z-index:1300; }
+      .bottom-bar button{ min-width:56px; height:40px; border-radius:8px; padding:8px 12px; }
+      /* compact tiles/tokens */
+      :root { --tile-size: 54px; --token-size:26px; --tile-gap:12px; --board-padding:12px; }
+      .board-wrap { padding:12px; }
+      .modal-fallback .card { max-height:88vh; }
+    }
   </style>
 </head>
 <body>
@@ -174,7 +192,7 @@
       </div>
     </div>
 
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
       <div class="stat"><span>ターン</span><strong id="stat-turn">0</strong></div>
       <div class="stat"><span>手番</span><strong id="stat-current">-</strong></div>
 
@@ -189,36 +207,23 @@
     </aside>
   </div>
 
+  <!-- bottom bar for mobile -->
+  <div class="bottom-bar" id="bottom-bar" role="toolbar" aria-hidden="true">
+    <button id="bb-btn-roll">サイコロ</button>
+    <button id="bb-btn-players">プレイヤー</button>
+    <button id="bb-btn-log">ログ</button>
+    <button id="bb-btn-results">結果</button>
+  </div>
+
   <script>
   (function(){
-    // Initialize only after load so board dimensions are correct
     window.addEventListener('load', init);
 
-    // Fully externalized templates: index.html does not embed full templates in A-mode;
-    // this repo may have event-templates.json in the root. Fetch is required.
-    let EVENT_TEMPLATES = null;
+    // Config / constants
+    const MOBILE_BREAK = 680;
+    const NUM_TILES = 60;
 
-    async function loadEventTemplatesExternal(){
-      const res = await fetch('./event-templates.json', { cache: 'no-cache' });
-      if(!res.ok) throw new Error('HTTP ' + res.status);
-      const json = await res.json();
-      if(!json || (!json.junior && !json.mid && !json.senior)) throw new Error('Invalid JSON shape');
-      return json;
-    }
-
-    function showFatalError(title, body){
-      document.body.innerHTML = '';
-      const overlay = document.createElement('div');
-      overlay.style.position='fixed'; overlay.style.inset='0'; overlay.style.display='flex';
-      overlay.style.alignItems='center'; overlay.style.justifyContent='center'; overlay.style.background='white';
-      const card = document.createElement('div'); card.style.padding='24px'; card.style.maxWidth='720px';
-      card.style.borderRadius='12px'; card.style.boxShadow='0 12px 30px rgba(0,0,0,0.12)';
-      const h = document.createElement('h2'); h.textContent = title;
-      const p = document.createElement('pre'); p.textContent = body; p.style.whiteSpace='pre-wrap'; p.style.marginTop='12px';
-      card.appendChild(h); card.appendChild(p); overlay.appendChild(card); document.body.appendChild(overlay);
-    }
-
-    // Color helpers: parse hex or rgb(a) and compute perceived luminance.
+    // helpers for color parsing / luminance (for token contrast)
     function parseColorToRgb(str){
       if(!str) return null;
       str = String(str).trim();
@@ -251,738 +256,833 @@
       return lum > 0.55;
     }
 
-    // Main init is async to await templates; fatal if not present (A)
-    async function init(){
+    // Fetch event templates (expects event-templates.json served alongside)
+    let EVENT_TEMPLATES = null;
+    async function loadEventTemplatesExternal(){
       try{
-        EVENT_TEMPLATES = await loadEventTemplatesExternal();
-        console.info('Loaded EVENT_TEMPLATES from event-templates.json');
+        const res = await fetch('./event-templates.json', { cache: 'no-cache' });
+        if(!res.ok) throw new Error('HTTP ' + res.status);
+        const json = await res.json();
+        if(!json || (!json.junior && !json.mid && !json.senior)) throw new Error('Invalid JSON shape');
+        return json;
       }catch(e){
-        console.error('Failed to load external event-templates.json', e);
-        showFatalError('イベントテンプレート読み込みエラー', 'event-templates.json の読み込みに失敗しました。HTTP サーバで配信されているか、ファイルが存在するか確認してください。');
-        return; // stop initialization
+        console.warn('event-templates.json not available, using embedded fallback if present');
+        return null;
       }
+    }
 
-      const $ = s => document.querySelector(s);
-      const board = $("#board"), logEl = $("#log"), diceEl = $("#dice");
-      const statTurnEl = $("#stat-turn"), statCurrentEl = $("#stat-current");
-      const playersPanelEl = $("#players-panel");
+    // DOM shorteners
+    const $ = s => document.querySelector(s);
+    let isMobile = window.matchMedia(`(max-width: ${MOBILE_BREAK}px)`).matches;
+
+    // State
+    const state = {
+      started:false,
+      turn:0,
+      currentPlayerIndex:0,
+      players:[],
+      animating:false,
+      rng: Math.random,
+    };
+
+    // tile coords
+    let tileCoords = [];
+
+    // Initialization
+    async function init(){
+      EVENT_TEMPLATES = await loadEventTemplatesExternal() || null;
+      // Elements
       const btnStart = $("#btn-start"), btnRoll = $("#btn-roll"), btnReset = $("#btn-reset"), btnResults = $("#btn-results");
+      const bbRoll = $("#bb-btn-roll"), bbPlayers = $("#bb-btn-players"), bbLog = $("#bb-btn-log"), bbResults = $("#bb-btn-results");
       const playersCountSel = $("#players-count"), playerNamesWrap = $("#player-names");
-      const START_MARKER = $("#start-marker");
-      const eventsListEl = $("#events-list"), eventsTabsEl = $("#events-tabs");
 
-      const TILE_SIZE = Number(getComputedStyle(document.documentElement).getPropertyValue('--tile-size')) || 68;
-      const NUM_TILES = 60;
-      const BASE_JITTER = 12;
-      const GAP = Number(getComputedStyle(document.documentElement).getPropertyValue('--tile-gap')) || 16;
-      const TOKEN_MOVE_MS = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--token-move-ms')) || 140;
-
-      let tileCoords = [];
-      let state = { started:false, turn:0, currentPlayerIndex:0, players:[], animating:false, rng: Math.random, history: [] };
-
-      function renderPlayerNameInputs(){
-        playerNamesWrap.innerHTML = "";
-        const count = Math.max(1, Number(playersCountSel.value) || 2);
-        for(let i=0;i<count;i++){
-          const inp = document.createElement("input");
-          inp.type = "text";
-          inp.placeholder = `Player ${i+1}`;
-          inp.value = `プレイヤー${i+1}`;
-          inp.style.width = "120px";
-          playerNamesWrap.appendChild(inp);
-        }
-      }
-      playersCountSel.addEventListener("change", renderPlayerNameInputs);
       renderPlayerNameInputs();
-      function getPlayerNames(){ return Array.from(playerNamesWrap.querySelectorAll("input")).map((el,idx)=> el.value.trim() || `プレイヤー${idx+1}`); }
+      playersCountSel.addEventListener('change', renderPlayerNameInputs);
 
-      function removeFallbacks(){ document.querySelectorAll('.modal-fallback').forEach(e=>e.remove()); }
-      function showCard(title, body){
-        return new Promise(resolve=>{
-          removeFallbacks();
-          const overlay = document.createElement('div'); overlay.className='modal-fallback';
-          const card = document.createElement('div'); card.className='card';
-          const h = document.createElement('div'); h.className='event-title'; h.textContent = title;
-          const b = document.createElement('div'); b.className='event-body'; b.textContent = body;
-          const actions = document.createElement('div'); actions.style.textAlign='right';
-          const ok = document.createElement('button'); ok.className='primary'; ok.textContent='OK';
-          ok.addEventListener('click', ()=>{ overlay.remove(); resolve(true); });
-          actions.appendChild(ok);
-          card.appendChild(h); card.appendChild(b); card.appendChild(actions); overlay.appendChild(card); document.body.appendChild(overlay);
-          ok.focus();
-        });
-      }
+      // wire desktop buttons
+      btnStart.addEventListener('click', startGame);
+      btnRoll.addEventListener('click', rollTurn);
+      btnReset.addEventListener('click', resetGame);
+      btnResults.addEventListener('click', showFinalResultsModal);
 
-      function pushLog(text, kind){
-        const p = document.createElement("div");
-        p.textContent = `[${(new Date()).toLocaleTimeString()}] ${text}`;
-        if(kind === "ok") p.style.color = "green";
-        if(kind === "bad") p.style.color = "#333";
-        logEl.appendChild(p);
-        logEl.scrollTop = logEl.scrollHeight;
-      }
+      // wire bottom-bar buttons (mobile)
+      if(bbRoll) bbRoll.addEventListener('click', ()=> { if(!$("#btn-roll").disabled) rollTurn(); });
+      if(bbPlayers) bbPlayers.addEventListener('click', ()=> openBottomSheet('players'));
+      if(bbLog) bbLog.addEventListener('click', ()=> openBottomSheet('log'));
+      if(bbResults) bbResults.addEventListener('click', showFinalResultsModal);
 
-      // helpers to pick event template based on player stage (position):
-      function eventStageForPlayer(pl){
-        const pos = typeof pl.position === "number" ? pl.position : 0;
-        if(pos >= 30) return "senior";
-        if(pos >= 15) return "mid";
-        return "junior";
-      }
-
-      function pickEventForPlayer(playerIndex){
-        const pl = state.players[playerIndex];
-        if(!pl) return null;
-        const stage = eventStageForPlayer(pl);
-        const pool = (EVENT_TEMPLATES && EVENT_TEMPLATES[stage]) ? EVENT_TEMPLATES[stage] : [];
-        if(!pool || !pool.length) return null;
-        const weights = pool.map(c => {
-          let w = 1;
-          const ch = c.changes || {};
-          if((pl.learning||0) < 40 && (ch.learning || 0) > 0) w += 1.6;
-          if((pl.motivation||0) < 40 && (ch.motivation || 0) > 0) w += 1.4;
-          if((pl.rating||0) < 40 && (ch.rating || 0) > 0) w += 1.2;
-          if(c.choices) w += 0.3;
-          return w;
-        });
-        const total = weights.reduce((a,b)=>a+b,0);
-        let r = state.rng() * total;
-        for(let i=0;i<pool.length;i++){
-          r -= weights[i];
-          if(r <= 0) return pool[i];
+      // keyboard
+      window.addEventListener("keydown", (e)=>{
+        if((e.key === " " || e.key === "Enter") && state.started && !state.animating){
+          e.preventDefault();
+          rollTurn();
         }
-        return pool[pool.length-1];
+      });
+
+      window.addEventListener('resize', onResize);
+
+      layoutTiles();
+      renderPlayersPanel();
+      updateRollState();
+      updateBottomBarVisibility();
+      console.info('Initialized UI (responsive mode: ' + (isMobile ? 'mobile' : 'desktop') + ')');
+    }
+
+    function onResize(){
+      const prev = isMobile;
+      isMobile = window.matchMedia(`(max-width: ${MOBILE_BREAK}px)`).matches;
+      if(prev !== isMobile){
+        updateBottomBarVisibility();
+      }
+      layoutTiles();
+    }
+
+    function updateBottomBarVisibility(){
+      const bb = $("#bottom-bar");
+      if(!bb) return;
+      if(isMobile){
+        bb.setAttribute('aria-hidden','false');
+        bb.style.display = 'flex';
+      } else {
+        bb.setAttribute('aria-hidden','true');
+        bb.style.display = 'none';
+      }
+    }
+
+    // Player name inputs
+    function renderPlayerNameInputs(){
+      const wrap = $("#player-names");
+      if(!wrap) return;
+      wrap.innerHTML = "";
+      const count = Math.max(1, Number($("#players-count").value) || 2);
+      for(let i=0;i<count;i++){
+        const inp = document.createElement("input");
+        inp.type = "text";
+        inp.placeholder = `Player ${i+1}`;
+        inp.value = `プレイヤー${i+1}`;
+        inp.style.width = "120px";
+        wrap.appendChild(inp);
+      }
+    }
+    function getPlayerNames(){
+      return Array.from(document.querySelectorAll('#player-names input')).map((el,idx)=> el.value.trim() || `プレイヤー${idx+1}`);
+    }
+
+    // Logging
+    function pushLog(text, kind){
+      const logEl = $("#log");
+      if(!logEl) return;
+      const p = document.createElement("div");
+      p.textContent = `[${(new Date()).toLocaleTimeString()}] ${text}`;
+      if(kind === "ok") p.style.color = "green";
+      if(kind === "bad") p.style.color = "#333";
+      logEl.appendChild(p);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    // Path generation (same logic as before)
+    const BASE_JITTER = 12;
+    const GAP = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--tile-gap')) || 16;
+    const TILE_SIZE = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--tile-size')) || 68;
+    const TOKEN_MOVE_MS = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--token-move-ms')) || 140;
+
+    function buildConnectedPath(N, containerW, containerH, tileSize, gap){
+      const cx = containerW/2, cy = containerH/2;
+      const coords = [];
+      const margin = Math.max(tileSize*1.6, 28);
+      let left = margin, top = margin, right = containerW - margin, bottom = containerH - margin;
+      const ringInset = tileSize + gap + Math.round(tileSize*0.4);
+
+      function perimeterPoints(l,t,r,b, spacing){
+        const w = Math.max(1, r - l), h = Math.max(1, b - t);
+        const perim = 2*(w + h);
+        const count = Math.max(4, Math.floor(perim / spacing));
+        let topCount = Math.max(1, Math.round(count * (w / perim)));
+        let rightCount = Math.max(1, Math.round(count * (h / perim)));
+        let bottomCount = Math.max(1, Math.round(count * (w / perim)));
+        let leftCount = Math.max(1, Math.round(count * (h / perim)));
+        let sum = topCount + rightCount + bottomCount + leftCount;
+        let idxAdjust = 0;
+        while(sum < count){ if(idxAdjust%4===0) topCount++; else if(idxAdjust%4===1) rightCount++; else if(idxAdjust%4===2) bottomCount++; else leftCount++; idxAdjust++; sum++; }
+        while(sum > count){ if(idxAdjust%4===0 && topCount>1) topCount--; else if(idxAdjust%4===1 && rightCount>1) rightCount--; else if(idxAdjust%4===2 && bottomCount>1) bottomCount--; else if(idxAdjust%4===3 && leftCount>1) leftCount--; idxAdjust++; sum--; }
+        const pts = [];
+        for(let i=0;i<topCount;i++){ const x = l + (i+0.5) * (w / topCount); const y = t; pts.push({x,y}); }
+        for(let i=0;i<rightCount;i++){ const x = r; const y = t + (i+0.5) * (h / rightCount); pts.push({x,y}); }
+        for(let i=0;i<bottomCount;i++){ const x = r - (i+0.5) * (w / bottomCount); const y = b; pts.push({x,y}); }
+        for(let i=0;i<leftCount;i++){ const x = l; const y = b - (i+0.5) * (h / leftCount); pts.push({x,y}); }
+        return pts;
       }
 
-      // event modal & application
-      function applyAttributeChanges(playerIndex, changes){
-        const pl = state.players[playerIndex];
-        if(!pl) return;
-        const attrs = ['learning','rating','mental','motivation','responsibility'];
-        attrs.forEach(a=>{
-          if(typeof changes[a] === 'number' && changes[a] > 0){
-            pl[a] = Math.max(0, (pl[a]||0) + Math.round(changes[a]));
+      const rings = [];
+      let attempts = 0;
+      while(coords.length < N - 1 && right - left > tileSize && bottom - top > tileSize && attempts < 24){
+        const pts = perimeterPoints(left, top, right, bottom, tileSize + gap);
+        rings.push({pts, l:left, t:top, r:right, b:bottom});
+        left += ringInset; top += ringInset; right -= ringInset; bottom -= ringInset;
+        attempts++;
+      }
+
+      let prevExit = null;
+      for(let ri = 0; ri < rings.length && coords.length < N - 1; ri++){
+        const ring = rings[ri];
+        const pts = ring.pts.slice();
+        let startIdx = 0;
+        if(prevExit){
+          let best = 0, bestD = Infinity;
+          for(let k=0;k<pts.length;k++){
+            const dx = pts[k].x - prevExit.x, dy = pts[k].y - prevExit.y;
+            const d = Math.hypot(dx,dy);
+            if(d < bestD){ best = k; bestD = d; }
           }
-        });
-        pushLog(`${pl.name}: 属性が変化しました → ${Object.entries(changes).filter(([k,v])=>v>0).map(([k,v])=> `${k} +${v}`).join(', ')}`, "ok");
-        renderPlayersPanel();
-      }
-
-      async function showEventModal(playerIndex, tmpl){
-        removeFallbacks();
-        const overlay = document.createElement('div'); overlay.className='modal-fallback';
-        const card = document.createElement('div'); card.className='card';
-        const h = document.createElement('div'); h.className='event-title'; h.textContent = tmpl.title;
-        const b = document.createElement('div'); b.className='event-body'; b.textContent = tmpl.body;
-        const chg = document.createElement('div'); chg.className='event-changes';
-        const changes = tmpl.changes || {};
-        const parts = [];
-        if(changes.learning) parts.push(`学び ＋${changes.learning}`);
-        if(changes.rating) parts.push(`評価 ＋${changes.rating}`);
-        if(changes.mental) parts.push(`メンタル ＋${changes.mental}`);
-        if(changes.motivation) parts.push(`モチベ ＋${changes.motivation}`);
-        if(changes.responsibility) parts.push(`責任 ＋${changes.responsibility}`);
-        chg.textContent = parts.join('　');
-        const actions = document.createElement('div'); actions.style.textAlign='right';
-        const ok = document.createElement('button'); ok.className='primary'; ok.textContent='OK';
-        ok.addEventListener('click', ()=>{
-          applyAttributeChanges(playerIndex, changes);
-          overlay.remove();
-        });
-        actions.appendChild(ok);
-        card.appendChild(h); card.appendChild(b); card.appendChild(chg); card.appendChild(actions);
-        overlay.appendChild(card); document.body.appendChild(overlay);
-        ok.focus();
-      }
-
-      // Updated showChoiceModal: when choice label includes "受注", do 50/50 success/failure.
-      async function showChoiceModal(playerIndex, tmpl){
-        removeFallbacks();
-        const overlay = document.createElement('div'); overlay.className='modal-fallback';
-        const card = document.createElement('div'); card.className='card';
-        const h = document.createElement('div'); h.className='event-title'; h.textContent = tmpl.title;
-        const b = document.createElement('div'); b.className='event-body'; b.textContent = tmpl.body;
-        const actions = document.createElement('div'); actions.style.display='flex'; actions.style.justifyContent='flex-end'; actions.style.gap='8px';
-
-        (tmpl.choices||[]).forEach(choice=>{
-          const btn = document.createElement('button');
-          btn.type='button';
-          btn.className='choice-btn';
-          btn.textContent = choice.label;
-
-          btn.addEventListener('click', async ()=> {
-            overlay.remove();
-
-            const isOrderChoice = /受注/.test(choice.label);
-            if(isOrderChoice){
-              const success = Math.random() < 0.5;
-              if(success){
-                applyAttributeChanges(playerIndex, choice.changes || {});
-                await showCard(choice.resultText || "受注に成功しました", "");
-              } else {
-                applyAttributeChanges(playerIndex, { learning: 2 });
-                const failText = choice.resultText ? `${choice.resultText}\n\nしかし失敗からも学びがありました。学び +2` : "失敗からも学んだ！ 学び +2";
-                await showCard("失敗からも学んだ！", failText);
-              }
-            } else {
-              applyAttributeChanges(playerIndex, choice.changes || {});
-              await showCard(choice.resultText || "選択結果", "");
-            }
-          });
-          actions.appendChild(btn);
-        });
-
-        const cancel = document.createElement('button'); cancel.type='button'; cancel.textContent='やめる';
-        cancel.addEventListener('click', ()=> overlay.remove());
-        actions.appendChild(cancel);
-
-        card.appendChild(h); card.appendChild(b); card.appendChild(actions);
-        overlay.appendChild(card);
-        document.body.appendChild(overlay);
-      }
-
-      async function handleEventTile(playerIndex){
-        const tmpl = pickEventForPlayer(playerIndex);
-        if(!tmpl) return;
-        if(tmpl.choices && Array.isArray(tmpl.choices)){
-          await showChoiceModal(playerIndex, tmpl);
+          startIdx = best;
         } else {
-          await showEventModal(playerIndex, tmpl);
-        }
-      }
-
-      /* ----- Path generation & layout (start tile near top-left) ----- */
-      function buildConnectedPath(N, containerW, containerH, tileSize, gap){
-        const cx = containerW/2, cy = containerH/2;
-        const coords = [];
-        const margin = Math.max(tileSize*1.6, 28);
-        let left = margin, top = margin, right = containerW - margin, bottom = containerH - margin;
-        const ringInset = tileSize + gap + Math.round(tileSize*0.4);
-
-        function perimeterPoints(l,t,r,b, spacing){
-          const w = Math.max(1, r - l), h = Math.max(1, b - t);
-          const perim = 2*(w + h);
-          const count = Math.max(4, Math.floor(perim / spacing));
-          let topCount = Math.max(1, Math.round(count * (w / perim)));
-          let rightCount = Math.max(1, Math.round(count * (h / perim)));
-          let bottomCount = Math.max(1, Math.round(count * (w / perim)));
-          let leftCount = Math.max(1, Math.round(count * (h / perim)));
-          let sum = topCount + rightCount + bottomCount + leftCount;
-          let idxAdjust = 0;
-          while(sum < count){ if(idxAdjust%4===0) topCount++; else if(idxAdjust%4===1) rightCount++; else if(idxAdjust%4===2) bottomCount++; else leftCount++; idxAdjust++; sum++; }
-          while(sum > count){ if(idxAdjust%4===0 && topCount>1) topCount--; else if(idxAdjust%4===1 && rightCount>1) rightCount--; else if(idxAdjust%4===2 && bottomCount>1) bottomCount--; else if(idxAdjust%4===3 && leftCount>1) leftCount--; idxAdjust++; sum--; }
-          const pts = [];
-          for(let i=0;i<topCount;i++){ const x = l + (i+0.5) * (w / topCount); const y = t; pts.push({x,y}); }
-          for(let i=0;i<rightCount;i++){ const x = r; const y = t + (i+0.5) * (h / rightCount); pts.push({x,y}); }
-          for(let i=0;i<bottomCount;i++){ const x = r - (i+0.5) * (w / bottomCount); const y = b; pts.push({x,y}); }
-          for(let i=0;i<leftCount;i++){ const x = l; const y = b - (i+0.5) * (h / leftCount); pts.push({x,y}); }
-          return pts;
-        }
-
-        const rings = [];
-        let attempts = 0;
-        while(coords.length < N - 1 && right - left > tileSize && bottom - top > tileSize && attempts < 24){
-          const pts = perimeterPoints(left, top, right, bottom, tileSize + gap);
-          rings.push({pts, l:left, t:top, r:right, b:bottom});
-          left += ringInset; top += ringInset; right -= ringInset; bottom -= ringInset;
-          attempts++;
-        }
-
-        let prevExit = null;
-        for(let ri = 0; ri < rings.length && coords.length < N - 1; ri++){
-          const ring = rings[ri];
-          const pts = ring.pts.slice();
-          let startIdx = 0;
-          if(prevExit){
-            let best = 0, bestD = Infinity;
-            for(let k=0;k<pts.length;k++){
-              const dx = pts[k].x - prevExit.x, dy = pts[k].y - prevExit.y;
-              const d = Math.hypot(dx,dy);
-              if(d < bestD){ best = k; bestD = d; }
-            }
-            startIdx = best;
-          } else {
-            let best = 0, bestD = Infinity;
-            const topLeft = {x: ring.l + 6, y: ring.t + 6};
-            for(let k=0;k<pts.length;k++){
-              const dx = pts[k].x - topLeft.x, dy = pts[k].y - topLeft.y;
-              const d = Math.hypot(dx,dy);
-              if(d < bestD){ best = k; bestD = d; }
-            }
-            startIdx = best;
+          let best = 0, bestD = Infinity;
+          const topLeft = {x: ring.l + 6, y: ring.t + 6};
+          for(let k=0;k<pts.length;k++){
+            const dx = pts[k].x - topLeft.x, dy = pts[k].y - topLeft.y;
+            const d = Math.hypot(dx,dy);
+            if(d < bestD){ best = k; bestD = d; }
           }
+          startIdx = best;
+        }
 
-          for(let k=0;k<pts.length && coords.length < N - 1;k++){
-            const idx = (startIdx + k) % pts.length;
-            const jitterX = (Math.random()*2 -1) * (BASE_JITTER * 0.4);
-            const jitterY = (Math.random()*2 -1) * (BASE_JITTER * 0.4);
-            coords.push({x: pts[idx].x + jitterX, y: pts[idx].y + jitterY, ang: (Math.random()*2-1)*6});
-          }
+        for(let k=0;k<pts.length && coords.length < N - 1;k++){
+          const idx = (startIdx + k) % pts.length;
+          const jitterX = (Math.random()*2 -1) * (BASE_JITTER * 0.4);
+          const jitterY = (Math.random()*2 -1) * (BASE_JITTER * 0.4);
+          coords.push({x: pts[idx].x + jitterX, y: pts[idx].y + jitterY, ang: (Math.random()*2-1)*6});
+        }
+        prevExit = coords[coords.length-1];
+        if(ri < rings.length - 1 && coords.length < N - 1){
+          const inner = rings[ri+1];
+          const innerCenter = {x: (inner.l + inner.r)/2, y: (inner.t + inner.b)/2};
+          const connX = prevExit.x + (innerCenter.x - prevExit.x) * 0.25 + (Math.random()*2-1)*(BASE_JITTER*0.6);
+          const connY = prevExit.y + (innerCenter.y - prevExit.y) * 0.25 + (Math.random()*2-1)*(BASE_JITTER*0.6);
+          coords.push({x: connX, y: connY, ang: (Math.random()*2-1)*6});
           prevExit = coords[coords.length-1];
-          if(ri < rings.length - 1 && coords.length < N - 1){
-            const inner = rings[ri+1];
-            const innerCenter = {x: (inner.l + inner.r)/2, y: (inner.t + inner.b)/2};
-            const connX = prevExit.x + (innerCenter.x - prevExit.x) * 0.25 + (Math.random()*2-1)*(BASE_JITTER*0.6);
-            const connY = prevExit.y + (innerCenter.y - prevExit.y) * 0.25 + (Math.random()*2-1)*(BASE_JITTER*0.6);
-            coords.push({x: connX, y: connY, ang: (Math.random()*2-1)*6});
-            prevExit = coords[coords.length-1];
-          }
         }
-
-        if(coords.length < N - 1){
-          const remaining = (N - 1) - coords.length;
-          for(let i=0;i<remaining;i++){
-            const angle = (i/remaining) * Math.PI * 2;
-            const radius = Math.min(containerW, containerH) * 0.11 + (i%3) * (tileSize*0.4);
-            const x = cx + Math.cos(angle) * radius + (Math.random()*2-1)*BASE_JITTER;
-            const y = cy + Math.sin(angle) * radius + (Math.random()*2-1)*BASE_JITTER;
-            coords.push({x,y,ang:(Math.random()*2-1)*8});
-          }
-        }
-
-        coords.push({x: cx, y: cy, ang:0});
-        const clampMargin = tileSize;
-        for(const c of coords){
-          c.x = Math.max(clampMargin, Math.min(containerW - clampMargin, c.x));
-          c.y = Math.max(clampMargin, Math.min(containerH - clampMargin, c.y));
-        }
-        if(coords.length > N) coords.length = N;
-        return coords;
       }
 
-      function layoutTiles(){
-        board.querySelectorAll(".tile").forEach(n=>n.remove());
-        const rect = board.getBoundingClientRect();
-        const coords = buildConnectedPath(NUM_TILES, rect.width, rect.height, TILE_SIZE, GAP);
-        tileCoords = coords;
-        coords.forEach((c, idx)=>{
-          const div = document.createElement("div");
-          div.className = "tile";
-          div.dataset.pathIndex = String(idx);
-          if(idx === NUM_TILES - 1){
-            div.classList.add("goal");
-            div.textContent = "GOAL";
-          } else if(idx % 11 === 0){
-            div.classList.add("client");
-          } else if(idx % 13 === 0){
-            div.classList.add("workshop");
-          } else if(idx % 6 === 0){
-            div.classList.add("event");
-          } else if(idx % 5 === 0){
-            div.classList.add("bonus");
-          } else if(idx % 7 === 0){
-            div.classList.add("penalty");
-          }
-          div.style.left = `${c.x}px`;
-          div.style.top = `${c.y}px`;
-          const rot = c.ang || ((Math.random()*2-1)*6);
-          div.style.transform = `translate(-50%,-50%) rotate(${rot}deg)`;
-          board.appendChild(div);
-        });
+      if(coords.length < N - 1){
+        const remaining = (N - 1) - coords.length;
+        for(let i=0;i<remaining;i++){
+          const angle = (i/remaining) * Math.PI * 2;
+          const radius = Math.min(containerW, containerH) * 0.11 + (i%3) * (tileSize*0.4);
+          const x = cx + Math.cos(angle) * radius + (Math.random()*2-1)*BASE_JITTER;
+          const y = cy + Math.sin(angle) * radius + (Math.random()*2-1)*BASE_JITTER;
+          coords.push({x,y,ang:(Math.random()*2-1)*8});
+        }
+      }
 
-        // align START_MARKER to tile 0 (slight offset above tile)
-        if(tileCoords && tileCoords[0]){
-          const t0 = tileCoords[0];
-          START_MARKER.style.left = `${t0.x}px`;
-          START_MARKER.style.top = `${t0.y}px`;
-          START_MARKER.style.display = 'grid';
+      coords.push({x: cx, y: cy, ang:0});
+      const clampMargin = tileSize;
+      for(const c of coords){
+        c.x = Math.max(clampMargin, Math.min(containerW - clampMargin, c.x));
+        c.y = Math.max(clampMargin, Math.min(containerH - clampMargin, c.y));
+      }
+      if(coords.length > N) coords.length = N;
+      return coords;
+    }
+
+    // Layout tiles
+    function layoutTiles(){
+      const board = $("#board");
+      if(!board) return;
+      board.querySelectorAll(".tile").forEach(n=>n.remove());
+      const rect = board.getBoundingClientRect();
+      const coords = buildConnectedPath(NUM_TILES, rect.width, rect.height, TILE_SIZE, GAP);
+      tileCoords = coords;
+      coords.forEach((c, idx)=>{
+        const div = document.createElement("div");
+        div.className = "tile";
+        div.dataset.pathIndex = String(idx);
+        if(idx === NUM_TILES - 1){
+          div.classList.add("goal");
+          div.textContent = "GOAL";
+        } else if(idx % 11 === 0){
+          div.classList.add("client");
+        } else if(idx % 13 === 0){
+          div.classList.add("workshop");
+        } else if(idx % 6 === 0){
+          div.classList.add("event");
+        } else if(idx % 5 === 0){
+          div.classList.add("bonus");
+        } else if(idx % 7 === 0){
+          div.classList.add("penalty");
+        }
+        div.style.left = `${c.x}px`;
+        div.style.top = `${c.y}px`;
+        const rot = c.ang || ((Math.random()*2-1)*6);
+        div.style.transform = `translate(-50%,-50%) rotate(${rot}deg)`;
+        board.appendChild(div);
+      });
+
+      // align START_MARKER to tile 0
+      const START_MARKER = $("#start-marker");
+      if(tileCoords && tileCoords[0] && START_MARKER){
+        const t0 = tileCoords[0];
+        START_MARKER.style.left = `${t0.x}px`;
+        START_MARKER.style.top = `${t0.y}px`;
+        START_MARKER.style.display = 'grid';
+      } else if(START_MARKER){
+        START_MARKER.style.display = 'none';
+      }
+
+      placeAllTokens();
+    }
+
+    // Tokens
+    function ensureToken(i){
+      let t = document.getElementById(`token-${i}`);
+      if(!t){
+        t = document.createElement("div"); t.className = "token"; t.id = `token-${i}`;
+        t.textContent = String(i+1);
+        const palette = ["#86BB27","#DFF3C6","#C4C4C4","#2B2B2B"];
+        const bg = palette[i % palette.length];
+        t.style.background = bg;
+        if(shouldUseDarkTextForBg(bg)) t.style.color = '#000'; else t.style.color = '#fff';
+        document.getElementById('board').appendChild(t);
+      }
+      return t;
+    }
+
+    function placeAllTokens(){
+      const bRect = $("#board").getBoundingClientRect();
+      const groups = new Map();
+      state.players.forEach((pl,i)=>{
+        const pos = (typeof pl.position === "number" && pl.position >= 0) ? pl.position : "__start";
+        if(!groups.has(pos)) groups.set(pos, []);
+        groups.get(pos).push(i);
+      });
+
+      if(groups.has("__start")){
+        const startIdxs = groups.get("__start");
+        const sRect = $("#start-marker").getBoundingClientRect();
+        const sx = (sRect.left - bRect.left) + sRect.width/2;
+        const sy = (sRect.top - bRect.top) + sRect.height/2;
+        startIdxs.forEach((pi,k)=>{
+          const t = ensureToken(pi);
+          if(shouldUseDarkTextForBg(t.style.background)) t.style.color = '#000'; else t.style.color = '#fff';
+          const offX = ((k % 2) - 0.5) * 18;
+          const offY = (Math.floor(k/2) - 0.5) * 18;
+          t.style.transform = `translate(${sx + offX}px, ${sy + offY}px)`;
+        });
+      }
+
+      groups.forEach((idxs, pos)=>{
+        if(pos === "__start") return;
+        const center = tileCoords[pos];
+        if(!center) return;
+        const n = idxs.length;
+        const baseR = Math.max(14, TILE_SIZE * 0.28);
+        if(n === 1){
+          const t = ensureToken(idxs[0]);
+          if(shouldUseDarkTextForBg(t.style.background)) t.style.color = '#000'; else t.style.color = '#fff';
+          t.style.transform = `translate(${center.x}px, ${center.y}px)`;
         } else {
-          START_MARKER.style.display = 'none';
-        }
-
-        placeAllTokens();
-      }
-
-      /* Token & movement (kept stable) */
-      function ensureToken(i){
-        let t = document.getElementById(`token-${i}`);
-        if(!t){
-          t = document.createElement("div"); t.className = "token"; t.id = `token-${i}`;
-          t.textContent = String(i+1);
-          // choose palette color; can be hex or other CSS color strings
-          const palette = ["#86BB27","#DFF3C6","#C4C4C4","#2B2B2B"];
-          const bg = palette[i % palette.length];
-          t.style.background = bg;
-          // set text color based on background brightness:
-          if(shouldUseDarkTextForBg(bg)){
-            t.style.color = '#000'; // dark text on light bg
-          } else {
-            t.style.color = '#fff'; // light text on dark bg
+          const perOuter = 6;
+          const outerCount = Math.min(n, perOuter);
+          const innerCount = Math.max(0, n - perOuter);
+          let used = 0;
+          const outerR = baseR;
+          for(let k=0;k<outerCount;k++){
+            const ang = (k / outerCount) * Math.PI * 2 - Math.PI/2;
+            const x = center.x + Math.cos(ang) * outerR;
+            const y = center.y + Math.sin(ang) * outerR;
+            const t = ensureToken(idxs[used++]);
+            if(shouldUseDarkTextForBg(t.style.background)) t.style.color = '#000'; else t.style.color = '#fff';
+            t.style.transform = `translate(${x}px, ${y}px)`;
           }
-          board.appendChild(t);
-        }
-        return t;
-      }
-
-      function placeAllTokens(){
-        const groups = new Map();
-        state.players.forEach((pl,i)=>{
-          const pos = (typeof pl.position === "number" && pl.position >= 0) ? pl.position : "__start";
-          if(!groups.has(pos)) groups.set(pos, []);
-          groups.get(pos).push(i);
-        });
-        const bRect = board.getBoundingClientRect();
-        if(groups.has("__start")){
-          const startIdxs = groups.get("__start");
-          const sRect = START_MARKER.getBoundingClientRect();
-          const sx = (sRect.left - bRect.left) + sRect.width/2;
-          const sy = (sRect.top - bRect.top) + sRect.height/2;
-          startIdxs.forEach((pi,k)=>{
-            const t = ensureToken(pi);
-            if(shouldUseDarkTextForBg(t.style.background)) t.style.color = '#000'; else t.style.color = '#fff';
-            const offX = ((k % 2) - 0.5) * 18;
-            const offY = (Math.floor(k/2) - 0.5) * 18;
-            t.style.transform = `translate(${sx + offX}px, ${sy + offY}px)`;
-          });
-        }
-        groups.forEach((idxs, pos)=>{
-          if(pos === "__start") return;
-          const center = tileCoords[pos];
-          if(!center) return;
-          const n = idxs.length;
-          const baseR = Math.max(14, TILE_SIZE * 0.28);
-          if(n === 1){
-            const t = ensureToken(idxs[0]);
-            if(shouldUseDarkTextForBg(t.style.background)) t.style.color = '#000'; else t.style.color = '#fff';
-            t.style.transform = `translate(${center.x}px, ${center.y}px)`;
-          } else {
-            const perOuter = 6;
-            const outerCount = Math.min(n, perOuter);
-            const innerCount = Math.max(0, n - perOuter);
-            let used = 0;
-            const outerR = baseR;
-            for(let k=0;k<outerCount;k++){
-              const ang = (k / outerCount) * Math.PI * 2 - Math.PI/2;
-              const x = center.x + Math.cos(ang) * outerR;
-              const y = center.y + Math.sin(ang) * outerR;
+          if(innerCount > 0){
+            const innerR = baseR * 0.6;
+            for(let k=0;k<innerCount;k++){
+              const ang = (k / innerCount) * Math.PI * 2 - Math.PI/2;
+              const x = center.x + Math.cos(ang) * innerR;
+              const y = center.y + Math.sin(ang) * innerR;
               const t = ensureToken(idxs[used++]);
               if(shouldUseDarkTextForBg(t.style.background)) t.style.color = '#000'; else t.style.color = '#fff';
               t.style.transform = `translate(${x}px, ${y}px)`;
             }
-            if(innerCount > 0){
-              const innerR = baseR * 0.6;
-              for(let k=0;k<innerCount;k++){
-                const ang = (k / innerCount) * Math.PI * 2 - Math.PI/2;
-                const x = center.x + Math.cos(ang) * innerR;
-                const y = center.y + Math.sin(ang) * innerR;
-                const t = ensureToken(idxs[used++]);
-                if(shouldUseDarkTextForBg(t.style.background)) t.style.color = '#000'; else t.style.color = '#fff';
-                t.style.transform = `translate(${x}px, ${y}px)`;
-              }
-            }
           }
-        });
-      }
-
-      // Final results calculation & modal (no CSV/JSON per request)
-      const SCORE_WEIGHTS = { rating: 3.0, learning: 1.5, motivation: 1.2, mental: 1.0, responsibility: 2.0 };
-
-      function computeFinalResults(){
-        const rows = state.players.map((p, i) => {
-          const attrs = {
-            learning: Number(p.learning || 0),
-            rating: Number(p.rating || 0),
-            mental: Number(p.mental || 0),
-            motivation: Number(p.motivation || 0),
-            responsibility: Number(p.responsibility || 0)
-          };
-          const score = Math.round(
-            attrs.rating * SCORE_WEIGHTS.rating +
-            attrs.learning * SCORE_WEIGHTS.learning +
-            attrs.motivation * SCORE_WEIGHTS.motivation +
-            attrs.mental * SCORE_WEIGHTS.mental +
-            attrs.responsibility * SCORE_WEIGHTS.responsibility
-          );
-          return {
-            index: i,
-            name: p.name,
-            score,
-            attrs,
-            finishedAt: p.finishedAt || null,
-            finished: !!p.finished
-          };
-        });
-
-        rows.sort((a,b)=>{
-          if(b.score !== a.score) return b.score - a.score;
-          if(a.finished && b.finished){
-            if(a.finishedAt && b.finishedAt) return a.finishedAt - b.finishedAt;
-            if(a.finishedAt) return -1;
-            if(b.finishedAt) return 1;
-          }
-          return a.name.localeCompare(b.name, 'ja');
-        });
-
-        let lastScore = null, lastRank = 0, count = 0;
-        rows.forEach(r=>{
-          count++;
-          if(r.score !== lastScore){
-            lastRank = count;
-            lastScore = r.score;
-          }
-          r.rank = lastRank;
-        });
-
-        return rows;
-      }
-
-      function showFinalResultsModal(){
-        const results = computeFinalResults();
-        removeFallbacks();
-        const overlay = document.createElement('div'); overlay.className='modal-fallback';
-        const card = document.createElement('div'); card.className='card';
-        card.style.maxWidth = '920px';
-        const title = document.createElement('div'); title.className = 'event-title'; title.textContent = '最終結果';
-        const subtitle = document.createElement('div'); subtitle.className='small-muted'; subtitle.textContent = `集計: ${new Date().toLocaleString()}`;
-        card.appendChild(title); card.appendChild(subtitle);
-
-        const table = document.createElement('table'); table.className = 'results-table';
-        const thead = document.createElement('thead');
-        thead.innerHTML = `<tr><th>順位</th><th>名前</th><th>スコア</th><th>学び</th><th>評価</th><th>メンタル</th><th>モチベ</th><th>責任</th><th>備考</th></tr>`;
-        table.appendChild(thead);
-        const tbody = document.createElement('tbody');
-
-        results.forEach((r, i) => {
-          const tr = document.createElement('tr');
-          if(i === 0) tr.classList.add('results-winner');
-          const note = r.finished ? (r.finishedAt ? `ゴール済 (${new Date(r.finishedAt).toLocaleTimeString()})` : 'ゴール済') : '';
-          tr.innerHTML = `<td>${r.rank}</td><td>${r.name}</td><td>${r.score}</td>
-            <td>${r.attrs.learning}</td><td>${r.attrs.rating}</td><td>${r.attrs.mental}</td><td>${r.attrs.motivation}</td><td>${r.attrs.responsibility}</td>
-            <td class="small-muted">${note}</td>`;
-          tbody.appendChild(tr);
-        });
-        table.appendChild(tbody);
-        card.appendChild(table);
-
-        const actions = document.createElement('div'); actions.style.display = 'flex'; actions.style.justifyContent='flex-end'; actions.style.gap='8px'; actions.style.marginTop='12px';
-        const btnClose = document.createElement('button'); btnClose.className='primary'; btnClose.textContent='閉じる';
-        btnClose.addEventListener('click', ()=> { overlay.remove(); });
-        actions.appendChild(btnClose);
-        card.appendChild(actions);
-        overlay.appendChild(card);
-        document.body.appendChild(overlay);
-      }
-
-      // When a player reaches goal, mark finishedAt timestamp and check all-finished
-      async function resolveCell(playerIndex, pathIndex){
-        const pl = state.players[playerIndex];
-        if(pl == null) return;
-        const tileEl = board.querySelector(`.tile[data-path-index="${pathIndex}"]`);
-        if(!tileEl){ renderPlayersPanel(); return; }
-        if(tileEl.classList.contains("goal")){
-          if(!pl.finished){
-            pl.finished = true;
-            pl.finishedAt = Date.now();
-          }
-          pushLog(`${pl.name}: ゴール！`, "ok");
-          await showCard("ゴール", `${pl.name} がゴールしました`);
-          renderPlayersPanel();
-          const allFinished = state.players.length > 0 && state.players.every(p => !!p.finished);
-          if(allFinished){
-            setTimeout(()=> showFinalResultsModal(), 400);
-          }
-        } else {
-          renderPlayersPanel();
         }
-      }
-
-      // Ensure updateRollState enables/disables roll button appropriately.
-      function updateRollState(){
-        const rbtn = document.getElementById('btn-roll');
-        if(!rbtn) return;
-        rbtn.disabled = !(state.started && !state.animating);
-      }
-
-      // per-tile movement
-      function moveTokenStep(playerIndex, pos){
-        return new Promise(resolve=>{
-          const t = ensureToken(playerIndex);
-          const c = (typeof pos === "number" && tileCoords[pos]) ? tileCoords[pos] : null;
-          const bRect = board.getBoundingClientRect();
-          if(!c){
-            const sRect = START_MARKER.getBoundingClientRect();
-            const x = (sRect.left - bRect.left) + sRect.width/2;
-            const y = (sRect.top - bRect.top) + sRect.height/2;
-            t.style.transform = `translate(${x}px, ${y}px)`;
-            setTimeout(()=> resolve(), TOKEN_MOVE_MS + 20);
-            return;
-          }
-          let finished = false;
-          function onEnd(e){
-            if(e && e.target !== t) return;
-            if(finished) return;
-            finished = true;
-            t.removeEventListener('transitionend', onEnd);
-            setTimeout(()=> resolve(), 20);
-          }
-          t.addEventListener('transitionend', onEnd);
-          setTimeout(()=>{ if(!finished){ finished=true; t.removeEventListener('transitionend', onEnd); resolve(); } }, TOKEN_MOVE_MS + 220);
-          t.style.transform = `translate(${c.x}px, ${c.y}px)`;
-        });
-      }
-
-      async function animateMove(playerIndex, steps){
-        const pl = state.players[playerIndex]; if(!pl || pl.finished) return;
-        state.animating = true; updateRollState();
-        try{
-          let pos = (typeof pl.position === "number") ? pl.position : -1;
-          let remaining = steps;
-          while(remaining > 0){
-            const next = pos + 1;
-            if(next >= NUM_TILES){
-              pos = NUM_TILES - 1;
-              pl.position = pos;
-              await moveTokenStep(playerIndex, pos);
-              break;
-            } else {
-              pos = next;
-              pl.position = pos;
-              await moveTokenStep(playerIndex, pos);
-            }
-            remaining--;
-          }
-          placeAllTokens();
-          const tileEl = board.querySelector(`.tile[data-path-index="${pl.position}"]`);
-          if(tileEl && (tileEl.classList.contains('event') || tileEl.classList.contains('client') || tileEl.classList.contains('workshop') || tileEl.classList.contains('bonus') || tileEl.classList.contains('penalty')) ){
-            await handleEventTile(playerIndex);
-          } else {
-            await resolveCell(playerIndex, pl.position);
-          }
-        }catch(e){ console.error(e); }
-        finally{ state.animating = false; updateRollState(); }
-      }
-
-      async function rollTurn(){
-        if(!state.started || state.animating) return;
-        const current = state.currentPlayerIndex;
-        const val = Math.floor(Math.random()*6)+1;
-        if(diceEl) diceEl.textContent = String(val);
-        pushLog(`${state.players[current].name} がサイコロを振りました`);
-        await animateMove(current, val);
-        nextPlayerTurn();
-      }
-
-      function nextPlayerTurn(){
-        const total = state.players.length;
-        if(total === 0) return;
-        let i = state.currentPlayerIndex;
-        for(let c=0;c<total;c++){
-          i = (i+1) % total;
-          const cand = state.players[i];
-          if(!cand) continue;
-          if(cand.finished) continue;
-          state.currentPlayerIndex = i;
-          statCurrentEl.textContent = state.players[i].name;
-          highlightActive();
-          return;
-        }
-        statCurrentEl.textContent = "-";
-      }
-
-      function highlightActive(){
-        Array.from(playersPanelEl.children).forEach((row, idx)=>{
-          if(idx === state.currentPlayerIndex) row.style.boxShadow = "0 0 0 3px rgba(134,187,39,0.12) inset";
-          else row.style.boxShadow = "";
-        });
-        highlightActiveToken();
-      }
-
-      function highlightActiveToken(){
-        state.players.forEach((pl,i)=>{
-          const t = document.getElementById(`token-${i}`);
-          if(!t) return;
-          if(i === state.currentPlayerIndex) t.style.outline = "3px solid rgba(0,0,0,0.08)";
-          else t.style.outline = "none";
-        });
-      }
-
-      function renderPlayersPanel(){
-        playersPanelEl.innerHTML = "";
-        state.players.forEach((pl, i)=>{
-          const row = document.createElement("div");
-          row.className = "player-row";
-          const left = document.createElement("div");
-          left.style.display = "flex"; left.style.alignItems = "center"; left.style.gap = "8px";
-          const badge = document.createElement("div");
-          badge.style.width = "18px"; badge.style.height = "18px"; badge.style.borderRadius = "50%";
-          badge.style.background = (["#86BB27","#DFF3C6","#C4C4C4","#000000"][i % 4]) || "#86BB27";
-          left.appendChild(badge);
-          const name = document.createElement("div"); name.textContent = pl.name;
-          left.appendChild(name);
-          const right = document.createElement("div"); right.className = "attr-list";
-          right.innerHTML = `<div>学び:${pl.learning}</div><div>評価:${pl.rating}</div><div>メンタル:${pl.mental}</div><div>モチベ:${pl.motivation}</div><div>責任:${pl.responsibility}</div>`;
-          row.appendChild(left); row.appendChild(right);
-          playersPanelEl.appendChild(row);
-        });
-        highlightActive();
-      }
-
-      // Attach handlers and ensure btn-roll is enabled when the game starts.
-      function attachHandlers(){
-        btnStart.addEventListener("click", ()=> startGame());
-        btnRoll.addEventListener("click", ()=> rollTurn());
-        btnReset.addEventListener("click", ()=> resetGame());
-        btnResults.addEventListener("click", ()=> showFinalResultsModal());
-        window.addEventListener("resize", ()=> layoutTiles());
-        window.addEventListener("keydown", (e)=>{
-          if((e.key === " " || e.key === "Enter") && state.started && !state.animating){
-            e.preventDefault();
-            rollTurn();
-          }
-        });
-      }
-
-      function startGame(){
-        if(state.started) return;
-        const names = getPlayerNames();
-        state.players = names.map((n,i)=>({
-          name: n,
-          position: 0, // start at tile0
-          learning: 50,
-          rating: 50,
-          mental: 50,
-          motivation: 50,
-          responsibility: 0,
-          finished: false,
-          finishedAt: null
-        }));
-        state.started = true;
-        state.turn = 1;
-        state.currentPlayerIndex = 0;
-        statTurnEl.textContent = String(state.turn);
-        statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
-        layoutTiles();
-        renderPlayersPanel();
-        pushLog("ゲームを開始しました（プレイヤーはスタートマスに配置されます）", "ok");
-        // Ensure roll button becomes enabled immediately after starting
-        state.animating = false;
-        updateRollState(); // sets btn-roll disabled = !(started && !animating)
-      }
-
-      function resetGame(){
-        state.started = false;
-        state.turn = 0;
-        state.currentPlayerIndex = 0;
-        state.players = [];
-        statTurnEl.textContent = "0";
-        statCurrentEl.textContent = "-";
-        board.querySelectorAll(".token").forEach(t=>t.remove());
-        playersPanelEl.innerHTML = "";
-        pushLog("ゲームをリセットしました", "ok");
-        state.animating = false;
-        updateRollState();
-      }
-
-      attachHandlers();
-      layoutTiles();
-      renderEventsPanel();
-      pushLog("UI ready — EVENT_TEMPLATES loaded and results feature enabled");
+      });
     }
 
-    // init is attached at top via load listener
-    // placeholder helpers to avoid console errors if referenced before defined
-    function renderEventsPanel(){ if(typeof EVENT_TEMPLATES === 'object' && EVENT_TEMPLATES) { /* actual render done in init */ } }
-    function getPlayerNames(){ return Array.from(document.querySelectorAll('#player-names input')).map((el,idx)=> el.value.trim() || `プレイヤー${idx+1}`); }
+    // Movement animation
+    function moveTokenStep(playerIndex, pos){
+      return new Promise(resolve=>{
+        const t = ensureToken(playerIndex);
+        const c = (typeof pos === "number" && tileCoords[pos]) ? tileCoords[pos] : null;
+        const bRect = $("#board").getBoundingClientRect();
+        if(!c){
+          const sRect = $("#start-marker").getBoundingClientRect();
+          const x = (sRect.left - bRect.left) + sRect.width/2;
+          const y = (sRect.top - bRect.top) + sRect.height/2;
+          t.style.transform = `translate(${x}px, ${y}px)`;
+          setTimeout(()=> resolve(), TOKEN_MOVE_MS + 20);
+          return;
+        }
+        let finished = false;
+        function onEnd(e){
+          if(e && e.target !== t) return;
+          if(finished) return;
+          finished = true;
+          t.removeEventListener('transitionend', onEnd);
+          setTimeout(()=> resolve(), 20);
+        }
+        t.addEventListener('transitionend', onEnd);
+        setTimeout(()=>{ if(!finished){ finished=true; t.removeEventListener('transitionend', onEnd); resolve(); } }, TOKEN_MOVE_MS + 220);
+        t.style.transform = `translate(${c.x}px, ${c.y}px)`;
+      });
+    }
+
+    async function animateMove(playerIndex, steps){
+      const pl = state.players[playerIndex]; if(!pl || pl.finished) return;
+      state.animating = true; updateRollState();
+      try{
+        let pos = (typeof pl.position === "number") ? pl.position : -1;
+        let remaining = steps;
+        while(remaining > 0){
+          const next = pos + 1;
+          if(next >= NUM_TILES){
+            pos = NUM_TILES - 1;
+            pl.position = pos;
+            await moveTokenStep(playerIndex, pos);
+            break;
+          } else {
+            pos = next;
+            pl.position = pos;
+            await moveTokenStep(playerIndex, pos);
+          }
+          remaining--;
+        }
+        placeAllTokens();
+        const tileEl = document.querySelector(`.tile[data-path-index="${pl.position}"]`);
+        if(tileEl && (tileEl.classList.contains('event') || tileEl.classList.contains('client') || tileEl.classList.contains('workshop') || tileEl.classList.contains('bonus') || tileEl.classList.contains('penalty')) ){
+          await handleEventTile(playerIndex);
+        } else {
+          await resolveCell(playerIndex, pl.position);
+        }
+      }catch(e){ console.error(e); }
+      finally{ state.animating = false; updateRollState(); }
+    }
+
+    // Roll & turn logic
+    function updateRollState(){
+      const rbtn = document.getElementById('btn-roll');
+      const bbRoll = document.getElementById('bb-btn-roll');
+      if(rbtn) rbtn.disabled = !(state.started && !state.animating);
+      if(bbRoll) bbRoll.disabled = !(state.started && !state.animating);
+    }
+
+    async function rollTurn(){
+      if(!state.started || state.animating) return;
+      const current = state.currentPlayerIndex;
+      const val = Math.floor(Math.random()*6)+1;
+      const diceEl = $("#dice");
+      if(diceEl) diceEl.textContent = String(val);
+      pushLog(`${state.players[current].name} がサイコロを振りました`);
+      await animateMove(current, val);
+      nextPlayerTurn();
+    }
+
+    function nextPlayerTurn(){
+      const total = state.players.length;
+      if(total === 0) return;
+      let i = state.currentPlayerIndex;
+      for(let c=0;c<total;c++){
+        i = (i+1) % total;
+        const cand = state.players[i];
+        if(!cand) continue;
+        if(cand.finished) continue;
+        state.currentPlayerIndex = i;
+        $("#stat-current").textContent = state.players[i].name;
+        highlightActive();
+        return;
+      }
+      $("#stat-current").textContent = "-";
+    }
+
+    function highlightActive(){
+      Array.from($("#players-panel").children).forEach((row, idx)=>{
+        if(idx === state.currentPlayerIndex) row.style.boxShadow = "0 0 0 3px rgba(134,187,39,0.12) inset";
+        else row.style.boxShadow = "";
+      });
+      highlightActiveToken();
+    }
+    function highlightActiveToken(){
+      state.players.forEach((pl,i)=>{
+        const t = document.getElementById(`token-${i}`);
+        if(!t) return;
+        if(i === state.currentPlayerIndex) t.style.outline = "3px solid rgba(0,0,0,0.08)";
+        else t.style.outline = "none";
+      });
+    }
+
+    // Players panel render
+    function renderPlayersPanel(){
+      const playersPanelEl = $("#players-panel");
+      if(!playersPanelEl) return;
+      playersPanelEl.innerHTML = "";
+      state.players.forEach((pl, i)=>{
+        const row = document.createElement("div"); row.className = "player-row";
+        const left = document.createElement("div"); left.style.display = "flex"; left.style.alignItems = "center"; left.style.gap = "8px";
+        const badge = document.createElement("div"); badge.style.width = "18px"; badge.style.height = "18px"; badge.style.borderRadius = "50%";
+        badge.style.background = (["#86BB27","#DFF3C6","#C4C4C4","#000000"][i % 4]) || "#86BB27";
+        left.appendChild(badge);
+        const name = document.createElement("div"); name.textContent = pl.name;
+        left.appendChild(name);
+        const right = document.createElement("div"); right.className = "attr-list";
+        right.innerHTML = `<div>学び:${pl.learning}</div><div>評価:${pl.rating}</div><div>メンタル:${pl.mental}</div><div>モチベ:${pl.motivation}</div><div>責任:${pl.responsibility}</div>`;
+        row.appendChild(left); row.appendChild(right);
+        playersPanelEl.appendChild(row);
+      });
+      highlightActive();
+    }
+
+    // Events: stage selector and list for debugging (non-essential)
+    function renderEventsPanel(){
+      // Keep minimal: show counts per stage when templates available
+      const list = $("#events-list");
+      if(!list) return;
+      list.innerHTML = "";
+      if(EVENT_TEMPLATES){
+        const makeItem = (title, arr) => {
+          const d = document.createElement('div'); d.className='event-item';
+          d.textContent = `${title}: ${arr.length}件`;
+          list.appendChild(d);
+        };
+        if(EVENT_TEMPLATES.junior) makeItem('Junior', EVENT_TEMPLATES.junior);
+        if(EVENT_TEMPLATES.mid) makeItem('Mid', EVENT_TEMPLATES.mid);
+        if(EVENT_TEMPLATES.senior) makeItem('Senior', EVENT_TEMPLATES.senior);
+      } else {
+        list.textContent = 'イベントテンプレート読み込みなし';
+      }
+    }
+
+    // Event picking logic
+    function eventStageForPlayer(pl){
+      const pos = typeof pl.position === "number" ? pl.position : 0;
+      if(pos >= 30) return "senior";
+      if(pos >= 15) return "mid";
+      return "junior";
+    }
+    function pickEventForPlayer(playerIndex){
+      const pl = state.players[playerIndex];
+      if(!pl) return null;
+      const stage = eventStageForPlayer(pl);
+      const pool = (EVENT_TEMPLATES && EVENT_TEMPLATES[stage]) ? EVENT_TEMPLATES[stage] : [];
+      if(!pool || !pool.length) return null;
+      const weights = pool.map(c => {
+        let w = 1;
+        const ch = c.changes || {};
+        if((pl.learning||0) < 40 && (ch.learning || 0) > 0) w += 1.6;
+        if((pl.motivation||0) < 40 && (ch.motivation || 0) > 0) w += 1.4;
+        if((pl.rating||0) < 40 && (ch.rating || 0) > 0) w += 1.2;
+        if(c.choices) w += 0.3;
+        return w;
+      });
+      const total = weights.reduce((a,b)=>a+b,0);
+      let r = state.rng() * total;
+      for(let i=0;i<pool.length;i++){
+        r -= weights[i];
+        if(r <= 0) return pool[i];
+      }
+      return pool[pool.length-1];
+    }
+
+    // Modal helpers: adapt between desktop modal and mobile bottom-sheet
+    function removeFallbacks(){ document.querySelectorAll('.modal-fallback').forEach(e=>e.remove()); }
+    function createModalCard(isBottom){
+      removeFallbacks();
+      const overlay = document.createElement('div'); overlay.className='modal-fallback';
+      if(isBottom) overlay.classList.add('modal-bottom');
+      const card = document.createElement('div'); card.className='card';
+      overlay.appendChild(card);
+      document.body.appendChild(overlay);
+      return { overlay, card };
+    }
+
+    function showCard(title, body){
+      return new Promise(resolve=>{
+        const isBottom = isMobile;
+        const { overlay, card } = createModalCard(isBottom);
+        const h = document.createElement('div'); h.className='event-title'; h.textContent = title;
+        const b = document.createElement('div'); b.className='event-body'; b.textContent = body;
+        const actions = document.createElement('div'); actions.style.textAlign='right';
+        const ok = document.createElement('button'); ok.className='primary'; ok.textContent='OK';
+        ok.addEventListener('click', ()=>{ overlay.remove(); resolve(true); });
+        actions.appendChild(ok);
+        card.appendChild(h); card.appendChild(b); card.appendChild(actions);
+        ok.focus();
+      });
+    }
+
+    function openBottomSheet(kind){
+      // kind: 'players' or 'log'
+      const isBottom = true;
+      const { overlay, card } = createModalCard(isBottom);
+      const h = document.createElement('div'); h.className='event-title'; h.textContent = (kind === 'players' ? 'プレイヤー' : 'ログ');
+      const content = document.createElement('div'); content.style.overflow='auto'; content.style.maxHeight='70vh';
+      if(kind === 'players'){
+        content.appendChild($("#players-panel").cloneNode(true));
+      } else {
+        content.appendChild($("#log").cloneNode(true));
+      }
+      const actions = document.createElement('div'); actions.style.textAlign='right';
+      const close = document.createElement('button'); close.className='primary'; close.textContent='閉じる';
+      close.addEventListener('click', ()=> overlay.remove());
+      actions.appendChild(close);
+      card.appendChild(h); card.appendChild(content); card.appendChild(actions);
+    }
+
+    // Event modals (choice + event)
+    function applyAttributeChanges(playerIndex, changes){
+      const pl = state.players[playerIndex];
+      if(!pl) return;
+      const attrs = ['learning','rating','mental','motivation','responsibility'];
+      attrs.forEach(a=>{
+        if(typeof changes[a] === 'number' && changes[a] !== 0){
+          pl[a] = Math.max(0, (pl[a]||0) + Math.round(changes[a]));
+        }
+      });
+      pushLog(`${pl.name}: 属性が変化しました → ${Object.entries(changes).filter(([k,v])=>v!==0).map(([k,v])=> `${k} ${v>0?'+':''}${v}`).join(', ')}`, "ok");
+      renderPlayersPanel();
+    }
+
+    async function showEventModal(playerIndex, tmpl){
+      const isBottom = isMobile;
+      const { overlay, card } = createModalCard(isBottom);
+      const h = document.createElement('div'); h.className='event-title'; h.textContent = tmpl.title;
+      const b = document.createElement('div'); b.className='event-body'; b.textContent = tmpl.body;
+      const chg = document.createElement('div'); chg.className='event-changes';
+      const changes = tmpl.changes || {};
+      const parts = [];
+      if(changes.learning) parts.push(`学び ＋${changes.learning}`);
+      if(changes.rating) parts.push(`評価 ＋${changes.rating}`);
+      if(changes.mental) parts.push(`メンタル ＋${changes.mental}`);
+      if(changes.motivation) parts.push(`モチベ ＋${changes.motivation}`);
+      if(changes.responsibility) parts.push(`責任 ＋${changes.responsibility}`);
+      chg.textContent = parts.join('　');
+      const actions = document.createElement('div'); actions.style.textAlign='right';
+      const ok = document.createElement('button'); ok.className='primary'; ok.textContent='OK';
+      ok.addEventListener('click', ()=>{
+        applyAttributeChanges(playerIndex, changes);
+        overlay.remove();
+      });
+      actions.appendChild(ok);
+      card.appendChild(h); card.appendChild(b); card.appendChild(chg); card.appendChild(actions);
+      ok.focus();
+    }
+
+    async function showChoiceModal(playerIndex, tmpl){
+      const isBottom = isMobile;
+      const { overlay, card } = createModalCard(isBottom);
+      const h = document.createElement('div'); h.className='event-title'; h.textContent = tmpl.title;
+      const b = document.createElement('div'); b.className='event-body'; b.textContent = tmpl.body;
+      const actions = document.createElement('div'); actions.style.display = 'flex'; actions.style.justifyContent = 'flex-end'; actions.style.gap = '8px';
+
+      (tmpl.choices||[]).forEach(choice=>{
+        const btn = document.createElement('button'); btn.type='button'; btn.className='choice-btn'; btn.textContent = choice.label;
+        // On mobile make choices full-width stacked
+        if(isMobile){
+          btn.style.display = 'block';
+          btn.style.width = '100%';
+          btn.style.marginBottom = '8px';
+        }
+        btn.addEventListener('click', async ()=> {
+          overlay.remove();
+          const isOrderChoice = /受注/.test(choice.label);
+          if(isOrderChoice){
+            const success = Math.random() < 0.5;
+            if(success){
+              applyAttributeChanges(playerIndex, choice.changes || {});
+              await showCard(choice.resultText || "受注に成功しました", "");
+            } else {
+              applyAttributeChanges(playerIndex, { learning: 2 });
+              const failText = choice.resultText ? `${choice.resultText}\n\nしかし失敗からも学びがありました。学び +2` : "失敗からも学んだ！ 学び +2";
+              await showCard("失敗からも学んだ！", failText);
+            }
+          } else {
+            applyAttributeChanges(playerIndex, choice.changes || {});
+            await showCard(choice.resultText || "選択結果", "");
+          }
+        });
+        actions.appendChild(btn);
+      });
+
+      const cancel = document.createElement('button'); cancel.type='button'; cancel.textContent='やめる';
+      if(isMobile){ cancel.style.display='block'; cancel.style.width='100%'; }
+      cancel.addEventListener('click', ()=> overlay.remove());
+      actions.appendChild(cancel);
+
+      card.appendChild(h); card.appendChild(b); card.appendChild(actions);
+      // focus first button for accessibility
+      const firstBtn = card.querySelector('button.choice-btn');
+      if(firstBtn) firstBtn.focus();
+    }
+
+    async function handleEventTile(playerIndex){
+      const tmpl = pickEventForPlayer(playerIndex);
+      if(!tmpl) return;
+      if(tmpl.choices && Array.isArray(tmpl.choices)){
+        await showChoiceModal(playerIndex, tmpl);
+      } else {
+        await showEventModal(playerIndex, tmpl);
+      }
+    }
+
+    // resolve cell (goal handling)
+    async function resolveCell(playerIndex, pathIndex){
+      const pl = state.players[playerIndex];
+      if(pl == null) return;
+      const tileEl = document.querySelector(`.tile[data-path-index="${pathIndex}"]`);
+      if(!tileEl){ renderPlayersPanel(); return; }
+      if(tileEl.classList.contains("goal")){
+        if(!pl.finished){
+          pl.finished = true;
+          pl.finishedAt = Date.now();
+        }
+        pushLog(`${pl.name}: ゴール！`, "ok");
+        await showCard("ゴール", `${pl.name} がゴールしました`);
+        renderPlayersPanel();
+        const allFinished = state.players.length > 0 && state.players.every(p => !!p.finished);
+        if(allFinished){
+          setTimeout(()=> showFinalResultsModal(), 400);
+        }
+      } else {
+        renderPlayersPanel();
+      }
+    }
+
+    // Final results (no CSV/JSON)
+    const SCORE_WEIGHTS = { rating: 3.0, learning: 1.5, motivation: 1.2, mental: 1.0, responsibility: 2.0 };
+    function computeFinalResults(){
+      const rows = state.players.map((p, i) => {
+        const attrs = {
+          learning: Number(p.learning || 0),
+          rating: Number(p.rating || 0),
+          mental: Number(p.mental || 0),
+          motivation: Number(p.motivation || 0),
+          responsibility: Number(p.responsibility || 0)
+        };
+        const score = Math.round(
+          attrs.rating * SCORE_WEIGHTS.rating +
+          attrs.learning * SCORE_WEIGHTS.learning +
+          attrs.motivation * SCORE_WEIGHTS.motivation +
+          attrs.mental * SCORE_WEIGHTS.mental +
+          attrs.responsibility * SCORE_WEIGHTS.responsibility
+        );
+        return {
+          index: i,
+          name: p.name,
+          score,
+          attrs,
+          finishedAt: p.finishedAt || null,
+          finished: !!p.finished
+        };
+      });
+
+      rows.sort((a,b)=>{
+        if(b.score !== a.score) return b.score - a.score;
+        if(a.finished && b.finished){
+          if(a.finishedAt && b.finishedAt) return a.finishedAt - b.finishedAt;
+          if(a.finishedAt) return -1;
+          if(b.finishedAt) return 1;
+        }
+        return a.name.localeCompare(b.name, 'ja');
+      });
+
+      let lastScore = null, lastRank = 0, count = 0;
+      rows.forEach(r=>{
+        count++;
+        if(r.score !== lastScore){
+          lastRank = count;
+          lastScore = r.score;
+        }
+        r.rank = lastRank;
+      });
+
+      return rows;
+    }
+
+    function showFinalResultsModal(){
+      const results = computeFinalResults();
+      const isBottom = isMobile;
+      const { overlay, card } = createModalCard(isBottom);
+      const title = document.createElement('div'); title.className='event-title'; title.textContent = '最終結果';
+      const subtitle = document.createElement('div'); subtitle.className='small-muted'; subtitle.textContent = `集計: ${new Date().toLocaleString()}`;
+      card.appendChild(title); card.appendChild(subtitle);
+      const table = document.createElement('table'); table.className='results-table';
+      const thead = document.createElement('thead');
+      thead.innerHTML = `<tr><th>順位</th><th>名前</th><th>スコア</th><th>学び</th><th>評価</th><th>メンタル</th><th>モチベ</th><th>責任</th><th>備考</th></tr>`;
+      table.appendChild(thead);
+      const tbody = document.createElement('tbody');
+      results.forEach((r,i)=>{
+        const tr = document.createElement('tr');
+        if(i===0) tr.classList.add('results-winner');
+        const note = r.finished ? (r.finishedAt ? `ゴール済 (${new Date(r.finishedAt).toLocaleTimeString()})` : 'ゴール済') : '';
+        tr.innerHTML = `<td>${r.rank}</td><td>${r.name}</td><td>${r.score}</td>
+          <td>${r.attrs.learning}</td><td>${r.attrs.rating}</td><td>${r.attrs.mental}</td><td>${r.attrs.motivation}</td><td>${r.attrs.responsibility}</td>
+          <td class="small-muted">${note}</td>`;
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      card.appendChild(table);
+      const actions = document.createElement('div'); actions.style.display='flex'; actions.style.justifyContent='flex-end'; actions.style.gap='8px'; actions.style.marginTop='12px';
+      const btnClose = document.createElement('button'); btnClose.className='primary'; btnClose.textContent='閉じる';
+      btnClose.addEventListener('click', ()=> overlay.remove());
+      actions.appendChild(btnClose);
+      card.appendChild(actions);
+    }
+
+    // Start / Reset
+    function startGame(){
+      if(state.started) return;
+      const names = getPlayerNames();
+      state.players = names.map((n,i)=>({
+        name: n,
+        position: 0,
+        learning: 50,
+        rating: 50,
+        mental: 50,
+        motivation: 50,
+        responsibility: 0,
+        finished: false,
+        finishedAt: null
+      }));
+      state.started = true;
+      state.turn = 1;
+      state.currentPlayerIndex = 0;
+      $("#stat-turn").textContent = String(state.turn);
+      $("#stat-current").textContent = state.players[state.currentPlayerIndex].name;
+      layoutTiles();
+      renderPlayersPanel();
+      pushLog("ゲームを開始しました（プレイヤーはスタートマスに配置されます）", "ok");
+      state.animating = false;
+      updateRollState();
+    }
+
+    function resetGame(){
+      state.started = false;
+      state.turn = 0;
+      state.currentPlayerIndex = 0;
+      state.players = [];
+      $("#stat-turn").textContent = "0";
+      $("#stat-current").textContent = "-";
+      document.querySelectorAll(".token").forEach(t=>t.remove());
+      $("#players-panel").innerHTML = "";
+      pushLog("ゲームをリセットしました", "ok");
+      state.animating = false;
+      updateRollState();
+    }
+
+    // small helpers to avoid errors
+    window.createModalCard = createModalCard;
+
+    // expose for debugging
+    window.__game = { state, layoutTiles, startGame, resetGame };
+
   })();
   </script>
 </body>
