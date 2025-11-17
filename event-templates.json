@@ -1,0 +1,151 @@
+{
+  "junior": [
+    {
+      "title": "デロイトに入社、念願のコンサル職！",
+      "body": "入社し念願のコンサル職に就けた！思ったよりも温かみのあるオフィスで安心して発言できた！",
+      "changes": { "learning": 0, "motivation": 10, "rating": 3, "mental": 0, "responsibility": 0 }
+    },
+    {
+      "title": "初めての長期プロジェクト配属",
+      "body": "初めて長期プロジェクトに配属された！2年かかる予定のなかなかない機会だ。しっかり頑張ろう！",
+      "changes": { "learning": 0, "motivation": 5, "rating": 0, "mental": 0, "responsibility": 5 }
+    },
+    {
+      "title": "1年で昇進！",
+      "body": "入社から一年が経過して職務にも慣れてきた。実績が評価されアナリストからコンサルタントに昇進した！",
+      "changes": { "learning": 0, "motivation": 0, "rating": 5, "mental": 0, "responsibility": 5 }
+    },
+    {
+      "title": "有名企業からの直案件（相談）",
+      "body": "有名企業の社長から直々に案件が！1ヶ月で意味あるインパクトを起こせるか問われる。受注しますか？",
+      "choices": [
+        {
+          "label": "受注する（挑戦）",
+          "resultText": "受注した！短期で濃い経験を得られた。",
+          "changes": { "learning": 5, "rating": 3, "motivation": 3, "responsibility": 5, "mental": 0 }
+        },
+        {
+          "label": "見送る（慎重）",
+          "resultText": "今回は見送った。確実に経験を積んで次へ繋げる判断だ。",
+          "changes": { "learning": 1, "motivation": 1, "rating": 1, "responsibility": 0, "mental": 0 }
+        }
+      ]
+    },
+    {
+      "title": "打ち合わせで学んだ",
+      "body": "打ち合わせでミスがあったが、反省して学びに変えた。次に活かそう。",
+      "changes": { "learning": 5, "mental": 3, "motivation": 0, "rating": 1, "responsibility": 0 }
+    },
+    {
+      "title": "先輩との飲み会で得たアドバイス",
+      "body": "シニアマネジャーの先輩と意気投合して飲みに行った。過去の苦労話やアドバイスを聞けて有意義だった。",
+      "changes": { "learning": 3, "motivation": 8, "rating": 0, "mental": 0, "responsibility": 0 }
+    },
+    {
+      "title": "友人に羨ましがられる",
+      "body": "大学時代の友達に高給与が羨ましがられた。やりがいを感じている自分を再確認できた。",
+      "changes": { "learning": 0, "motivation": 3, "rating": 0, "mental": 0, "responsibility": 0 }
+    },
+    {
+      "title": "休日のセルフケア",
+      "body": "ネイルサロンや趣味でリフレッシュ。良い休息は翌週のパフォーマンスにも繋がる。",
+      "changes": { "learning": 0, "motivation": 3, "mental": 2, "rating": 0, "responsibility": 0 }
+    },
+    {
+      "title": "オンライン勉強会で新知見を獲得",
+      "body": "自習会で新しい手法を学んだ。小さな積み重ねが大きな差になる。",
+      "changes": { "learning": 4, "motivation": 2, "rating": 0, "mental": 0, "responsibility": 0 }
+    },
+    {
+      "title": "社内プロジェクトで小さな勝ち",
+      "body": "小さな改善提案が採用され、プロジェクトがスムーズに。自信がついた！",
+      "changes": { "learning": 2, "motivation": 4, "rating": 2, "mental": 0, "responsibility": 0 }
+    }
+  ],
+  "mid": [
+    {
+      "title": "大規模案件の主要メンバーに抜擢",
+      "body": "中堅として大規模案件に主要メンバーで参加。チームを率いる経験が得られる。",
+      "changes": { "learning": 6, "motivation": 6, "rating": 4, "mental": 0, "responsibility": 4 }
+    },
+    {
+      "title": "社内表彰で評価される",
+      "body": "プロジェクトの成果が評価され社内で表彰された。認められることは嬉しい。",
+      "changes": { "learning": 2, "motivation": 4, "rating": 5, "mental": 0, "responsibility": 2 }
+    },
+    {
+      "title": "勉強会で登壇",
+      "body": "社内勉強会で登壇して知見を共有。伝えることで自らも成長した。",
+      "changes": { "learning": 5, "motivation": 3, "rating": 2, "mental": 0, "responsibility": 0 }
+    },
+    {
+      "title": "重要クライアントの短期案件（相談）",
+      "body": "有名クライアントから短期集中案件が舞い込む。受注判断が問われる。",
+      "choices": [
+        {
+          "label": "受注（チャレンジ）",
+          "resultText": "受注し大成功。評価と責任が大きく伸びた。",
+          "changes": { "learning": 6, "rating": 5, "motivation": 4, "responsibility": 6, "mental": 0 }
+        },
+        {
+          "label": "見送り（慎重）",
+          "resultText": "リスク回避でチームを守った。次の機会を狙う。",
+          "changes": { "learning": 1, "motivation": 1, "rating": 1, "responsibility": 0, "mental": 0 }
+        }
+      ]
+    },
+    {
+      "title": "部下の指導で学び倍増",
+      "body": "後輩育成を通して自分の理解が深まった。教育は力だ。",
+      "changes": { "learning": 6, "motivation": 2, "rating": 1, "mental": 0, "responsibility": 2 }
+    },
+    {
+      "title": "国内外の出張で視野が広がる",
+      "body": "海外出張で異文化の現場を経験。広い視点を得て提案の幅が増えた。",
+      "changes": { "learning": 5, "motivation": 4, "rating": 2, "mental": 0, "responsibility": 1 }
+    },
+    {
+      "title": "社内講師を担当",
+      "body": "新人向け研修の講師を担当。教えることで信頼も高まる。",
+      "changes": { "learning": 3, "motivation": 3, "rating": 3, "mental": 0, "responsibility": 2 }
+    }
+  ],
+  "senior": [
+    {
+      "title": "チームを率いて大きな成果",
+      "body": "ベテランとしてチームを牽引し、クライアントに大きなインパクトを提供した。信頼が高まる。",
+      "changes": { "learning": 8, "motivation": 6, "rating": 6, "mental": 0, "responsibility": 8 }
+    },
+    {
+      "title": "業界賞や表彰を受賞",
+      "body": "成果が業界で認められ、表彰を受けた。キャリアの大きな栄誉だ。",
+      "changes": { "learning": 4, "motivation": 8, "rating": 8, "mental": 0, "responsibility": 3 }
+    },
+    {
+      "title": "経営層と提案の機会（大勝負）",
+      "body": "経営層に重要提案を任される。成功すれば組織に大きな影響を与えられる。",
+      "choices": [
+        {
+          "label": "受注（大勝負）",
+          "resultText": "受注成功でチームと自身の評価が飛躍的に向上！",
+          "changes": { "learning": 6, "rating": 8, "motivation": 6, "responsibility": 10, "mental": 0 }
+        },
+        {
+          "label": "見送り（戦略判断）",
+          "resultText": "戦略的な見送りで無駄なリスクを回避。今後の信頼に繋がった。",
+          "changes": { "learning": 2, "motivation": 2, "rating": 1, "responsibility": 0, "mental": 0 }
+        }
+      ]
+    },
+    {
+      "title": "後進育成で組織強化",
+      "body": "若手の育成に注力し、自身の経験が組織の力になる実感を得た。",
+      "changes": { "learning": 3, "motivation": 5, "rating": 2, "mental": 0, "responsibility": 3 }
+    },
+    {
+      "title": "業界カンファレンスで基調講演",
+      "body": "業界カンファレンスで経験を共有。社外での評価が高まり、ネットワークも広がった。",
+      "changes": { "learning": 5, "motivation": 6, "rating": 6, "mental": 0, "responsibility": 2 }
+    }
+  ]
+}
