@@ -448,17 +448,38 @@
       }
     }
 
-    function renderPlayerNameInputs(){
+        function renderPlayerNameInputs(){
       const wrap = $("#player-names");
       if(!wrap) return;
       wrap.innerHTML = "";
       const count = Math.max(1, Number($("#players-count").value) || 2);
+    
+      // disable players-count selector when game started
+      const playersCountSel = document.getElementById('players-count');
+      if(playersCountSel){
+        playersCountSel.disabled = !!state.started;
+      }
+    
       for(let i=0;i<count;i++){
         const inp = document.createElement("input");
         inp.type = "text";
         inp.placeholder = `Player ${i+1}`;
         inp.value = `プレイヤー${i+1}`;
+        inp.className = 'player-name';
         inp.style.width = isMobile ? "88px" : "120px";
+    
+        // 編集はゲーム開始前のみ許可
+        if(state.started){
+          inp.disabled = true;
+          inp.setAttribute('aria-disabled', 'true');
+          inp.title = 'ゲーム開始後は変更できません';
+        } else {
+          inp.disabled = false;
+          inp.removeAttribute('aria-disabled');
+          inp.title = '';
+          // 必要ならここで input イベントを追加して即時プレビュー等もできる
+        }
+    
         wrap.appendChild(inp);
       }
     }
@@ -1289,6 +1310,10 @@
       state.currentPlayerIndex = 0;
       $("#stat-turn").textContent = String(state.turn);
       $("#stat-current").textContent = state.players[state.currentPlayerIndex].name;
+    
+      // 切り替え: ゲーム開始後は名前入力を無効化するため再描画
+      renderPlayerNameInputs();
+    
       layoutTiles();
       renderPlayersPanel();
       pushLog("ゲームを開始しました（プレイヤーはスタートマスに配置されます）", "ok");
@@ -1308,6 +1333,9 @@
       pushLog("ゲームをリセットしました", "ok");
       state.animating = false;
       updateRollState();
+    
+      // リセット時に名前入力を再び有効化して再描画
+      renderPlayerNameInputs();
     }
 
     // expose a couple helpers for debugging
