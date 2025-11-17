@@ -111,9 +111,9 @@
       // parameters for analytic spiral snapping + tile rotation
       const A_PARAM = TILE_SIZE * 0.75;                // a in r = a + b * theta
       const BASE_B_SCALE = 0.95;                       // inner tuning
-      const B_MULTIPLIER = 2.2;                        // slightly relaxed from previous 2.6
+      const B_MULTIPLIER = 2.2;                        // multiplier for convergence
       const ROTATE_TILES = true;                       // rotate tiles to tangent
-      const JITTER_AMT = 0;                            // exactly zero for clean spiral
+      const JITTER_AMT = 0;                            // zero jitter for clean spiral
 
       let tileCoords = [];
       let state = { started:false, turn:0, currentPlayerIndex:0, players:[], animating:false, rng: Math.random, history: [] };
@@ -520,7 +520,7 @@
         t.style.color = (lum > 0.6) ? "#000" : "#fff";
         return t;
       }
-      function hexToRgb(hex){ hex = hex.replace('#',''); if(hex.length===3) hex = hex.split('').map(c=>c+c).join(''); const num = parseInt(hex,16); return { r:(num>>16)&255, g:(num>>8)&255, b:num&255 }; }
+      function hexToRgb(hex){ hex = hex.replace('#',''); if(hex.length===3) hex = hex.split('').map(c=>c+c).join(''); const num = parseInt(hex,16); return { r:(num>>16)&255, g:(num>>8)&255, b:num&255 [...] 
       function linearize(c){ return (c <= 0.03928) ? c/12.92 : Math.pow((c+0.055)/1.055, 2.4); }
 
       function placeAllTokens(){
@@ -638,7 +638,7 @@
           }
           placeAllTokens();
           const tileEl = board.querySelector(`.tile[data-path-index="${pl.position}"]`);
-          if(tileEl && (tileEl.classList.contains('event') || tileEl.classList.contains('client') || tileEl.classList.contains('workshop') || tileEl.classList.contains('bonus') || tileEl.classList.contains('penalty')) ){
+          if(tileEl && (tileEl.classList.contains('event') || tileEl.classList.contains('client') || tileEl.classList.contains('workshop') || tileEl.classList.contains('bonus') || tileEl.classList.con[...]
             await handleEventTile(playerIndex);
           } else {
             await resolveCell(playerIndex, pl.position);
@@ -725,7 +725,7 @@
           const name = document.createElement("div"); name.textContent = pl.name;
           left.appendChild(name);
           const right = document.createElement("div"); right.className = "attr-list";
-          right.innerHTML = `<div>学び:${pl.learning}</div><div>評価:${pl.rating}</div><div>メンタル:${pl.mental}</div><div>モチベ:${pl.motivation}</div><div>責任:${pl.responsibility}</div>`;
+          right.innerHTML = `<div>学び:${pl.learning}</div><div>評価:${pl.rating}</div><div>メンタル:${pl.mental}</div><div>モチベ:${pl.motivation}</div><div>責任:${pl.responsibility}</di[...]
           row.appendChild(left); row.appendChild(right); playersPanelEl.appendChild(row);
         });
         highlightActive();
