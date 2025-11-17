@@ -164,6 +164,9 @@
 
       .tile{ font-size:12px; padding:4px; border-radius:6px; transform: translate(-50%,-50%) rotate(0deg) !important; }
 
+      /* hide the floating start-marker on mobile since we mark start tile with 'S' */
+      .start-marker { display: none !important; }
+
       .token{ font-size:12px; }
 
       .sidebar { display:none; }
@@ -303,7 +306,6 @@
       ]
     };
 
-    // event templates loaded from external file (non-blocking)
     let EVENT_TEMPLATES = null;
     async function loadEventTemplatesExternal(){
       try{
@@ -326,7 +328,6 @@
     let mobileLayout = { tileSize: null, tokenSize: null, cols: 6 };
 
     async function init(){
-      // ensure EVENT_TEMPLATES always has something so event tiles continue to work
       const ext = await loadEventTemplatesExternal();
       EVENT_TEMPLATES = ext || DEFAULT_EVENT_TEMPLATES;
       if(!ext) console.info('Using DEFAULT_EVENT_TEMPLATES as fallback.');
@@ -424,21 +425,15 @@
     function buildGridPathFixedCols(N, rect, requestedTileSize, gap, colsFixed = 6){
       const padding = Math.max(8, requestedTileSize * 0.3);
       const usableW = Math.max(80, rect.width - padding*2);
-      // force colsFixed (6) but ensure tile fits; compute effective tile size to avoid overlap
       const cols = colsFixed;
       const totalGap = (cols - 1) * gap;
       let effectiveTileSize = Math.floor((usableW - totalGap) / cols);
-      const minTile = 28; // minimum tile size to keep touch targets usable
-      if(effectiveTileSize < minTile){
-        effectiveTileSize = minTile;
-      }
-      // if effectiveTileSize is larger than requested, cap to requested
+      const minTile = 28;
+      if(effectiveTileSize < minTile) effectiveTileSize = minTile;
       effectiveTileSize = Math.min(effectiveTileSize, requestedTileSize);
-      // compute spacing to center the grid horizontally
       const gridWidth = cols * effectiveTileSize + totalGap;
       const startX = Math.max(padding + effectiveTileSize/2, (rect.width - gridWidth)/2 + effectiveTileSize/2);
       const spacingX = effectiveTileSize + gap;
-      // rows
       const rows = Math.ceil(N / cols);
       const spacingY = effectiveTileSize + gap;
       const startY = padding + effectiveTileSize/2;
@@ -460,7 +455,6 @@
           }
         }
       }
-      // clamp
       const clampMargin = effectiveTileSize / 2 + 4;
       for(const c of coords){
         c.x = Math.max(clampMargin, Math.min(rect.width - clampMargin, c.x));
@@ -470,7 +464,6 @@
       return { coords, effectiveTileSize, cols };
     }
 
-    /* fallback spiral path (desktop) kept unchanged */
     const BASE_JITTER = 12;
     function buildConnectedPath(N, containerW, containerH, tileSize, gap){
       const cx = containerW/2, cy = containerH/2;
@@ -605,48 +598,66 @@
         const div = document.createElement("div");
         div.className = "tile";
         div.dataset.pathIndex = String(idx);
-        if(idx === NUM_TILES - 1){
-          div.classList.add("goal");
-          div.textContent = "GOAL";
-        } else if(idx % 11 === 0){
-          div.classList.add("client");
-        } else if(idx % 13 === 0){
-          div.classList.add("workshop");
-        } else if(idx % 6 === 0){
-          div.classList.add("event");
-        } else if(idx % 5 === 0){
-          div.classList.add("bonus");
-        } else if(idx % 7 === 0){
-          div.classList.add("penalty");
+
+        // Content: on mobile we show single-letter markers 'S' and 'G' centered in the tiles
+        if(isM){
+          if(idx === 0){
+            div.textContent = 'S';
+          } else if(idx === NUM_TILES - 1){
+            div.textContent = 'G';
+          } else {
+            // preserve type by using short labels (optional): keep empty so visual is clean
+            div.textContent = '';
+          }
+        } else {
+          // desktop behavior: show GOAL on final tile, otherwise no single-letter override
+          if(idx === NUM_TILES - 1){
+            div.classList.add("goal");
+            div.textContent = "GOAL";
+          } else {
+            // type classes will be added below
+          }
         }
+
+        // add type classes for styling (still useful for both)
+        if(idx !== NUM_TILES - 1){
+          if(idx % 11 === 0) div.classList.add("client");
+          if(idx % 13 === 0) div.classList.add("workshop");
+          if(idx % 6 === 0) div.classList.add("event");
+          if(idx % 5 === 0) div.classList.add("bonus");
+          if(idx % 7 === 0) div.classList.add("penalty");
+        }
+
         div.style.left = `${c.x}px`;
         div.style.top = `${c.y}px`;
         const rot = (isM ? 0 : (c.ang || ((Math.random()*2-1)*6)));
         div.style.transform = `translate(-50%,-50%) rotate(${rot}deg)`;
+
         if(isM && mobileLayout.tileSize){
           div.style.width = `${mobileLayout.tileSize}px`;
           div.style.height = `${mobileLayout.tileSize}px`;
           div.style.borderRadius = '6px';
+          // ensure letter is legible and centered
+          div.style.fontSize = Math.max(12, Math.round(mobileLayout.tileSize * 0.55)) + 'px';
+          div.style.lineHeight = '1';
         } else {
           div.style.width = ''; div.style.height = '';
         }
+
         board.appendChild(div);
       });
 
-      // align START_MARKER to tile 0 and size it to match mobile tile if present
+      // align START_MARKER: hide on mobile (CSS already hides it), set position for desktop
       const START_MARKER = $("#start-marker");
       if(tileCoords && tileCoords[0] && START_MARKER){
         const t0 = tileCoords[0];
         START_MARKER.style.left = `${t0.x}px`;
         START_MARKER.style.top = `${t0.y}px`;
-        if(mobileLayout.tileSize){
-          START_MARKER.style.width = `${Math.round(mobileLayout.tileSize * 1.15)}px`;
-          START_MARKER.style.height = `${Math.round(mobileLayout.tileSize * 0.34)}px`;
-        } else {
+        if(!mobileLayout.tileSize){
           START_MARKER.style.width = '';
           START_MARKER.style.height = '';
         }
-        START_MARKER.style.display = 'grid';
+        START_MARKER.style.display = mobileLayout.tileSize ? 'none' : 'grid';
       } else if(START_MARKER){
         START_MARKER.style.display = 'none';
       }
@@ -1015,10 +1026,8 @@
     }
 
     async function handleEventTile(playerIndex){
-      // pick event based on player's stage and templates; fallback templates are present by default now
       const tmpl = pickEventForPlayer(playerIndex);
       if(!tmpl){
-        // helpful debug message when no template found
         console.info('No event template available for player', playerIndex);
         return;
       }
