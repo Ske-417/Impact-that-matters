@@ -217,8 +217,20 @@
       .modal-bottom .card { height:88vh; padding:18px; border-radius:12px 12px 0 0; }
       .choice-btn{ display:block; width:100%; padding:14px 12px; margin-bottom:10px; border-radius:10px; font-size:15px; text-align:center; }
 
-      /* rules textarea style */
-      .rules-textarea { width:100%; min-height:220px; resize:vertical; padding:12px; border-radius:8px; border:1px solid #ddd; font-size:14px; font-weight:700; font-family:inherit; background:#f5f5f5; }
+      /* rules content style (read-only plain text) */
+      .rules-content {
+        width:100%;
+        min-height:220px;
+        padding:12px;
+        border-radius:8px;
+        border:1px solid #ddd;
+        font-size:14px;
+        font-weight:900;
+        font-family:inherit;
+        background:#f5f5f5;
+        white-space:pre-wrap;
+        color:#222;
+      }
 
       .event-title{ font-size:20px; margin-bottom:12px; }
       .event-body{ font-size:16px; line-height:1.6; }
@@ -228,9 +240,20 @@
       :focus { outline: 4px solid var(--green); outline-offset:3px; box-shadow: 0 0 0 8px var(--green-alpha); }
     }
 
-    /* Desktop modal textarea size */
-    .rules-textarea { width:100%; min-height:260px; resize:vertical; padding:12px; border-radius:8px; border:1px solid #ddd; font-size:14px; font-weight:700; font-family:inherit; background:#f9f9f9; }
-    .rules-textarea[readonly]{ background:#fafafa; color:#222; }
+    /* Desktop modal rules content */
+    .rules-content {
+      width:100%;
+      min-height:260px;
+      padding:12px;
+      border-radius:8px;
+      border:1px solid #ddd;
+      font-size:14px;
+      font-weight:900;
+      font-family:inherit;
+      background:#f9f9f9;
+      white-space:pre-wrap;
+      color:#222;
+    }
   </style>
 </head>
 <body>
@@ -962,20 +985,20 @@
       close.focus();
     }
 
-    // --- RULES modal (read-only textarea with placeholder text) ---
+    // --- RULES modal (read-only plain text) ---
     function openRulesModal(){
       const isBottom = isMobile;
       const { overlay, card } = createModalCard(isBottom);
       const h = document.createElement('div'); h.className='event-title'; h.textContent = '遊び方 / ルール';
       const body = document.createElement('div'); body.className = 'event-body';
-      // read-only textarea with initial text "ここにルールを入れる"
-      const ta = document.createElement('textarea');
-      ta.id = 'rules-textarea';
-      ta.className = 'rules-textarea';
-      ta.readOnly = true;
-      ta.setAttribute('aria-readonly', 'true');
-      ta.value = 'ここにルールを入れる';
-      body.appendChild(ta);
+      // plain non-editable text block with bold initial text
+      const content = document.createElement('div');
+      content.className = 'rules-content';
+      // use <strong> to ensure bold rendering; we also set font-weight in CSS but keep <strong> as requested
+      const strong = document.createElement('strong');
+      strong.textContent = 'ここにルールを入れる';
+      content.appendChild(strong);
+      body.appendChild(content);
 
       const actions = document.createElement('div'); actions.style.display = 'flex'; actions.style.justifyContent = 'flex-end'; actions.style.gap = '8px';
       const close = document.createElement('button'); close.className = 'primary'; close.textContent = '閉じる';
@@ -983,7 +1006,7 @@
       actions.appendChild(close);
 
       card.appendChild(h); card.appendChild(body); card.appendChild(actions);
-      // focus the close button so players don't focus the textarea (non-editable)
+      // focus close button so users can't accidentally focus text
       close.focus();
     }
 
