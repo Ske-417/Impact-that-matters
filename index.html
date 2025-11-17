@@ -95,12 +95,13 @@
 
     .token{
       position:absolute;
-      width:var(--token-size); height:var(--token-size); border-radius:50%; display:grid; place-items:center; color:#fff; font-weight:900;
+      width:var(--token-size); height:var(--token-size); border-radius:50%; display:grid; place-items:center; font-weight:900;
       border:2px solid #000; transform: translate(-50%,-50%);
       box-shadow:0 8px 20px rgba(0,0,0,0.08);
       pointer-events:none;
       transition: transform var(--token-move-ms) linear;
       z-index:30;
+      color: #fff; /* default, may be overridden via JS based on background */
     }
     .token.finished{ opacity:0.85; border-color:var(--gray) }
 
@@ -204,6 +205,46 @@
       const h = document.createElement('h2'); h.textContent = title;
       const p = document.createElement('pre'); p.textContent = body; p.style.whiteSpace='pre-wrap'; p.style.marginTop='12px';
       card.appendChild(h); card.appendChild(p); overlay.appendChild(card); document.body.appendChild(overlay);
+    }
+
+    // Color helpers: parse hex or rgb(a) and compute perceived luminance.
+    function parseColorToRgb(str){
+      if(!str) return null;
+      str = String(str).trim();
+      // hex: #rrggbb or #rgb
+      if(str[0] === '#'){
+        let hex = str.slice(1);
+        if(hex.length === 3) hex = hex.split('').map(ch => ch + ch).join('');
+        if(hex.length !== 6) return null;
+        const r = parseInt(hex.slice(0,2),16);
+        const g = parseInt(hex.slice(2,4),16);
+        const b = parseInt(hex.slice(4,6),16);
+        return { r, g, b };
+      }
+      // rgb(a): rgb(r,g,b) or rgba(r,g,b,a)
+      const m = str.match(/rgba?\(\s*([0-9.]+)[\s,]+([0-9.]+)[\s,]+([0-9.]+)(?:[\s,\/]+[0-9.]+)?\s*\)/i);
+      if(m){
+        return { r: Math.round(Number(m[1])), g: Math.round(Number(m[2])), b: Math.round(Number(m[3])) };
+      }
+      return null;
+    }
+    function perceivedLuminance(rgb){
+      if(!rgb) return 0;
+      // sRGB luminance approximation
+      const r = rgb.r/255, g = rgb.g/255, b = rgb.b/255;
+      // linearize
+      const lin = v => (v <= 0.03928) ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4);
+      const R = lin(r), G = lin(g), B = lin(b);
+      // relative luminance
+      return 0.2126*R + 0.7152*G + 0.0722*B; // 0 (dark) .. 1 (bright)
+    }
+    function shouldUseDarkTextForBg(bg){
+      const rgb = parseColorToRgb(bg);
+      if(!rgb) return false;
+      const lum = perceivedLuminance(rgb);
+      // threshold: use black text when background is bright enough.
+      // 0.55 is a conservative threshold for pale green / light gray.
+      return lum > 0.55;
     }
 
     // Main init is async to await templates; fatal if not present (A)
@@ -562,7 +603,16 @@
         if(!t){
           t = document.createElement("div"); t.className = "token"; t.id = `token-${i}`;
           t.textContent = String(i+1);
-          t.style.background = (["#86BB27","#DFF3C6","#C4C4C4","#000000"][i % 4]) || "#86BB27";
+          // choose palette color; can be hex or other CSS color strings
+          const palette = ["#86BB27","#DFF3C6","#C4C4C4","#2B2B2B"];
+          const bg = palette[i % palette.length];
+          t.style.background = bg;
+          // set text color based on background brightness:
+          if(shouldUseDarkTextForBg(bg)){
+            t.style.color = '#000'; // dark text on light bg
+          } else {
+            t.style.color = '#fff'; // light text on dark bg
+          }
           board.appendChild(t);
         }
         return t;
@@ -583,6 +633,8 @@
           const sy = (sRect.top - bRect.top) + sRect.height/2;
           startIdxs.forEach((pi,k)=>{
             const t = ensureToken(pi);
+            // if background has changed or palette updated, ensure contrast still valid
+            if(shouldUseDarkTextForBg(t.style.background)) t.style.color = '#000'; else t.style.color = '#fff';
             const offX = ((k % 2) - 0.5) * 18;
             const offY = (Math.floor(k/2) - 0.5) * 18;
             t.style.transform = `translate(${sx + offX}px, ${sy + offY}px)`;
@@ -596,6 +648,7 @@
           const baseR = Math.max(14, TILE_SIZE * 0.28);
           if(n === 1){
             const t = ensureToken(idxs[0]);
+            if(shouldUseDarkTextForBg(t.style.background)) t.style.color = '#000'; else t.style.color = '#fff';
             t.style.transform = `translate(${center.x}px, ${center.y}px)`;
           } else {
             const perOuter = 6;
@@ -608,6 +661,7 @@
               const x = center.x + Math.cos(ang) * outerR;
               const y = center.y + Math.sin(ang) * outerR;
               const t = ensureToken(idxs[used++]);
+              if(shouldUseDarkTextForBg(t.style.background)) t.style.color = '#000'; else t.style.color = '#fff';
               t.style.transform = `translate(${x}px, ${y}px)`;
             }
             if(innerCount > 0){
@@ -617,6 +671,7 @@
                 const x = center.x + Math.cos(ang) * innerR;
                 const y = center.y + Math.sin(ang) * innerR;
                 const t = ensureToken(idxs[used++]);
+                if(shouldUseDarkTextForBg(t.style.background)) t.style.color = '#000'; else t.style.color = '#fff';
                 t.style.transform = `translate(${x}px, ${y}px)`;
               }
             }
@@ -930,6 +985,9 @@
     }
 
     // init is attached at top via load listener
+    // helper declaration order
+    function renderEventsPanel(){ /* placeholder in case of external templates preview */ }
+    function getPlayerNames(){ return []; }
   })();
   </script>
 </body>
