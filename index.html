@@ -39,6 +39,7 @@
     .tile.event, .tile.client, .tile.workshop, .tile.bonus, .tile.penalty { border:3px solid var(--green); background:#f7fff6; }
     .tile.goal{ background: var(--green); color: #fff; border-color: var(--green); font-weight:900; box-shadow: 0 10px 30px rgba(134,187,39,0.18); }
     .start-marker{position:absolute; width:calc(var(--tile-size) * 0.9); height:calc(var(--tile-size) * 0.28); display:grid; place-items:center; border-radius:6px; border:1px solid rgba(0,0,0,0.08); color:var(--black); font-weight:900; background:rgba(134,187,39,0.08); z-index:6; transform: translate(-50%,-125%); pointer-events:none; font-size:12px;}
+    .dice{padding:6px 8px; border-radius:8px; border:1px solid var(--gray); font-weight:900; min-width:30px; text-align:center}
     .token{position:absolute; width:var(--token-size); height:var(--token-size); border-radius:50%; display:grid; place-items:center; color:#fff; font-weight:900; border:2px solid #000; transform: translate(-50%,-50%); box-shadow:0 8px 20px rgba(0,0,0,0.08); pointer-events:none; transition: transform var(--token-move-ms) linear; z-index:30;}
     .token.finished{ opacity:0.85; border-color:var(--gray) }
     .sidebar{border:2px solid var(--gray); border-radius:14px; padding:14px}
@@ -127,12 +128,8 @@
       renderPlayerNameInputs();
       function getPlayerNames(){ return Array.from(playerNamesWrap.querySelectorAll("input")).map((el,idx)=> el.value.trim() || `プレイヤー${idx+1}`); }
 
-      // events kept the same (omitted here for brevity)
-      const EVENT_TEMPLATES = {
-        junior: [ /* ... */ ],
-        mid: [ /* ... */ ],
-        senior: [ /* ... */ ]
-      };
+      // events (kept same as earlier; omitted in this snippet for brevity)
+      const EVENT_TEMPLATES = { junior: [], mid: [], senior: [] };
 
       function eventStageForPlayer(pl){
         const pos = typeof pl.position === "number" ? pl.position : 0;
@@ -196,10 +193,14 @@
         chg.textContent = parts.join('　');
         const actions = document.createElement('div'); actions.style.textAlign='right';
         const ok = document.createElement('button'); ok.className='primary'; ok.textContent='OK';
-        ok.addEventListener('click', ()=>{ applyAttributeChanges(playerIndex, changes); overlay.remove(); });
+        ok.addEventListener('click', ()=>{
+          applyAttributeChanges(playerIndex, changes);
+          overlay.remove();
+        });
         actions.appendChild(ok);
         card.appendChild(h); card.appendChild(b); card.appendChild(chg); card.appendChild(actions);
-        overlay.appendChild(card); document.body.appendChild(overlay); ok.focus();
+        overlay.appendChild(card); document.body.appendChild(overlay);
+        ok.focus();
       }
 
       async function showChoiceModal(playerIndex, tmpl){
@@ -240,131 +241,130 @@
       async function handleEventTile(playerIndex){
         const tmpl = pickEventForPlayer(playerIndex);
         if(!tmpl) return;
-        if(tmpl.choices && Array.isArray(tmpl.choices)) await showChoiceModal(playerIndex, tmpl); else await showEventModal(playerIndex, tmpl);
+        if(tmpl.choices && Array.isArray(tmpl.choices)){
+          await showChoiceModal(playerIndex, tmpl);
+        } else {
+          await showEventModal(playerIndex, tmpl);
+        }
       }
 
-      /* Strong-convergence spiral, with center-crowding smoothing:
-         - much stronger 'b' so the spiral winds tightly and tiles approach the center
-         - ensure start at top-left and sampling proceeds clockwise
-         - after sampling, detect tiles that end up too close to center and spread them
-           onto a small sequence of concentric offsets so they don't all stack right at the goal
-         - keep gentle overlap resolution to avoid collisions
+      /* --- Improved spiral:
+         - Clockwise sampling from outer -> inner.
+         - Dynamic theta increment to aim for even spacing along the spiral curve (prevents local crowding).
+         - Strong convergence but with a cleanup step that redistributes any tiles that land too close to center.
+         - START (tile 0) located near top-left and sampling proceeds clockwise.
       */
       function buildConnectedPath(N, containerW, containerH, tileSize, gap){
         const cx = containerW/2, cy = containerH/2;
         const coords = [];
         const minCenter = tileSize + 6;
-        const spacing = Math.max(tileSize + Math.round(gap*0.6), tileSize + 8);
+        const targetSpacing = Math.max(tileSize + Math.round(gap*0.65), tileSize + 8);
 
-        // make spiral converge strongly
-        const a = tileSize * 0.7;
-        const baseB = spacing / (2 * Math.PI) * 0.95;
-        const bMultiplier = 2.6; // stronger convergence toward the center to 'reach' the goal
+        // spiral params
+        const a = tileSize * 0.75;
+        const baseB = targetSpacing / (2 * Math.PI) * 0.95;
+        const bMultiplier = 2.6; // strong convergence as requested
         const b = baseB * bMultiplier;
 
         const maxR = Math.min(containerW, containerH) * 0.44;
         const thetaMax = Math.max(4 * Math.PI, (maxR - a) / b);
 
-        const step = 0.045; // finer step for denser winding
+        // start at top-left (approx -135deg) and go clockwise => angle = startAngle - theta
+        const startAngle = -3 * Math.PI / 4;
 
-        // Start angle so first outer point is near top-left; progress clockwise
-        const startAngle = -3 * Math.PI / 4; // -135deg
-
-        let theta = thetaMax;
+        // dynamic sampling: choose dtheta so arc-length ~ targetSpacing
+        let theta = 0; // we will iterate theta from small to thetaMax, producing outer->inner by using r(thetaMax - theta)
         let last = null;
-        while(coords.length < N - 1 && theta > 0){
-          const r = a + b * theta;
-          const angle = (theta - thetaMax) + startAngle; // maps thetaMax -> startAngle, decreases -> clockwise
+        while(coords.length < N - 1 && theta <= thetaMax + 1e-6){
+          const t = thetaMax - theta; // map 0->thetaMax to outer->inner
+          const r = a + b * t;
+          const angle = startAngle - t; // decreasing angle -> clockwise
           const baseX = cx + Math.cos(angle) * r;
           const baseY = cy + Math.sin(angle) * r;
 
-          // gentle perpendicular jitter for organic look
+          // perpendicular jitter (very restrained) to keep spiral neat but non-uniform
           const perpX = -Math.sin(angle), perpY = Math.cos(angle);
-          const jitterMax = Math.min(12, (spacing - minCenter) * 0.6, BASE_JITTER * 0.7);
-          const jitter = (Math.random()*2 -1) * jitterMax * 0.32;
-          const x = Math.round(baseX + perpX * jitter + (Math.random()*2-1) * (jitterMax*0.08));
-          const y = Math.round(baseY + perpY * jitter + (Math.random()*2-1) * (jitterMax*0.08));
+          const jitterMax = Math.min(8, (targetSpacing - minCenter) * 0.45, BASE_JITTER * 0.6);
+          const jitter = (Math.random()*2 -1) * jitterMax * 0.25;
+          const x = Math.round(baseX + perpX * jitter);
+          const y = Math.round(baseY + perpY * jitter);
 
           if(!last){
-            coords.push({x,y,angle,r,ang:(Math.random()*2-1)*6});
+            coords.push({x,y,angle,r,ang: (Math.random()*2-1)*4});
             last = {x,y};
           } else {
             const dx = x - last.x, dy = y - last.y;
             const d = Math.hypot(dx,dy);
-            if(d >= spacing * 0.65){ // allow tighter spacing inward to allow convergence
-              coords.push({x,y,angle,r,ang:(Math.random()*2-1)*6});
+            if(d >= targetSpacing * 0.78){
+              coords.push({x,y,angle,r,ang: (Math.random()*2-1)*4});
               last = {x,y};
             }
           }
-          theta -= step;
+
+          // compute dtheta that approximates targetSpacing along spiral:
+          // ds^2 = (dr)^2 + (r dtheta)^2  -> dr = b * dtheta
+          // ds ≈ dtheta * sqrt(b^2 + r^2)
+          // so dtheta ≈ targetSpacing / sqrt(b^2 + r^2)
+          const denom = Math.sqrt(b*b + Math.max(0.0001, r*r));
+          const dtheta = Math.max(0.03, Math.min(0.25, targetSpacing / denom));
+          theta += dtheta;
         }
 
-        // ensure we have N-1 points
+        // if not enough points, fill modest rings outward->inward to keep connectivity
         if(coords.length < N - 1){
           let i = coords.length;
           while(coords.length < N - 1){
             const t = (i / Math.max(1, N - 1)) * Math.PI * 2;
-            const r = Math.max(tileSize * 0.9, maxR * (0.45 + 0.45 * (1 - i/(N-1))));
+            const r = Math.max(tileSize * 0.9, maxR * (0.5 + 0.45 * (1 - i/(N-1))));
             const x = Math.round(cx + Math.cos(t) * r);
             const y = Math.round(cy + Math.sin(t) * r);
-            coords.push({x,y,angle:t,r,ang:(Math.random()*2-1)*6});
+            coords.push({x,y,angle:t,r,ang:(Math.random()*2-1)*4});
             i++;
           }
         }
 
-        // before adding center, detect crowding: find points that are within a small inner radius
-        // and redistribute them slightly so they don't all collide near the goal.
-        const reserveRadius = Math.max(tileSize * 1.6, minCenter * 1.25); // minimal radius to keep around center (non-goal)
-        // collect indices (last ones are inner-most along the spiral)
-        const innerCandidates = [];
+        // redistribute inner crowding: detect points too close to center and spread them onto
+        // small concentric rings with slight angular offsets to keep a neat final cluster.
+        const reserveRadius = Math.max(tileSize * 1.55, minCenter * 1.2);
+        const innerIdxs = [];
         for(let i=0;i<coords.length;i++){
           const c = coords[i];
-          const dx = c.x - cx, dy = c.y - cy;
-          const d = Math.hypot(dx, dy);
-          if(d < reserveRadius + tileSize * 0.5) innerCandidates.push(i);
+          const d = Math.hypot(c.x - cx, c.y - cy);
+          if(d < reserveRadius + tileSize * 0.4) innerIdxs.push(i);
         }
-
-        if(innerCandidates.length > 0){
-          // spread those candidates onto small concentric offsets:
-          // assign them radii between reserveRadius and reserveRadius + ringSpread * k,
-          // spread angles slightly based on original angle but spread evenly to avoid overlap.
-          const ringSpread = tileSize * 0.55;
-          const group = innerCandidates.map(i => ({ idx:i, original:coords[i] }));
-          // sort by original radius so outer of group stays outer
-          group.sort((a,b) => {
-            const da = Math.hypot(a.original.x - cx, a.original.y - cy);
-            const db = Math.hypot(b.original.x - cx, b.original.y - cy);
-            return da - db;
+        if(innerIdxs.length > 0){
+          // sort inner indices by original radial distance (outer -> inner)
+          innerIdxs.sort((ia,ib) => {
+            const da = Math.hypot(coords[ia].x - cx, coords[ia].y - cy);
+            const db = Math.hypot(coords[ib].x - cx, coords[ib].y - cy);
+            return db - da; // put innermost first so we preserve path ordering (we will reassign from outer->inner)
           });
-          const m = group.length;
-          // compute angular base from original angles, but we'll space them around a small arc
+          const m = innerIdxs.length;
           for(let k=0;k<m;k++){
-            const item = group[k];
-            const pos = item.original;
-            // base angle; if missing use k-based
-            const baseAng = (typeof pos.angle === 'number') ? pos.angle : (startAngle + (k/m)*Math.PI*2);
-            // spread factor: distribute around baseAng with small offset to avoid stacking
-            const angleOffset = ((k - (m-1)/2) / Math.max(1,m-1)) * Math.PI * 0.28; // spread across ~50deg
-            const newAng = baseAng + angleOffset;
-            // radius increases incrementally so they form compact arcs instead of a dot
-            const newR = reserveRadius + Math.floor(k / Math.max(1,Math.ceil(m/6))) * ringSpread;
-            const nx = Math.round(cx + Math.cos(newAng) * newR);
-            const ny = Math.round(cy + Math.sin(newAng) * newR);
-            coords[item.idx].x = nx;
-            coords[item.idx].y = ny;
-            coords[item.idx].angle = newAng;
-            coords[item.idx].r = newR;
-            coords[item.idx].ang = (Math.random()*2-1)*4;
+            const idx = innerIdxs[k];
+            // place on concentric rings spaced by ringStep, angle distributed around the original angle
+            const ringStep = tileSize * 0.7;
+            const ringLevel = Math.floor(k / 6); // every ~6 tiles per ring
+            const newR = reserveRadius + ringLevel * ringStep;
+            const baseAng = coords[idx].angle || (startAngle - (thetaMax * (idx / coords.length)));
+            const spread = Math.PI * 0.28;
+            const angOffset = ((k % 6) / Math.max(1,Math.min(5,m-1)) - 0.5) * spread;
+            const newAng = baseAng + angOffset;
+            coords[idx].x = Math.round(cx + Math.cos(newAng) * newR);
+            coords[idx].y = Math.round(cy + Math.sin(newAng) * newR);
+            coords[idx].angle = newAng;
+            coords[idx].r = newR;
+            coords[idx].ang = (Math.random()*2-1)*4;
           }
         }
 
-        // finally add center goal
+        // add final goal at exact center
         coords.push({x: Math.round(cx), y: Math.round(cy), ang:0});
 
-        // gentle overlap resolution, preserving spiral order/shape
+        // gentle no-overlap pass (preserve spiral flow)
         enforceNoOverlapPreserveSpiral(coords, minCenter, containerW, containerH, tileSize);
 
-        // clamp to viewport
+        // clamp to board
         const clampMargin = tileSize;
         for(const c of coords){
           c.x = Math.max(clampMargin, Math.min(containerW - clampMargin, c.x));
@@ -374,11 +374,11 @@
         return coords;
       }
 
-      // gentle repulsion that tries to preserve spiral ordering
+      // gentle repulsion preserving ordering (same idea used earlier, tuned slightly)
       function enforceNoOverlapPreserveSpiral(points, minD, w, h, tileSize){
         if(!Array.isArray(points)) return;
         const centerIdx = points.length - 1;
-        const maxPasses = 100;
+        const maxPasses = 120;
         for(let pass=0; pass<maxPasses; pass++){
           let moved = false;
           for(let i=0;i<points.length;i++){
@@ -391,7 +391,7 @@
                 const overlap = (minD - d);
                 const ux = dx / d, uy = dy / d;
                 const perpX = -uy, perpY = ux;
-                const moveMain = Math.max(0.25, overlap * 0.38);
+                const moveMain = Math.max(0.25, overlap * 0.36);
                 const movePerp = Math.min(2.0, overlap * 0.14);
                 if(i === centerIdx){
                   b.x = Math.round(b.x + ux * moveMain + perpX * (Math.random() - 0.5) * movePerp);
@@ -415,10 +415,9 @@
             }
           }
           if(!moved) break;
-          if(pass > 70) minD *= 0.997;
+          if(pass > 80) minD *= 0.997;
         }
-
-        // fallback safety: if still crowded unresolvable, use conservative grid fallback
+        // final fallback: if still overlaps, use deterministic fallback
         for(let i=0;i<points.length;i++){
           for(let j=i+1;j<points.length;j++){
             const dx = points[j].x - points[i].x, dy = points[j].y - points[i].y;
@@ -451,7 +450,7 @@
         return coords;
       }
 
-      // tile layout and START alignment: ensure START at tile 0 (outermost, left-top region) and path clockwise
+      // tile layout and START align: START is tile 0 (outermost, near top-left) and path is clockwise
       function layoutTiles(){
         board.querySelectorAll(".tile").forEach(n=>n.remove());
         const rect = board.getBoundingClientRect();
@@ -461,18 +460,27 @@
           const div = document.createElement("div");
           div.className = "tile";
           div.dataset.pathIndex = String(idx);
-          if(idx === NUM_TILES - 1){ div.classList.add("goal"); div.textContent = "GOAL"; }
-          else if(idx % 11 === 0){ div.classList.add("client"); }
-          else if(idx % 13 === 0){ div.classList.add("workshop"); }
-          else if(idx % 6 === 0){ div.classList.add("event"); }
-          else if(idx % 5 === 0){ div.classList.add("bonus"); }
-          else if(idx % 7 === 0){ div.classList.add("penalty"); }
-          div.style.left = `${c.x}px`; div.style.top = `${c.y}px`;
+          if(idx === NUM_TILES - 1){
+            div.classList.add("goal");
+            div.textContent = "GOAL";
+          } else if(idx % 11 === 0){
+            div.classList.add("client");
+          } else if(idx % 13 === 0){
+            div.classList.add("workshop");
+          } else if(idx % 6 === 0){
+            div.classList.add("event");
+          } else if(idx % 5 === 0){
+            div.classList.add("bonus");
+          } else if(idx % 7 === 0){
+            div.classList.add("penalty");
+          }
+          div.style.left = `${c.x}px`;
+          div.style.top = `${c.y}px`;
           div.style.transform = `translate(-50%,-50%) rotate(${c.ang || 0}deg)`;
           board.appendChild(div);
         });
 
-        // place START marker at tile 0 (outermost, intended near top-left)
+        // align START_MARKER to tile 0 (outermost)
         if(tileCoords && tileCoords[0]){
           const t0 = tileCoords[0];
           START_MARKER.style.left = `${t0.x}px`;
@@ -485,10 +493,14 @@
         placeAllTokens();
       }
 
-      // token helpers (auto text color)
+      // token helpers (auto color contrast)
       function ensureToken(i){
         let t = document.getElementById(`token-${i}`);
-        if(!t){ t = document.createElement("div"); t.className = "token"; t.id = `token-${i}`; t.textContent = String(i+1); board.appendChild(t); }
+        if(!t){
+          t = document.createElement("div"); t.className = "token"; t.id = `token-${i}`;
+          t.textContent = String(i+1);
+          board.appendChild(t);
+        }
         const palette = ["#86BB27","#DFF3C6","#C4C4C4","#2B2B2B"];
         const bg = palette[i % palette.length];
         t.style.background = bg;
@@ -513,7 +525,12 @@
           const sRect = START_MARKER.getBoundingClientRect();
           const sx = (sRect.left - bRect.left) + sRect.width/2;
           const sy = (sRect.top - bRect.top) + sRect.height/2;
-          startIdxs.forEach((pi,k)=>{ const t = ensureToken(pi); const offX = ((k % 2) - 0.5) * 18; const offY = (Math.floor(k/2) - 0.5) * 18; t.style.transform = `translate(${sx + offX}px, ${sy + offY}px)`; });
+          startIdxs.forEach((pi,k)=>{
+            const t = ensureToken(pi);
+            const offX = ((k % 2) - 0.5) * 18;
+            const offY = (Math.floor(k/2) - 0.5) * 18;
+            t.style.transform = `translate(${sx + offX}px, ${sy + offY}px)`;
+          });
         }
         groups.forEach((idxs, pos)=>{
           if(pos === "__start") return;
@@ -521,27 +538,67 @@
           if(!center) return;
           const n = idxs.length;
           const baseR = Math.max(14, TILE_SIZE * 0.28);
-          if(n === 1){ const t = ensureToken(idxs[0]); t.style.transform = `translate(${center.x}px, ${center.y}px)`; }
-          else {
-            const perOuter = 6; const outerCount = Math.min(n, perOuter); const innerCount = Math.max(0, n - perOuter); let used = 0;
+          if(n === 1){
+            const t = ensureToken(idxs[0]);
+            t.style.transform = `translate(${center.x}px, ${center.y}px)`;
+          } else {
+            const perOuter = 6;
+            const outerCount = Math.min(n, perOuter);
+            const innerCount = Math.max(0, n - perOuter);
+            let used = 0;
             const outerR = baseR;
-            for(let k=0;k<outerCount;k++){ const ang = (k / outerCount) * Math.PI * 2 - Math.PI/2; const x = center.x + Math.cos(ang) * outerR; const y = center.y + Math.sin(ang) * outerR; const t = ensureToken(idxs[used++]); t.style.transform = `translate(${x}px, ${y}px)`; }
-            if(innerCount > 0){ const innerR = baseR * 0.6; for(let k=0;k<innerCount;k++){ const ang = (k / innerCount) * Math.PI * 2 - Math.PI/2; const x = center.x + Math.cos(ang) * innerR; const y = center.y + Math.sin(ang) * innerR; const t = ensureToken(idxs[used++]); t.style.transform = `translate(${x}px, ${y}px)`; } }
+            for(let k=0;k<outerCount;k++){
+              const ang = (k / outerCount) * Math.PI * 2 - Math.PI/2;
+              const x = center.x + Math.cos(ang) * outerR;
+              const y = center.y + Math.sin(ang) * outerR;
+              const t = ensureToken(idxs[used++]);
+              t.style.transform = `translate(${x}px, ${y}px)`;
+            }
+            if(innerCount > 0){
+              const innerR = baseR * 0.6;
+              for(let k=0;k<innerCount;k++){
+                const ang = (k / innerCount) * Math.PI * 2 - Math.PI/2;
+                const x = center.x + Math.cos(ang) * innerR;
+                const y = center.y + Math.sin(ang) * innerR;
+                const t = ensureToken(idxs[used++]);
+                t.style.transform = `translate(${x}px, ${y}px)`;
+              }
+            }
           }
         });
       }
 
-      function pushLog(text, kind){ const p = document.createElement("div"); p.textContent = `[${(new Date()).toLocaleTimeString()}] ${text}`; if(kind === "ok") p.style.color = "green"; if(kind === "bad") p.style.color = "#333"; logEl.appendChild(p); logEl.scrollTop = logEl.scrollHeight; }
+      function pushLog(text, kind){
+        const p = document.createElement("div");
+        p.textContent = `[${(new Date()).toLocaleTimeString()}] ${text}`;
+        if(kind === "ok") p.style.color = "green";
+        if(kind === "bad") p.style.color = "#333";
+        logEl.appendChild(p);
+        logEl.scrollTop = logEl.scrollHeight;
+      }
 
-      // movement/game loop unchanged...
+      // movement / dice logic
       function moveTokenStep(playerIndex, pos){
         return new Promise(resolve=>{
           const t = ensureToken(playerIndex);
           const c = (typeof pos === "number" && tileCoords[pos]) ? tileCoords[pos] : null;
           const bRect = board.getBoundingClientRect();
-          if(!c){ const sRect = START_MARKER.getBoundingClientRect(); const x = (sRect.left - bRect.left) + sRect.width/2; const y = (sRect.top - bRect.top) + sRect.height/2; t.style.transform = `translate(${x}px, ${y}px)`; setTimeout(()=> resolve(), TOKEN_MOVE_MS + 20); return; }
+          if(!c){
+            const sRect = START_MARKER.getBoundingClientRect();
+            const x = (sRect.left - bRect.left) + sRect.width/2;
+            const y = (sRect.top - bRect.top) + sRect.height/2;
+            t.style.transform = `translate(${x}px, ${y}px)`;
+            setTimeout(()=> resolve(), TOKEN_MOVE_MS + 20);
+            return;
+          }
           let finished = false;
-          function onEnd(e){ if(e && e.target !== t) return; if(finished) return; finished = true; t.removeEventListener('transitionend', onEnd); setTimeout(()=> resolve(), 20); }
+          function onEnd(e){
+            if(e && e.target !== t) return;
+            if(finished) return;
+            finished = true;
+            t.removeEventListener('transitionend', onEnd);
+            setTimeout(()=> resolve(), 20);
+          }
           t.addEventListener('transitionend', onEnd);
           setTimeout(()=>{ if(!finished){ finished=true; t.removeEventListener('transitionend', onEnd); resolve(); } }, TOKEN_MOVE_MS + 220);
           t.style.transform = `translate(${c.x}px, ${c.y}px)`;
@@ -556,7 +613,16 @@
           let remaining = steps;
           while(remaining > 0){
             const next = pos + 1;
-            if(next >= NUM_TILES){ pos = NUM_TILES - 1; pl.position = pos; await moveTokenStep(playerIndex, pos); break; } else { pos = next; pl.position = pos; await moveTokenStep(playerIndex, pos); }
+            if(next >= NUM_TILES){
+              pos = NUM_TILES - 1;
+              pl.position = pos;
+              await moveTokenStep(playerIndex, pos);
+              break;
+            } else {
+              pos = next;
+              pl.position = pos;
+              await moveTokenStep(playerIndex, pos);
+            }
             remaining--;
           }
           placeAllTokens();
@@ -581,25 +647,135 @@
             pushLog(`${pl.name}: ゴール！`, "ok");
             await showCard("ゴール", `${pl.name} がゴールしました`);
           }
-        } else { renderPlayersPanel(); }
+        } else {
+          renderPlayersPanel();
+        }
       }
 
-      function updateRollState(){ const rbtn = document.getElementById('btn-roll'); if(!rbtn) return; rbtn.disabled = !(state.started && !state.animating); }
-      function nextPlayerTurn(){ const total = state.players.length; if(total === 0) return; let i = state.currentPlayerIndex; for(let c=0;c<total;c++){ i = (i+1) % total; const cand = state.players[i]; if(!cand) continue; if(cand.finished) continue; state.currentPlayerIndex = i; statCurrentEl.textContent = state.players[state.currentPlayerIndex].name; highlightActive(); return; } statCurrentEl.textContent = "-"; }
-      function highlightActive(){ Array.from(playersPanelEl.children).forEach((row, idx)=>{ if(idx === state.currentPlayerIndex) row.style.boxShadow = "0 0 0 3px rgba(134,187,39,0.12) inset"; else row.style.boxShadow = ""; }); highlightActiveToken(); }
-      function highlightActiveToken(){ state.players.forEach((pl,i)=>{ const t = document.getElementById(`token-${i}`); if(!t) return; if(i === state.currentPlayerIndex) t.style.outline = "3px solid rgba(0,0,0,0.08)"; else t.style.outline = "none"; }); }
+      function updateRollState(){
+        const rbtn = document.getElementById('btn-roll');
+        if(!rbtn) return;
+        rbtn.disabled = !(state.started && !state.animating);
+      }
 
-      function renderPlayersPanel(){ playersPanelEl.innerHTML = ""; state.players.forEach((pl, i)=>{ const row = document.createElement("div"); row.className = "player-row"; const left = document.createElement("div"); left.style.display = "flex"; left.style.alignItems = "center"; left.style.gap = "8px"; const badge = document.createElement("div"); badge.style.width = "18px"; badge.style.height = "18px"; badge.style.borderRadius = "50%"; badge.style.background = (["#86BB27","#DFF3C6","#C4C4C4","#2B2B2B"][i % 4]) || "#86BB27"; left.appendChild(badge); const name = document.createElement("div"); name.textContent = pl.name; left.appendChild(name); const right = document.createElement("div"); right.className = "attr-list"; right.innerHTML = `<div>学び:${pl.learning}</div><div>評価:${pl.rating}</div><div>メンタル:${pl.mental}</div><div>モチベ:${pl.motivation}</div><div>責任:${pl.responsibility}</div>`; row.appendChild(left); row.appendChild(right); playersPanelEl.appendChild(row); }); highlightActive(); }
+      async function rollTurn(){
+        if(!state.started || state.animating) return;
+        const current = state.currentPlayerIndex;
+        // simple dice animation: show rolling then result
+        diceEl.textContent = '...';
+        await new Promise(r => setTimeout(r, 120)); // small visual pause
+        const val = Math.floor(Math.random()*6)+1;
+        if(diceEl) diceEl.textContent = String(val);
+        pushLog(`${state.players[current].name} がサイコロを振りました (${val})`);
+        await animateMove(current, val);
+        nextPlayerTurn();
+      }
 
-      function startGame(){ if(state.started) return; const names = getPlayerNames(); state.players = names.map((n,i)=>({ name: n, position: 0, learning: 50, rating: 50, mental: 50, motivation: 50, responsibility: 0, finished: false })); state.started = true; state.turn = 1; state.currentPlayerIndex = 0; statTurnEl.textContent = String(state.turn); statCurrentEl.textContent = state.players[state.currentPlayerIndex].name; layoutTiles(); renderPlayersPanel(); pushLog("ゲームを開始しました（プレイヤーはスタートマスに配置されます）", "ok"); updateRollState(); }
+      function nextPlayerTurn(){
+        const total = state.players.length;
+        if(total === 0) return;
+        let i = state.currentPlayerIndex;
+        for(let c=0;c<total;c++){
+          i = (i+1) % total;
+          const cand = state.players[i];
+          if(!cand) continue;
+          if(cand.finished) continue;
+          state.currentPlayerIndex = i;
+          statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
+          highlightActive();
+          return;
+        }
+        statCurrentEl.textContent = "-";
+      }
 
-      function resetGame(){ state.started = false; state.turn = 0; state.currentPlayerIndex = 0; state.players = []; statTurnEl.textContent = "0"; statCurrentEl.textContent = "-"; board.querySelectorAll(".token").forEach(t=>t.remove()); playersPanelEl.innerHTML = ""; pushLog("ゲームをリセットしました", "ok"); updateRollState(); }
+      function highlightActive(){
+        Array.from(playersPanelEl.children).forEach((row, idx)=>{
+          if(idx === state.currentPlayerIndex) row.style.boxShadow = "0 0 0 3px rgba(134,187,39,0.12) inset";
+          else row.style.boxShadow = "";
+        });
+        highlightActiveToken();
+      }
+      function highlightActiveToken(){
+        state.players.forEach((pl,i)=>{
+          const t = document.getElementById(`token-${i}`);
+          if(!t) return;
+          if(i === state.currentPlayerIndex) t.style.outline = "3px solid rgba(0,0,0,0.08)";
+          else t.style.outline = "none";
+        });
+      }
 
-      function attachHandlers(){ btnStart.addEventListener("click", ()=> startGame()); btnRoll.addEventListener("click", ()=> rollTurn()); btnReset.addEventListener("click", ()=> resetGame()); window.addEventListener("resize", ()=> layoutTiles()); window.addEventListener("keydown", (e)=>{ if((e.key === " " || e.key === "Enter") && state.started && !state.animating){ e.preventDefault(); rollTurn(); }}); }
+      function renderPlayersPanel(){
+        playersPanelEl.innerHTML = "";
+        state.players.forEach((pl, i)=>{
+          const row = document.createElement("div"); row.className = "player-row";
+          const left = document.createElement("div"); left.style.display = "flex"; left.style.alignItems = "center"; left.style.gap = "8px";
+          const badge = document.createElement("div"); badge.style.width = "18px"; badge.style.height = "18px"; badge.style.borderRadius = "50%";
+          badge.style.background = (["#86BB27","#DFF3C6","#C4C4C4","#2B2B2B"][i % 4]) || "#86BB27";
+          left.appendChild(badge);
+          const name = document.createElement("div"); name.textContent = pl.name;
+          left.appendChild(name);
+          const right = document.createElement("div"); right.className = "attr-list";
+          right.innerHTML = `<div>学び:${pl.learning}</div><div>評価:${pl.rating}</div><div>メンタル:${pl.mental}</div><div>モチベ:${pl.motivation}</div><div>責任:${pl.responsibility}</div>`;
+          row.appendChild(left); row.appendChild(right); playersPanelEl.appendChild(row);
+        });
+        highlightActive();
+      }
+
+      function startGame(){
+        if(state.started) return;
+        const names = getPlayerNames();
+        state.players = names.map((n,i)=>({
+          name: n,
+          position: 0,
+          learning: 50,
+          rating: 50,
+          mental: 50,
+          motivation: 50,
+          responsibility: 0,
+          finished: false
+        }));
+        state.started = true;
+        state.turn = 1;
+        state.currentPlayerIndex = 0;
+        statTurnEl.textContent = String(state.turn);
+        statCurrentEl.textContent = state.players[state.currentPlayerIndex].name;
+        layoutTiles();
+        renderPlayersPanel();
+        pushLog("ゲームを開始しました（プレイヤーはスタートマスに配置されます）", "ok");
+        // ensure the roll button is enabled now (fix for "サイコロが動作しない")
+        updateRollState();
+      }
+
+      function resetGame(){
+        state.started = false;
+        state.turn = 0;
+        state.currentPlayerIndex = 0;
+        state.players = [];
+        statTurnEl.textContent = "0";
+        statCurrentEl.textContent = "-";
+        board.querySelectorAll(".token").forEach(t=>t.remove());
+        playersPanelEl.innerHTML = "";
+        diceEl.textContent = "-";
+        pushLog("ゲームをリセットしました", "ok");
+        updateRollState();
+      }
+
+      function attachHandlers(){
+        btnStart.addEventListener("click", ()=> startGame());
+        btnRoll.addEventListener("click", ()=> rollTurn());
+        btnReset.addEventListener("click", ()=> resetGame());
+        window.addEventListener("resize", ()=> layoutTiles());
+        window.addEventListener("keydown", (e)=>{
+          if((e.key === " " || e.key === "Enter") && state.started && !state.animating){
+            e.preventDefault();
+            rollTurn();
+          }
+        });
+      }
 
       attachHandlers();
       layoutTiles();
-      pushLog("UI ready — 中心への収束を強め、ゴール回りの混雑を分散させる処理を入れました。開始位置は左上寄せ、時計回りになります。");
+      pushLog("UI ready — 螺旋を時計回りに、スタートを左上、ゴール近くの混雑を分散させつつ乱雑さを抑えました。サイコロは開始後に有効になります。");
     }
   })();
   </script>
