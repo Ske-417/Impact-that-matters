@@ -43,6 +43,7 @@
       -webkit-tap-highlight-color: rgba(0,0,0,0);
     }
 
+    /* ---- Appbar / toolbar ---- */
     .appbar{position:sticky; top:0; z-index:1200; background:var(--white); border-bottom:1px solid rgba(0,0,0,0.06); display:flex; justify-content:center}
     .toolbar{width:100%; max-width:1300px; display:flex; gap:10px; align-items:center; padding:8px}
     .title{font-size:15px; margin-right:auto; color:var(--black)}
@@ -57,8 +58,12 @@
     .wrap{width:100%; max-width:1300px; margin:18px auto; display:grid; grid-template-columns:3fr 1fr; gap:12px; align-items:start; padding:0 12px}
     @media (max-width: 980px){ .wrap{grid-template-columns:1fr} }
 
+    /* ---- Board / tiles (desktop variables) ---- */
     .board-wrap{background:var(--white); border:2px solid var(--gray); border-radius:14px; padding:var(--board-padding-desktop); position:relative; overflow:auto; min-height:520px}
-    .board{ position:relative; width:100%; height:820px; touch-action:none; background: linear-gradient(180deg, rgba(0,0,0,0.01), rgba(0,0,0,0.00)); }
+    .board{
+      position:relative; width:100%; height:820px; touch-action:none;
+      background: linear-gradient(180deg, rgba(0,0,0,0.01), rgba(0,0,0,0.00));
+    }
 
     .tile{
       position:absolute;
@@ -84,8 +89,16 @@
     .tile.client,
     .tile.workshop,
     .tile.bonus,
-    .tile.penalty { border:3px solid var(--green); background:#f7fff6; }
-    .tile.goal{ background: var(--green); color: #fff; border-color: var(--green); box-shadow: 0 10px 30px rgba(134,187,39,0.18); }
+    .tile.penalty {
+      border:3px solid var(--green);
+      background:#f7fff6;
+    }
+    .tile.goal{
+      background: var(--green);
+      color: #fff;
+      border-color: var(--green);
+      box-shadow: 0 10px 30px rgba(134,187,39,0.18);
+    }
 
     .start-marker{
       position:absolute;
@@ -126,6 +139,7 @@
     .event-item{padding:8px; border-bottom:1px dashed #eee; cursor:pointer}
     .event-item:hover{background:#fbfffb}
 
+    /* Modal defaults */
     .modal-fallback{position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.42); z-index:9999}
     .modal-fallback .card{background:#fff; padding:18px; border-radius:12px; box-shadow:0 12px 30px rgba(0,0,0,0.12); max-width:720px; width:100%; max-height:88vh; overflow:auto; font-size:15px}
     .modal-bottom { align-items:flex-end; }
@@ -141,9 +155,12 @@
     .results-winner{background:linear-gradient(90deg, rgba(134,187,39,0.06), rgba(134,187,39,0.02));}
     .small-muted{color:#666; font-size:13px}
 
+    /* Bottom bar (mobile only, hidden on desktop) */
     .bottom-bar { display:none; }
 
-    /* MOBILE OVERRIDES */
+    /* ============================
+       MOBILE OVERRIDES (ONLY)
+       ============================ */
     @media (max-width: var(--mobile-breakpoint)) {
       :root {
         --tile-size-mobile: 36px;
@@ -156,16 +173,27 @@
       .wrap { grid-template-columns:1fr; margin:0; padding:0 6px; gap:8px; }
       .appbar { position:fixed; top:0; left:0; right:0; z-index:1400; }
       .toolbar { padding:8px 10px; align-items:center; gap:8px; }
-      .group#control-buttons { display:none; } 
+      .group#control-buttons { display:none; } /* hide desktop controls in header */
       .group#desktop-controls { display:none; }
       #player-names { display:none; }
 
       .board-wrap{ padding:var(--board-padding-mobile); min-height: calc(100vh - var(--bottom-bar-height-mobile) - 120px); border-radius:10px; }
       .board { height: calc(100vh - var(--bottom-bar-height-mobile) - 140px); }
 
-      .tile{ font-size:12px; padding:4px; border-radius:6px; transform: translate(-50%,-50%) rotate(0deg) !important; }
+      .tile{
+        width: var(--tile-size-mobile);
+        height: var(--tile-size-mobile);
+        font-size:13px;
+        padding:6px;
+        border-radius:8px;
+        transform: translate(-50%,-50%) rotate(0deg) !important;
+      }
 
-      .token{ font-size:12px; }
+      .token{
+        width: var(--token-size-mobile);
+        height: var(--token-size-mobile);
+        font-size:13px;
+      }
 
       .sidebar { display:none; }
 
@@ -184,23 +212,48 @@
       }
       .bottom-bar button{ min-width:64px; height:48px; border-radius:10px; padding:10px 12px; font-size:15px; display:flex; align-items:center; justify-content:center; gap:8px; }
 
+      /* Mobile modal: full-height bottom sheet with large buttons */
       .modal-fallback .card{ padding:18px; font-size:16px; border-radius:12px; }
       .modal-bottom .card { height:88vh; padding:18px; border-radius:12px 12px 0 0; }
-      .choice-btn{ display:block; width:100%; padding:12px 10px; margin-bottom:10px; border-radius:10px; font-size:14px; text-align:center; }
+      .choice-btn{ display:block; width:100%; padding:14px 12px; margin-bottom:10px; border-radius:10px; font-size:15px; text-align:center; }
 
-      /* Mobile labels for event/choice: green, bold, white tile background handled by tile styling */
-      .tile-label-mobile { color: var(--green); font-weight:900; font-size: 0.95em; }
+      /* rules content style (plain white background, bold text) */
+      .rules-content {
+        width:100%;
+        min-height:220px;
+        padding:12px;
+        border-radius:8px;
+        border:1px solid #ddd;
+        font-size:14px;
+        font-weight:900;
+        font-family:inherit;
+        background:#ffffff; /* plain white per request */
+        white-space:pre-wrap;
+        color:#222;
+      }
 
-      .event-title{ font-size:18px; margin-bottom:10px; }
-      .event-body{ font-size:15px; line-height:1.5; }
+      .event-title{ font-size:20px; margin-bottom:12px; }
+      .event-body{ font-size:16px; line-height:1.6; }
 
-      .start-marker { transform: translate(-50%,-150%); }
+      .start-marker { display:none; transform: translate(-50%,-150%); }
 
       :focus { outline: 4px solid var(--green); outline-offset:3px; box-shadow: 0 0 0 8px var(--green-alpha); }
     }
 
-    /* Desktop label style */
-    .tile-label-desktop { color: inherit; font-weight:900; font-size: 0.95em; }
+    /* Desktop modal rules content - plain white background and bold */
+    .rules-content {
+      width:100%;
+      min-height:260px;
+      padding:12px;
+      border-radius:8px;
+      border:1px solid #ddd;
+      font-size:14px;
+      font-weight:900;
+      font-family:inherit;
+      background:#ffffff; /* plain white */
+      white-space:pre-wrap;
+      color:#222;
+    }
   </style>
 </head>
 <body>
@@ -221,6 +274,7 @@
         <button id="btn-roll" disabled>サイコロ</button>
         <button id="btn-results">結果</button>
         <button id="btn-reset">リセット</button>
+        <!-- New rules/help button (desktop toolbar) -->
         <button id="btn-rules" aria-label="遊び方・ルール">ルール</button>
       </div>
     </div>
@@ -248,6 +302,7 @@
     </aside>
   </div>
 
+  <!-- bottom bar for mobile (added rules button) -->
   <div class="bottom-bar" id="bottom-bar" role="toolbar" aria-hidden="true">
     <button id="bb-btn-roll" aria-label="サイコロ">🎲 サイコロ</button>
     <button id="bb-btn-players" aria-label="プレイヤー">👥 プレイヤー</button>
@@ -258,6 +313,7 @@
 
   <script>
   (function(){
+    // Initialization on load
     window.addEventListener('load', init);
 
     const MOBILE_BREAK = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--mobile-breakpoint')) || 680;
@@ -276,7 +332,9 @@
         return { r, g, b };
       }
       const m = str.match(/rgba?\(\s*([0-9.]+)[\s,]+([0-9.]+)[\s,]+([0-9.]+)(?:[\s,\/]+[0-9.]+)?\s*\)/i);
-      if(m) return { r: Math.round(Number(m[1])), g: Math.round(Number(m[2])), b: Math.round(Number(m[3])) };
+      if(m){
+        return { r: Math.round(Number(m[1])), g: Math.round(Number(m[2])), b: Math.round(Number(m[3])) };
+      }
       return null;
     }
     function perceivedLuminance(rgb){
@@ -293,19 +351,7 @@
       return lum > 0.55;
     }
 
-    // fallback/default events (kept simple)
-    const DEFAULT_EVENT_TEMPLATES = {
-      junior: [
-        { title: "新人ワークショップ", body: "学びが増える。", changes: { learning: 5 }, choices: null },
-      ],
-      mid: [
-        { title: "受注チャンス", body: "選択が必要です。", choices: [{ label: "受注する", changes: { responsibility: 2 } }] },
-      ],
-      senior: [
-        { title: "大規模案件", body: "責任が上がる。", changes: { responsibility: 5 } },
-      ]
-    };
-
+    // Try to load event templates but don't block UI (fallback handled elsewhere)
     let EVENT_TEMPLATES = null;
     async function loadEventTemplatesExternal(){
       try{
@@ -321,13 +367,14 @@
 
     const $ = s => document.querySelector(s);
     let isMobile = window.matchMedia(`(max-width: ${MOBILE_BREAK}px)`).matches;
+
     const state = { started:false, turn:0, currentPlayerIndex:0, players:[], animating:false, rng: Math.random };
+
     let tileCoords = [];
     let mobileLayout = { tileSize: null, tokenSize: null, cols: 6 };
 
     async function init(){
-      const ext = await loadEventTemplatesExternal();
-      EVENT_TEMPLATES = ext || DEFAULT_EVENT_TEMPLATES;
+      EVENT_TEMPLATES = await loadEventTemplatesExternal();
       bindUI();
       renderPlayerNameInputs();
       layoutTiles();
@@ -359,13 +406,15 @@
       btnReset.addEventListener('click', resetGame);
       btnResults.addEventListener('click', showFinalResultsModal);
 
+      // rules button (desktop)
       if(btnRules) btnRules.addEventListener('click', openRulesModal);
-      if(bbRules) bbRules.addEventListener('click', openRulesModal);
 
       if(bbRoll) bbRoll.addEventListener('click', ()=> { if(!$("#btn-roll").disabled) rollTurn(); });
       if(bbPlayers) bbPlayers.addEventListener('click', ()=> openBottomSheet('players'));
       if(bbLog) bbLog.addEventListener('click', ()=> openBottomSheet('log'));
       if(bbResults) bbResults.addEventListener('click', showFinalResultsModal);
+      // rules button (mobile bottom bar)
+      if(bbRules) bbRules.addEventListener('click', openRulesModal);
 
       window.addEventListener("keydown", (e)=>{
         if((e.key === " " || e.key === "Enter") && state.started && !state.animating){
@@ -422,7 +471,7 @@
       logEl.scrollTop = logEl.scrollHeight;
     }
 
-    /* Grid builder functions (unchanged) */
+    /* ===== Grid path (mobile) & spiral (desktop) kept - omitted here for brevity in comment ===== */
     function buildGridPathFixedCols(N, rect, requestedTileSize, gap, colsFixed = 6){
       const padding = Math.max(8, requestedTileSize * 0.3);
       const usableW = Math.max(80, rect.width - padding*2);
@@ -564,7 +613,6 @@
       return coords;
     }
 
-    // layoutTiles: now renders choice vs event labels differently for mobile/PC
     function layoutTiles(){
       const board = $("#board");
       if(!board) return;
@@ -600,67 +648,25 @@
         div.className = "tile";
         div.dataset.pathIndex = String(idx);
 
-        // Determine tile roles
-        const isGoal = (idx === NUM_TILES - 1);
-        const isStart = (idx === 0);
-
-        // decide event vs choice mapping:
-        // - event tiles: idx % 6 === 0 (as before)
-        // - choice tiles (a subset of event tiles): idx % 12 === 0
-        const isEventTile = (idx % 6 === 0) && !isGoal && !isStart;
-        const isChoiceTile = (idx % 12 === 0) && !isGoal && !isStart;
-
-        // Apply type classes (keeps prior styling)
-        if(!isGoal && !isStart){
-          if(idx % 11 === 0) div.classList.add("client");
-          if(idx % 13 === 0) div.classList.add("workshop");
-          if(isEventTile) div.classList.add("event");
-          if(idx % 5 === 0) div.classList.add("bonus");
-          if(idx % 7 === 0) div.classList.add("penalty");
-        }
-
-        // CONTENT: mobile uses single-char labels, PC uses Japanese words.
+        // On mobile show single-letter markers for Start/Goal so they don't overflow
         if(isM){
-          if(isStart){
-            div.textContent = 'S';
-          } else if(isGoal){
-            div.textContent = 'G';
-          } else if(isChoiceTile){
-            // mobile choice: "？" in green bold
-            const lbl = document.createElement('div');
-            lbl.className = 'tile-label-mobile';
-            lbl.textContent = '？';
-            div.appendChild(lbl);
-          } else if(isEventTile){
-            // mobile event: "！" in green bold
-            const lbl = document.createElement('div');
-            lbl.className = 'tile-label-mobile';
-            lbl.textContent = '！';
-            div.appendChild(lbl);
-          } else {
-            div.textContent = '';
-          }
+          if(idx === 0) div.textContent = 'S';
+          else if(idx === NUM_TILES - 1) div.textContent = 'G';
+          else div.textContent = '';
         } else {
-          // Desktop
-          if(isGoal){
+          if(idx === NUM_TILES - 1){
             div.classList.add("goal");
             div.textContent = "GOAL";
-          } else if(isChoiceTile){
-            // desktop choice: "選択" (bold)
-            const lbl = document.createElement('div');
-            lbl.className = 'tile-label-desktop';
-            lbl.textContent = '選択';
-            div.appendChild(lbl);
-          } else if(isEventTile){
-            // desktop event: "イベント" (bold)
-            const lbl = document.createElement('div');
-            lbl.className = 'tile-label-desktop';
-            lbl.textContent = 'イベント';
-            div.appendChild(lbl);
-          } else {
-            // leave blank for normal tiles
-            div.textContent = '';
           }
+        }
+
+        // type classes
+        if(idx !== NUM_TILES - 1){
+          if(idx % 11 === 0) div.classList.add("client");
+          if(idx % 13 === 0) div.classList.add("workshop");
+          if(idx % 6 === 0) div.classList.add("event");
+          if(idx % 5 === 0) div.classList.add("bonus");
+          if(idx % 7 === 0) div.classList.add("penalty");
         }
 
         div.style.left = `${c.x}px`;
@@ -681,7 +687,7 @@
         board.appendChild(div);
       });
 
-      // align START_MARKER to tile 0 and size it to match mobile tile if present
+      // start marker: hidden on mobile (CSS) and positioned for desktop
       const START_MARKER = $("#start-marker");
       if(tileCoords && tileCoords[0] && START_MARKER){
         const t0 = tileCoords[0];
@@ -941,12 +947,51 @@
       return { overlay, card };
     }
 
-    // RULES modal: plain white bold text "Bon！" (keeps previous)
+    // Generic simple card
+    function showCard(title, body){
+      return new Promise(resolve=>{
+        const isBottom = isMobile;
+        const { overlay, card } = createModalCard(isBottom);
+        const h = document.createElement('div'); h.className='event-title'; h.textContent = title;
+        const b = document.createElement('div'); b.className='event-body'; b.textContent = body;
+        const actions = document.createElement('div'); actions.style.textAlign='right';
+        const ok = document.createElement('button'); ok.className='primary'; ok.textContent='OK';
+        ok.addEventListener('click', ()=>{ overlay.remove(); resolve(true); });
+        actions.appendChild(ok);
+        card.appendChild(h); card.appendChild(b); card.appendChild(actions);
+        ok.focus();
+      });
+    }
+
+    function openBottomSheet(kind){
+      const isBottom = true;
+      const { overlay, card } = createModalCard(isBottom);
+      const h = document.createElement('div'); h.className='event-title'; h.textContent = (kind === 'players' ? 'プレイヤー' : 'ログ');
+      const content = document.createElement('div'); content.style.overflow='auto'; content.style.maxHeight='70vh';
+      if(kind === 'players'){
+        const clone = $("#players-panel").cloneNode(true);
+        clone.style.display = 'block';
+        content.appendChild(clone);
+      } else {
+        const clone = $("#log").cloneNode(true);
+        clone.style.display = 'block';
+        content.appendChild(clone);
+      }
+      const actions = document.createElement('div'); actions.style.textAlign='right';
+      const close = document.createElement('button'); close.className='primary'; close.textContent='閉じる';
+      close.addEventListener('click', ()=> overlay.remove());
+      actions.appendChild(close);
+      card.appendChild(h); card.appendChild(content); card.appendChild(actions);
+      close.focus();
+    }
+
+    // --- RULES modal (read-only plain text "Bon!" in bold on white background) ---
     function openRulesModal(){
       const isBottom = isMobile;
       const { overlay, card } = createModalCard(isBottom);
       const h = document.createElement('div'); h.className='event-title'; h.textContent = '遊び方 / ルール';
       const body = document.createElement('div'); body.className = 'event-body';
+      // plain non-editable text block with bold "Bon!"
       const content = document.createElement('div');
       content.className = 'rules-content';
       const strong = document.createElement('strong');
@@ -960,10 +1005,11 @@
       actions.appendChild(close);
 
       card.appendChild(h); card.appendChild(body); card.appendChild(actions);
+      // focus close button so users don't accidentally focus the text
       close.focus();
     }
 
-    // Event handling functions (unchanged)
+    // --- other game/event functions remain unchanged from prior implementation ---
     function applyAttributeChanges(playerIndex, changes){
       const pl = state.players[playerIndex];
       if(!pl) return;
@@ -977,6 +1023,7 @@
       renderPlayersPanel();
     }
 
+    // (handleEventTile, pickEventForPlayer, resolveCell, final results, start/reset etc. remain the same)
     function eventStageForPlayer(pl){
       const pos = typeof pl.position === "number" ? pl.position : 0;
       if(pos >= 30) return "senior";
@@ -1223,6 +1270,7 @@
       updateRollState();
     }
 
+    // expose a couple helpers for debugging
     window.createModalCard = createModalCard;
     window.__game = { state, layoutTiles, startGame, resetGame };
 
