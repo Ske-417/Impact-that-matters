@@ -249,45 +249,50 @@
         if(tmpl.choices && Array.isArray(tmpl.choices)) await showChoiceModal(playerIndex, tmpl); else await showEventModal(playerIndex, tmpl);
       }
 
-      /* Reverted spiral: dense-center Archimedean spiral, visible turns, gentle jitter, preserve connectivity.
-         Key ideas:
-         - Archimedean spiral r = a + b*theta with b tuned to target spacing
-         - sample from outer -> inner to keep natural "path" flow
-         - bounded perpendicular jitter for organic look
-         - conservative repulsion to remove overlaps but avoid breaking spiral flow
+      /* Spiral tuned for stronger visual convergence:
+         - increase 'b' slightly for tighter winding toward center
+         - reduce theta step so more samples (visible smooth turns)
+         - keep gentle perpendicular jitter so spiral remains legible and non-uniform
+         - use gentle overlap resolution that preserves the spiral ordering
       */
       function buildConnectedPath(N, containerW, containerH, tileSize, gap){
         const cx = containerW/2, cy = containerH/2;
         const coords = [];
         const minCenter = tileSize + 6;
         const spacing = Math.max(tileSize + Math.round(gap*0.6), tileSize + 8);
-        // Archimedean spiral parameters tuned for visible turns
-        const a = tileSize * 0.9; // start radius (slightly larger to keep center visible but reasonably filled)
-        const b = spacing / (2 * Math.PI) * 0.95; // growth per radian (keeps approx spacing)
+
+        // stronger convergence: raise bMultiplier
+        const a = tileSize * 0.85; // slightly tighter start radius
+        const baseB = spacing / (2 * Math.PI) * 0.95;
+        const bMultiplier = 1.25; // increase to make spiral wind in more quickly
+        const b = baseB * bMultiplier;
+
         const maxR = Math.min(containerW, containerH) * 0.44;
         const thetaMax = Math.max(4 * Math.PI, (maxR - a) / b);
-        const step = 0.085; // theta step provides smooth curve and enough samples
+        const step = 0.06; // smaller step = smoother, more turns
 
         let theta = thetaMax;
         let last = null;
         while(coords.length < N - 1 && theta > 0){
           const r = a + b * theta;
-          const angle = theta - Math.PI/2; // rotate so spiral visually starts near top
+          const angle = theta - Math.PI/2;
           const baseX = cx + Math.cos(angle) * r;
           const baseY = cy + Math.sin(angle) * r;
-          // perpendicular jitter (bounded and biased to keep spiral legible)
+
+          // perpendicular jitter bounded (kept subtle so spiral remains clear)
           const perpX = -Math.sin(angle), perpY = Math.cos(angle);
           const jitterMax = Math.min(12, (spacing - minCenter) * 0.6, BASE_JITTER * 0.9);
-          const jitter = (Math.random()*2 -1) * jitterMax * 0.6; // gentle jitter
-          const x = Math.round(baseX + perpX * jitter + (Math.random()*2-1) * (jitterMax*0.18));
-          const y = Math.round(baseY + perpY * jitter + (Math.random()*2-1) * (jitterMax*0.18));
+          const jitter = (Math.random()*2 -1) * jitterMax * 0.45; // slightly smaller jitter
+          const x = Math.round(baseX + perpX * jitter + (Math.random()*2-1) * (jitterMax*0.12));
+          const y = Math.round(baseY + perpY * jitter + (Math.random()*2-1) * (jitterMax*0.12));
+
           if(!last){
             coords.push({x,y,ang:(Math.random()*2-1)*6});
             last = {x,y};
           } else {
             const dx = x - last.x, dy = y - last.y;
             const d = Math.hypot(dx,dy);
-            if(d >= spacing * 0.78){
+            if(d >= spacing * 0.72){ // allow slightly tighter spacing inward
               coords.push({x,y,ang:(Math.random()*2-1)*6});
               last = {x,y};
             }
@@ -295,12 +300,12 @@
           theta -= step;
         }
 
-        // if not enough (rare), fill with modest radial samples approaching center
+        // fill if needed
         if(coords.length < N - 1){
           let i = coords.length;
           while(coords.length < N - 1){
             const t = (i / Math.max(1, N - 1)) * Math.PI * 2;
-            const r = Math.max(tileSize * 1.2, maxR * (0.5 * (1 - i/(N-1)) + 0.35));
+            const r = Math.max(tileSize * 1.0, maxR * (0.45 + 0.45 * (1 - i/(N-1))));
             const x = Math.round(cx + Math.cos(t) * r);
             const y = Math.round(cy + Math.sin(t) * r);
             coords.push({x,y,ang:(Math.random()*2-1)*6});
@@ -308,24 +313,23 @@
           }
         }
 
-        // put final goal at center
+        // center goal
         coords.push({x: Math.round(cx), y: Math.round(cy), ang:0});
 
-        // conservative no-overlap pass - small nudges only to resolve collisions without breaking spiral
+        // gentle overlap resolution while preserving spiral
         enforceNoOverlapPreserveSpiral(coords, minCenter, containerW, containerH, tileSize);
 
-        // clamp into visible area
+        // clamp
         const clampMargin = tileSize;
         for(const c of coords){ c.x = Math.max(clampMargin, Math.min(containerW - clampMargin, c.x)); c.y = Math.max(clampMargin, Math.min(containerH - clampMargin, c.y)); }
         if(coords.length > N) coords.length = N;
         return coords;
       }
 
-      // gentle repulsion that tries to preserve ordering & spiral layout:
+      // reuse gentle repulsion from earlier, preserving spiral shape
       function enforceNoOverlapPreserveSpiral(points, minD, w, h, tileSize){
         if(!Array.isArray(points)) return;
         const centerIdx = points.length - 1;
-        // We'll perform limited passes and only apply small perpendicular nudges preferentially.
         const maxPasses = 60;
         for(let pass=0; pass<maxPasses; pass++){
           let moved = false;
@@ -337,14 +341,11 @@
               let d = Math.hypot(dx, dy) || 0.0001;
               if(d < minD - 0.1){
                 const overlap = (minD - d);
-                // compute unit vector
                 const ux = dx / d, uy = dy / d;
-                // compute small move magnitudes biased perpendicular to segment to keep spiral curve
                 const perpX = -uy, perpY = ux;
-                const moveMain = Math.max(0.4, overlap * 0.45);
-                const movePerp = Math.min(2.4, overlap * 0.25);
+                const moveMain = Math.max(0.35, overlap * 0.4);
+                const movePerp = Math.min(2.0, overlap * 0.18);
                 if(i === centerIdx){
-                  // move b radially outward slightly along ux,uy and add small perp jitter away
                   b.x = Math.round(b.x + ux * moveMain + perpX * (Math.random() - 0.5) * movePerp);
                   b.y = Math.round(b.y + uy * moveMain + perpY * (Math.random() - 0.5) * movePerp);
                 } else if(j === centerIdx){
@@ -356,7 +357,6 @@
                   b.x = Math.round(b.x + ux * (moveMain*0.55) + perpX * (Math.random() - 0.5) * movePerp);
                   b.y = Math.round(b.y + uy * (moveMain*0.55) + perpY * (Math.random() - 0.5) * movePerp);
                 }
-                // clamp after movement
                 const margin = tileSize/2 + 6;
                 a.x = Math.max(margin, Math.min(w - margin, a.x));
                 a.y = Math.max(margin, Math.min(h - margin, a.y));
@@ -367,10 +367,9 @@
             }
           }
           if(!moved) break;
-          if(pass > 45) minD *= 0.998; // gentle relaxation to allow convergence if tiny stuck cases
+          if(pass > 45) minD *= 0.998;
         }
 
-        // final safety: if still serious overlaps, fallback to deterministic spiral-grid (rare)
         for(let i=0;i<points.length;i++){
           for(let j=i+1;j<points.length;j++){
             const dx = points[j].x - points[i].x, dy = points[j].y - points[i].y;
@@ -541,7 +540,7 @@
 
       attachHandlers();
       layoutTiles();
-      pushLog("UI ready — 螺旋を見やすく、中心の詰まりを活かしたレイアウトに戻しました。");
+      pushLog("UI ready — 螺旋の収束をやや強め、ターン（らせん）の見やすさを高めました。");
     }
   })();
   </script>
