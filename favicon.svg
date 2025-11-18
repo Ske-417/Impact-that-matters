@@ -1,18 +1,35 @@
-<!-- filename: M_center_black.svg -->
-<svg xmlns="http://www.w3.org/2000/svg" width="500" height="500" viewBox="0 0 500 500">
-  <!-- 黒背景 -->
-  <rect x="0" y="0" width="500" height="500" fill="#000000"/>
+<!-- filename: favicon_simple_stylish.svg -->
+<svg xmlns="http://www.w3.org/2000/svg" width="500" height="500" viewBox="0 0 500 500" aria-hidden="true">
+    <defs>
+        <!-- 背景: 黒系グラデーション -->
+        <linearGradient id="bgSimple" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stop-color="#0a0a0a"/>
+            <stop offset="100%" stop-color="#141414"/>
+        </linearGradient>
 
-  <!-- 中央の M（ゴシック体／sans-serif） -->
-  <!-- text-anchor="middle" で水平中央、dominant-baseline="middle" で垂直中央に配置 -->
-  <!-- font-size は500pxに対してバランス良く見えるように 320px 程度に設定 -->
-  <text x="250" y="250"
-        text-anchor="middle"
-        dominant-baseline="middle"
-        font-family="system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif"
-        font-weight="700"
-        font-size="320"
-        fill="#86BB27">
-    M
-  </text>
+        <!-- ドロップシャドウ（控えめ） -->
+        <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+            <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#ffffffff" flood-opacity="0.35"/>
+        </filter>
+
+        <!-- 文字用グラデーション（#86BB27 を基調） -->
+        <linearGradient id="letterGrad" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stop-color="#9AD93A"/>
+            <stop offset="55%" stop-color="#86BB27"/>
+            <stop offset="100%" stop-color="#6C951F"/>
+        </linearGradient>
+    </defs>
+
+    <!-- 背景 -->
+    <rect x="0" y="0" width="500" height="500" rx="40" ry="40" fill="url(#bgSimple)"/>
+
+    <!-- 中央の文字 M （シンプル: グラデ + シャドウ） -->
+    <text x="250" y="285" text-anchor="middle" dominant-baseline="middle"
+          font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"
+          font-weight="700" font-size="300"
+          fill="url(#letterGrad)"
+          filter="url(#softShadow)"
+          paint-order="fill">
+        M
+    </text>
 </svg>
